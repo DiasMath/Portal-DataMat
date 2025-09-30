@@ -34,3 +34,35 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+---
+
+## Sobre o Projeto
+
+Este é um projeto Next.js 14 com App Router, TailwindCSS e shadcn/ui.
+
+### Estrutura de Pastas
+
+- `src/app`: Contém as páginas da aplicação.
+- `src/components`: Contém os componentes React.
+- `src/lib`: Contém funções utilitárias.
+- `src/hooks`: Contém os hooks React.
+
+### Tecnologias
+
+- [Next.js](https://nextjs.org/)
+- [TailwindCSS](https://tailwindcss.com/)
+- [shadcn/ui](https://ui.shadcn.com/)
+
+## Como Rodar Localmente
+
+1. Clone o repositório.
+2. Instale as dependências com `npm install`.
+3. Rode o servidor de desenvolvimento com `npm run dev`.
+4. Abra [http://localhost:3000](http://localhost:3000) no seu navegador.
+
+## Deploy na Vercel
+
+1. Crie uma conta na [Vercel](https://vercel.com/).
+2. Conecte seu repositório do GitHub, GitLab ou Bitbucket.
+3. A Vercel irá detectar automaticamente que é um projeto Next.js e irá fazer o build e deploy.
