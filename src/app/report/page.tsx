@@ -1,3 +1,5 @@
+"use client"
+
 export default function ReportPage() {
   return (
     <div className="iframe-container">
@@ -18,3 +20,4 @@ export default function ReportPage() {
 // &chromeless=1 - Remove alguns elementos da interface
 // &navContentPaneEnabled=false - Remove o painel de navegação
 // &filterPaneEnabled=false - Remove o painel de filtros
+// src="https://app.powerbi.com/view?r=eyJrIjoiY2NiODU5NDQtMzc5NS00Nzc1LTgwM2QtNmVlZjgxY2M4MjJiIiwidCI6IjI5YTkxMTk4LTVlN2MtNGNkOC04NmEwLTIwMmEyMTBmOGMwNyJ9"
