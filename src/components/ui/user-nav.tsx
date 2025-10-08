@@ -13,11 +13,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
+import { useTheme } from "next-themes";
+import { Sun, Moon, Monitor, BarChart3 } from "lucide-react";
 import Link from "next/link";
 
 export function UserNav() {
   const { user, userData, signOut, isAdmin } = useAuth();
   const router = useRouter();
+  const { theme, setTheme } = useTheme();
 
   const handleLogout = async () => {
     try {
@@ -57,11 +60,22 @@ export function UserNav() {
     }
   };
 
+  const getThemeLabel = () => {
+    switch (theme) {
+      case "light":
+        return "Claro";
+      case "dark":
+        return "Escuro";
+      default:
+        return "Sistema";
+    }
+  };
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-          <Avatar className="h-8 w-8">
+          <Avatar className="h-8 w-8 shadow-md">
             {user.photoURL && (
               <AvatarImage src={user.photoURL} alt={userData.displayName || userData.email} />
             )}
@@ -86,13 +100,14 @@ export function UserNav() {
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
           <DropdownMenuItem asChild>
-            <Link href="/dashboard">Dashboard</Link>
+            <Link href="/admin">Painel Administrativo</Link>
           </DropdownMenuItem>
           {userData.dashboardLink && (
             <DropdownMenuItem asChild>
-              <a href={userData.dashboardLink} target="_blank" rel="noopener noreferrer">
-                Meu Dashboard
-              </a>
+              <Link href="/dashboard">
+                <BarChart3 className="mr-2 h-4 w-4" />
+                Dashboard
+              </Link>
             </DropdownMenuItem>
           )}
           {isAdmin && (
@@ -100,6 +115,24 @@ export function UserNav() {
               <Link href="/admin/users">Gerenciar Usuários</Link>
             </DropdownMenuItem>
           )}
+        </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="text-xs text-muted-foreground">
+            Tema: {getThemeLabel()}
+          </DropdownMenuLabel>
+          <DropdownMenuItem onClick={() => setTheme("light")}>
+            <Sun className="mr-2 h-4 w-4" />
+            Claro
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setTheme("dark")}>
+            <Moon className="mr-2 h-4 w-4" />
+            Escuro
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setTheme("system")}>
+            <Monitor className="mr-2 h-4 w-4" />
+            Sistema
+          </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleLogout}>
