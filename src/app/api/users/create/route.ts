@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Obter dados do usuário a ser criado
-    const { email, displayName, role, authorized, dashboardLink, password } = await request.json();
+    const { email, displayName, role, authorized, dashboardLink, password, companyId } = await request.json();
 
     if (!email) {
       return NextResponse.json({ error: 'Email é obrigatório' }, { status: 400 });
@@ -54,6 +54,7 @@ export async function POST(request: NextRequest) {
       uid: userRecord.uid,
       email,
       displayName: displayName || '',
+      companyId: companyId || null,
       role: role || 'user',
       authorized: authorized !== undefined ? authorized : true,
       dashboardLink: dashboardLink || '',
