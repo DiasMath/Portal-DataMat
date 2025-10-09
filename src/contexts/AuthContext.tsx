@@ -25,11 +25,13 @@ interface UserData {
   createdAt?: { seconds: number };
   updatedAt?: { seconds: number };
   lastLogin?: { seconds: number };
+  companyId?: string;
 }
 
 interface AuthContextType {
   user: User | null;
   userData: UserData | null;
+  setUserData: React.Dispatch<React.SetStateAction<UserData | null>>;
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
   signInWithMicrosoft: () => Promise<void>;
@@ -39,6 +41,7 @@ interface AuthContextType {
   isAdmin: boolean;
   isMasterAdmin: boolean;
   isAuthorized: boolean;
+  companyId?: string;
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
@@ -166,6 +169,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const signOut = async () => {
     try {
+      // Apenas executa o signOut do Firebase.
+      // O listener onAuthStateChanged cuidará de limpar o estado e o cookie de sessão.
       await firebaseSignOut(auth);
       setUser(null);
       setUserData(null);
@@ -182,6 +187,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const value: AuthContextType = {
     user,
     userData,
+    setUserData,
     loading,
     signInWithGoogle,
     signInWithMicrosoft,
