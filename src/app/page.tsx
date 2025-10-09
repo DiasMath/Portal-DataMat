@@ -14,18 +14,22 @@ import { useEffect } from "react";
 import Link from "next/link";
 
 export default function Home() {
-  const { user, loading, isAuthorized } = useAuth();
+  const { user, loading, isAuthorized, isAdmin, isMasterAdmin } = useAuth();
   const router = useRouter();
 
-  useEffect(() => {
+  useEffect(() => { 
     if (!loading) {
       if (user && isAuthorized) {
-        router.push('/dashboard');
+        if (isAdmin || isMasterAdmin) {
+          router.push('/admin');
+        } else {
+          router.push('/dashboard');
+        }
       } else if (user && !isAuthorized) {
         router.push('/unauthorized');
       }
     }
-  }, [user, loading, isAuthorized, router]);
+  }, [user, loading, isAuthorized, isAdmin, router]);
 
   if (loading) {
     return (

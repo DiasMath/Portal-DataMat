@@ -16,7 +16,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 export default function LoginPage() {
-  const { user, signInWithGoogle, signInWithMicrosoft, signInWithGitHub, signInWithEmailPassword, isAuthorized } = useAuth();
+  const { user, signInWithGoogle, signInWithMicrosoft, signInWithGitHub, signInWithEmailPassword, isAuthorized, isAdmin, isMasterAdmin } = useAuth();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
@@ -25,7 +25,11 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (user && isAuthorized) {
-      router.push('/dashboard');
+      if (isAdmin || isMasterAdmin) {
+        router.push('/admin');
+      } else {
+        router.push('/dashboard');
+      }
     } else if (user && !isAuthorized) {
       router.push('/unauthorized');
     }
@@ -87,14 +91,14 @@ export default function LoginPage() {
   // Se já está logado, não mostra a página de login
   if (user) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center h-screen">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
       </div>
     );
   }
 
   return (
-    <main className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900">
+    <main className="flex items-center justify-center h-screen p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-2xl">Login</CardTitle>
@@ -184,7 +188,7 @@ export default function LoginPage() {
 
           <div className="text-sm text-gray-600 text-center mt-4">
             <p>Apenas usuários autorizados podem acessar o sistema.</p>
-            <p>Entre em contato com o administrador para solicitar acesso.</p>
+            <p>Entre em contato com a DataMat para solicitar acesso.</p>
           </div>
         </CardContent>
       </Card>

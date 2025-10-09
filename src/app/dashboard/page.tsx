@@ -1,146 +1,71 @@
+"use client";
 
-'use client';
-
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { useAuth } from "@/contexts/AuthContext";
-import { UserNav } from "@/components/ui/user-nav";
-import { ExternalLink, Users } from "lucide-react";
-import Link from "next/link";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { useEffect, useState } from "react";
 
 export default function DashboardPage() {
-  const { userData, isAdmin, isMasterAdmin } = useAuth();
+  const { userData } = useAuth();
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    setIsLoading(false);
+  }, [userData]);
+
+  if (isLoading) {
+    return (
+      <ProtectedRoute requireAuth={true}>
+        <main className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary mx-auto"></div>
+            <p className="mt-4 text-muted-foreground">
+              Carregando seu dashboard...
+            </p>
+          </div>
+        </main>
+      </ProtectedRoute>
+    );
+  }
+
+  if (!userData?.dashboardLink) {
+    return (
+      <ProtectedRoute requireAuth={true}>
+        <main className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <h2 className="text-2xl font-semibold mb-4">
+              Sem Dashboard Configurado
+            </h2>
+            <p className="text-muted-foreground">
+              Você tem acesso ao sistema, mas ainda não possui um dashboard
+              configurado.
+              <br />
+              Entre em contato com o administrador para mais informações.
+            </p>
+          </div>
+        </main>
+      </ProtectedRoute>
+    );
+  }
+
+  // Add Power BI iframe optimization parameters
+  const optimizeUrl = (url: string) => {
+    const separator = url.includes("?") ? "&" : "?";
+    return `${url}${separator}chromeless=1&navContentPaneEnabled=false`;
+  };
 
   return (
     <ProtectedRoute requireAuth={true}>
-      <main className="container mx-auto px-4 py-8">
-        <div className="max-w-6xl mx-auto space-y-6">
-          {/* Header */}
-          <Card>
-            <CardHeader>
-              <div className="flex justify-between items-start">
-                <div>
-                  <CardTitle className="text-2xl">Dashboard do Usuário</CardTitle>
-                  <CardDescription>
-                    Bem-vindo, {userData?.displayName || userData?.email}
-                  </CardDescription>
-                </div>
-                <UserNav />
-              </div>
-            </CardHeader>
-          </Card>
+      <div className="flex-1 w-full h-[calc(100vh-64px)] overflow-hidden">
+        <iframe
+          title="Dashboard do Power BI"
+          src={optimizeUrl(userData.dashboardLink)}
+          className="w-full h-full border-0"
+          allowFullScreen
+          loading="lazy"
+        />
 
-          {/* Informações do Usuário */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Suas Informações</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <p className="font-semibold">Email:</p>
-                  <p className="text-gray-600">{userData?.email}</p>
-                </div>
-                <div>
-                  <p className="font-semibold">Nível de Acesso:</p>
-                  <p className="text-gray-600">
-                    {userData?.role === 'master_admin' && 'Master Administrador'}
-                    {userData?.role === 'admin' && 'Administrador'}
-                    {userData?.role === 'user' && 'Usuário'}
-                  </p>
-                </div>
-                {userData?.provider && (
-                  <div>
-                    <p className="font-semibold">Método de Login:</p>
-                    <p className="text-gray-600">
-                      {userData.provider === 'google.com' && 'Google'}
-                      {userData.provider === 'microsoft.com' && 'Microsoft'}
-                      {userData.provider === 'github.com' && 'GitHub'}
-                      {userData.provider === 'password' && 'Email/Senha'}
-                    </p>
-                  </div>
-                )}
-                {userData?.lastLogin && (
-                  <div>
-                    <p className="font-semibold">Último Acesso:</p>
-                    <p className="text-gray-600">
-                      {new Date(userData.lastLogin.seconds * 1000).toLocaleString('pt-BR')}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Dashboard do Power BI */}
-          {userData?.dashboardLink && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Seu Dashboard</CardTitle>
-                <CardDescription>
-                  Acesse seu dashboard personalizado do Power BI
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button asChild>
-                  <a 
-                    href={userData.dashboardLink} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center"
-                  >
-                    <ExternalLink className="w-4 h-4 mr-2" />
-                    Abrir Dashboard
-                  </a>
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Painel Administrativo */}
-          {isAdmin && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Painel Administrativo</CardTitle>
-                <CardDescription>
-                  Ferramentas de administração do sistema
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <Button asChild variant="outline">
-                    <Link href="/admin/users" className="inline-flex items-center">
-                      <Users className="w-4 h-4 mr-2" />
-                      Gerenciar Usuários
-                    </Link>
-                  </Button>
-                  {isMasterAdmin && (
-                    <div className="text-sm text-gray-500 mt-2">
-                      Você tem acesso completo como Master Administrador
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Mensagem para usuários sem dashboard */}
-          {!userData?.dashboardLink && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Dashboard em Configuração</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600">
-                  Seu dashboard personalizado ainda não foi configurado. 
-                  Entre em contato com o administrador para solicitar acesso aos relatórios.
-                </p>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      </main>
+        <div className="absolute bottom-0 left-0 w-full h-[108px] bg-white"></div>
+      </div>
     </ProtectedRoute>
   );
 }

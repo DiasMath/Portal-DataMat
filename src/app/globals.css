@@ -41,6 +41,10 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+    /* Adicionando cores da navbar ao tema */
+  --color-navbar: var(--navbar);
+  --color-navbar-foreground: var(--navbar-foreground);
+  --color-navbar-accent: var(--navbar-accent);
 }
 
 :root {
@@ -76,6 +80,10 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  /* Adicionando tokens de cor âmbar para navbar */
+  --navbar: oklch(0.858 0.154 84);
+  --navbar-foreground: oklch(0.35 0.12 65);
+  --navbar-accent: oklch(0.75 0.15 70);
 }
 
 .dark {
@@ -110,6 +118,10 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+  /* Tokens âmbar para modo escuro */
+  --navbar: oklch(0.25 0.08 65);
+  --navbar-foreground: oklch(0.85 0.12 75);
+  --navbar-accent: oklch(0.65 0.15 70);
 }
 
 @layer base {
@@ -176,11 +188,9 @@ table {
 th, td {
   padding: 12px;
   text-align: left;
-  border-bottom: 1px solid #ddd;
 }
 
 th {
-  background-color: #f8f9fa;
   font-weight: 600;
 }
 

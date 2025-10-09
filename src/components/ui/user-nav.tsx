@@ -14,11 +14,11 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
-import { Sun, Moon, Monitor, BarChart3 } from "lucide-react";
+import { Sun, Moon, Monitor } from "lucide-react";
 import Link from "next/link";
 
 export function UserNav() {
-  const { user, userData, signOut, isAdmin } = useAuth();
+  const { user, userData, signOut, isMasterAdmin } = useAuth();
   const router = useRouter();
   const { theme, setTheme } = useTheme();
 
@@ -38,9 +38,9 @@ export function UserNav() {
   const getInitials = () => {
     if (userData.displayName) {
       return userData.displayName
-        .split(' ')
-        .map(name => name[0])
-        .join('')
+        .split(" ")
+        .map((name) => name[0])
+        .join("")
         .toUpperCase()
         .slice(0, 2);
     }
@@ -49,14 +49,14 @@ export function UserNav() {
 
   const getRoleDisplay = () => {
     switch (userData.role) {
-      case 'master_admin':
-        return 'Master Administrador';
-      case 'admin':
-        return 'Administrador';
-      case 'user':
-        return 'Usuário';
+      case "master_admin":
+        return "Master Administrador";
+      case "admin":
+        return "Administrador";
+      case "user":
+        return "Usuário";
       default:
-        return 'Usuário';
+        return "Usuário";
     }
   };
 
@@ -77,7 +77,10 @@ export function UserNav() {
         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
           <Avatar className="h-8 w-8 shadow-md">
             {user.photoURL && (
-              <AvatarImage src={user.photoURL} alt={userData.displayName || userData.email} />
+              <AvatarImage
+                src={user.photoURL}
+                alt={userData.displayName || userData.email}
+              />
             )}
             <AvatarFallback>{getInitials()}</AvatarFallback>
           </Avatar>
@@ -87,7 +90,7 @@ export function UserNav() {
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none">
-              {userData.displayName || 'Usuário'}
+              {userData.displayName || "Usuário"}
             </p>
             <p className="text-xs leading-none text-muted-foreground">
               {userData.email}
@@ -99,18 +102,15 @@ export function UserNav() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuItem asChild>
-            <Link href="/admin">Painel Administrativo</Link>
-          </DropdownMenuItem>
-          {userData.dashboardLink && (
+          {isMasterAdmin && (
             <DropdownMenuItem asChild>
-              <Link href="/dashboard">
-                <BarChart3 className="mr-2 h-4 w-4" />
-                Dashboard
-              </Link>
+              <Link href="/admin">Painel Administrativo</Link>
             </DropdownMenuItem>
           )}
-          {isAdmin && (
+            <DropdownMenuItem asChild>
+              <Link href="/dashboard">Dashboard</Link>
+            </DropdownMenuItem>
+          {isMasterAdmin && (
             <DropdownMenuItem asChild>
               <Link href="/admin/users">Gerenciar Usuários</Link>
             </DropdownMenuItem>
@@ -135,9 +135,7 @@ export function UserNav() {
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleLogout}>
-          Sair
-        </DropdownMenuItem>
+        <DropdownMenuItem onClick={handleLogout}>Sair</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
