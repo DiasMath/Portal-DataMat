@@ -69,20 +69,31 @@ export default function UsersManagementPage() {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [newDashboardLink, setNewDashboardLink] = useState("");
+  const [currentUserUid, setCurrentUserUid] = useState<string | null>(null);
 
   // Form state for new user
   const [formData, setFormData] = useState({
     email: "",
     displayName: "",
     companyId: "",
-    role: "user" as "user",
+    role: "user",
     authorized: true,
     dashboardLink: "",
     password: "", // Campo opcional para senha personalizada
   });
 
   useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user) {
+        setCurrentUserUid(user.uid);
+      } else {
+        setCurrentUserUid(null);
+      }
+    });
+
     fetchUsers();
+
+    return () => unsubscribe();
   }, []);
 
   const fetchUsers = async () => {
@@ -146,7 +157,7 @@ export default function UsersManagementPage() {
         if (navigator.clipboard) {
           navigator.clipboard.writeText(result.tempPassword)
             .then(() => toast.success("Senha copiada para a área de transferência!"))
-            .catch(_err => toast.error("Não foi possível copiar a senha."));
+            .catch(() => toast.error("Não foi possível copiar a senha."));
         }
         toast.info("Senha Temporária Gerada", {
           description: `A senha ${result.tempPassword} foi copiada. Compartilhe com o usuário de forma segura.`,
@@ -521,6 +532,7 @@ export default function UsersManagementPage() {
                             size="sm"
                             variant="destructive"
                             onClick={() => handleDeleteUser(user.id)}
+                            disabled={user.id === currentUserUid}
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
