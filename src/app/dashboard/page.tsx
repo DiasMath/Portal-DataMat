@@ -60,6 +60,7 @@ export default function DashboardPage() {
           title="Dashboard do Power BI"
           src={optimizeUrl(userData.dashboardLink)}
           className="w-full h-full border-0"
+          width="600" height="373.5"
           allowFullScreen
           loading="lazy"
         />

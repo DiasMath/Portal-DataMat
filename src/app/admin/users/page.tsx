@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { useState, useEffect } from "react";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
@@ -36,13 +36,14 @@ import {
   getDocs,
   doc,
   updateDoc,
-  deleteDoc,
   serverTimestamp,
   query,
   orderBy,
+  deleteDoc,
 } from "firebase/firestore";
+import { sendPasswordResetEmail } from "firebase/auth";
 import { db, auth } from "@/lib/firebase";
-import { Plus, Edit, Trash2, Check, X } from "lucide-react";
+import { Plus, Edit, Trash2, Check, X, Mail, Link2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface User {
@@ -63,8 +64,13 @@ export default function UsersManagementPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  
+  // State for the edit modal
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [newDashboardLink, setNewDashboardLink] = useState("");
 
-  // Form state
+  // Form state for new user
   const [formData, setFormData] = useState({
     email: "",
     displayName: "",
@@ -80,6 +86,7 @@ export default function UsersManagementPage() {
   }, []);
 
   const fetchUsers = async () => {
+    setLoading(true);
     try {
       const usersQuery = query(
         collection(db, "users"),
@@ -90,7 +97,6 @@ export default function UsersManagementPage() {
         id: doc.id,
         ...doc.data(),
       })) as User[];
-
       setUsers(usersData);
     } catch (error) {
       console.error("Erro ao buscar usuários:", error);
@@ -102,7 +108,6 @@ export default function UsersManagementPage() {
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    
     try {
       const currentUser = auth.currentUser;
       if (!currentUser) {
@@ -111,7 +116,6 @@ export default function UsersManagementPage() {
       
       const token = await currentUser.getIdToken();
       
-      // Chamar API para criar usuário com Firebase Auth
       const response = await fetch("/api/users/create", {
         method: "POST",
         headers: {
@@ -139,8 +143,14 @@ export default function UsersManagementPage() {
       toast.success(`Usuário criado com sucesso! ${result.message}`);
 
       if (result.tempPassword) {
-        toast.success(`Senha temporária gerada: ${result.tempPassword}`, {
-          description: "COMPARTILHE ESTA SENHA COM O USUÁRIO DE FORMA SEGURA!",
+        if (navigator.clipboard) {
+          navigator.clipboard.writeText(result.tempPassword)
+            .then(() => toast.success("Senha copiada para a área de transferência!"))
+            .catch(err => toast.error("Não foi possível copiar a senha."));
+        }
+        toast.info("Senha Temporária Gerada", {
+          description: `A senha ${result.tempPassword} foi copiada. Compartilhe com o usuário de forma segura.`,
+          duration: Infinity,
         });
       }
 
@@ -201,8 +211,29 @@ export default function UsersManagementPage() {
 
       } catch (error: any) {
         console.error("Erro ao excluir usuário:", error);
-        toast.error(`Erro ao excluir usuário: ${error.message}`);
+        toast.error("Falha ao excluir usuário do banco de dados.");
       }
+    }
+  };
+
+  const handleSendPasswordReset = async (email: string) => {
+    if (!confirm(`Tem certeza que deseja enviar um link de redefinição de senha para ${email}?`)) return;
+
+    try {
+      await sendPasswordResetEmail(auth, email);
+      toast.success(`Email de redefinição enviado para ${email}`);
+    } catch (error) {
+      console.error("Erro ao enviar email de redefinição:", error);
+      toast.error("Falha ao enviar email.");
+    }
+  };
+
+  const handleDashboardLinkUpdate = async () => {
+    if (!editingUser) return;
+    const success = await handleUpdateUser(editingUser.id, { dashboardLink: newDashboardLink });
+    if (success) {
+      toast.success("Link do dashboard atualizado com sucesso!");
+      setShowEditModal(false);
     }
   };
 
@@ -210,7 +241,7 @@ export default function UsersManagementPage() {
     await handleUpdateUser(user.id, { authorized: !user.authorized });
   };
 
-  if (loading) {
+  if (loading && users.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
@@ -252,7 +283,6 @@ export default function UsersManagementPage() {
                         sistema
                       </DialogDescription>
                     </DialogHeader>
-
                     <form onSubmit={handleCreateUser} className="space-y-4">
                       <div className="space-y-2">
                         <Label htmlFor="email">Email *</Label>
@@ -482,11 +512,11 @@ export default function UsersManagementPage() {
                           >
                             {user.authorized ? "Desautorizar" : "Autorizar"}
                           </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => console.log("Edit user:", user.id)}
-                          >
+                          <Button size="sm" variant="outline" onClick={() => {
+                            setEditingUser(user);
+                            setNewDashboardLink(user.dashboardLink || '');
+                            setShowEditModal(true);
+                          }}>
                             <Edit className="w-4 h-4" />
                           </Button>
                           <Button
@@ -506,6 +536,46 @@ export default function UsersManagementPage() {
           </Card>
         </div>
       </main>
+
+      {/* Edit User Modal */}
+      <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Usuário</DialogTitle>
+            <DialogDescription>{editingUser?.email}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6 py-4">
+            {/* Update Dashboard Link Section */}
+            <div className="space-y-2">
+              <Label htmlFor="dashboard-link" className="flex items-center">
+                <Link2 className="w-4 h-4 mr-2" /> Link do Dashboard
+              </Label>
+              <div className="flex space-x-2">
+                <Input
+                  id="dashboard-link"
+                  value={newDashboardLink}
+                  onChange={(e) => setNewDashboardLink(e.target.value)}
+                  placeholder="https://app.powerbi.com/..."
+                />
+                <Button onClick={handleDashboardLinkUpdate}>Salvar Link</Button>
+              </div>
+            </div>
+
+            {/* Send Password Reset Section */}
+            <div className="space-y-2">
+              <Label className="flex items-center">
+                <Mail className="w-4 h-4 mr-2" /> Ações de Email
+              </Label>
+              <Button variant="secondary" className="w-full" onClick={() => handleSendPasswordReset(editingUser!.email)}>
+                Enviar Link para Redefinir Senha
+              </Button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditModal(false)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </ProtectedRoute>
   );
 }

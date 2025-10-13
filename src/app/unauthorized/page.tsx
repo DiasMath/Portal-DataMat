@@ -10,11 +10,22 @@ import {
 } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { AlertTriangle, LogOut } from "lucide-react";
 
 export default function UnauthorizedPage() {
-  const { user, signOut } = useAuth();
+  const { userData, signOut, isAuthorized } = useAuth();
   const router = useRouter();
+
+  useEffect(() => {
+    if (userData && isAuthorized) {
+      if (userData.role === 'user') {
+        router.push('/dashboard');
+      } else if (userData.role === 'admin' || userData.role === 'master_admin') {
+        router.push('/admin');
+      }
+    }
+  }, [userData, isAuthorized, router]);
 
   const handleSignOut = async () => {
     try {
@@ -38,15 +49,15 @@ export default function UnauthorizedPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {user && (
+          {userData && (
             <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
               <h3 className="font-semibold text-blue-900 mb-2">Informações da Conta</h3>
               <p className="text-sm text-blue-800">
-                <strong>Email:</strong> {user.email}
+                <strong>Email:</strong> {userData.email}
               </p>
-              {user.displayName && (
+              {userData.displayName && (
                 <p className="text-sm text-blue-800">
-                  <strong>Nome:</strong> {user.displayName}
+                  <strong>Nome:</strong> {userData.displayName}
                 </p>
               )}
             </div>

@@ -10,10 +10,10 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 export default function LoginPage() {
   const { user, signInWithGoogle, signInWithMicrosoft, signInWithGitHub, signInWithEmailPassword, isAuthorized, isAdmin, isMasterAdmin } = useAuth();
@@ -132,6 +132,11 @@ export default function LoginPage() {
                 required
                 disabled={loading}
               />
+              <div className="text-right">
+                  <Link href="/forgot-password" className="text-xs text-muted-foreground hover:text-primary underline-offset-4 hover:underline disabled:opacity-50">
+                    Esqueceu a senha?
+                  </Link>
+              </div>
             </div>
             <Button 
               type="submit"
@@ -142,6 +147,7 @@ export default function LoginPage() {
             </Button>
           </form>
 
+          {/*
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
               <Separator className="w-full" />
@@ -153,7 +159,6 @@ export default function LoginPage() {
             </div>
           </div>
           
-          {/* Login com Provedores */}
           <Button 
             className="w-full" 
             onClick={handleGoogleLogin}
@@ -178,7 +183,7 @@ export default function LoginPage() {
             variant="outline"
           >
             {loading ? "Carregando..." : "Entrar com GitHub"}
-          </Button>
+          </Button>*/}
 
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative">
