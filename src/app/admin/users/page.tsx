@@ -39,7 +39,6 @@ import {
   serverTimestamp,
   query,
   orderBy,
-  deleteDoc,
 } from "firebase/firestore";
 import { sendPasswordResetEmail } from "firebase/auth";
 import { db, auth } from "@/lib/firebase";
@@ -147,7 +146,7 @@ export default function UsersManagementPage() {
         if (navigator.clipboard) {
           navigator.clipboard.writeText(result.tempPassword)
             .then(() => toast.success("Senha copiada para a área de transferência!"))
-            .catch(err => toast.error("Não foi possível copiar a senha."));
+            .catch(_err => toast.error("Não foi possível copiar a senha."));
         }
         toast.info("Senha Temporária Gerada", {
           description: `A senha ${result.tempPassword} foi copiada. Compartilhe com o usuário de forma segura.`,

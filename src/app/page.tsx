@@ -29,7 +29,7 @@ export default function Home() {
         router.push('/unauthorized');
       }
     }
-  }, [user, loading, isAuthorized, isAdmin, router]);
+  }, [user, loading, isAuthorized, isAdmin, isMasterAdmin, router]);
 
   if (loading) {
     return (

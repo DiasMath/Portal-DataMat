@@ -16,7 +16,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 export default function LoginPage() {
-  const { user, signInWithGoogle, signInWithMicrosoft, signInWithGitHub, signInWithEmailPassword, isAuthorized, isAdmin, isMasterAdmin } = useAuth();
+  const { user, signInWithEmailPassword, isAuthorized, isAdmin, isMasterAdmin } = useAuth();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
@@ -33,7 +33,7 @@ export default function LoginPage() {
     } else if (user && !isAuthorized) {
       router.push('/unauthorized');
     }
-  }, [user, isAuthorized, router]);
+  }, [user, isAuthorized, router, isAdmin, isMasterAdmin]);
 
   const handleEmailPasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,44 +49,7 @@ export default function LoginPage() {
     }
   };
 
-  const handleGoogleLogin = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      await signInWithGoogle();
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "Falha no login com Google.";
-      setError(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const handleMicrosoftLogin = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      await signInWithMicrosoft();
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "Falha no login com Microsoft.";
-      setError(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleGitHubLogin = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      await signInWithGitHub();
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "Falha no login com GitHub.";
-      setError(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Se já está logado, não mostra a página de login
   if (user) {
@@ -147,43 +110,6 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          {/*
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <Separator className="w-full" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">
-                Ou continue com
-              </span>
-            </div>
-          </div>
-          
-          <Button 
-            className="w-full" 
-            onClick={handleGoogleLogin}
-            disabled={loading}
-          >
-            {loading ? "Carregando..." : "Entrar com Google"}
-          </Button>
-          
-          <Button 
-            className="w-full" 
-            onClick={handleMicrosoftLogin}
-            disabled={loading}
-            variant="outline"
-          >
-            {loading ? "Carregando..." : "Entrar com Microsoft"}
-          </Button>
-          
-          <Button 
-            className="w-full" 
-            onClick={handleGitHubLogin}
-            disabled={loading}
-            variant="outline"
-          >
-            {loading ? "Carregando..." : "Entrar com GitHub"}
-          </Button>*/}
 
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative">

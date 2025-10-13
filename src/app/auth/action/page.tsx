@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { confirmPasswordReset, verifyPasswordResetCode } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
@@ -25,6 +25,22 @@ export default function AuthAction() {
   const mode = searchParams.get('mode');
   const oobCode = searchParams.get('oobCode');
 
+  const verifyCode = useCallback(async () => {
+    try {
+      const emailFromCode = await verifyPasswordResetCode(auth, oobCode!);
+      setEmail(emailFromCode);
+      setLoading(false);
+    } catch (error: unknown) {
+      console.error('Erro ao verificar código:', error);
+      if (error instanceof Error && 'code' in error && error.code === 'auth/expired-action-code') {
+        setError('Este link expirou. Solicite um novo link de redefinição.');
+      } else {
+        setError('Link inválido ou já utilizado.');
+      }
+      setLoading(false);
+    }
+  }, [oobCode]);
+
   useEffect(() => {
     if (!mode || !oobCode) {
       setError('Link inválido ou expirado');
@@ -38,23 +54,8 @@ export default function AuthAction() {
       setError('Ação não suportada');
       setLoading(false);
     }
-  }, [mode, oobCode]);
-
-  const verifyCode = async () => {
-    try {
-      const emailFromCode = await verifyPasswordResetCode(auth, oobCode!);
-      setEmail(emailFromCode);
-      setLoading(false);
-    } catch (error: any) {
-      console.error('Erro ao verificar código:', error);
-      if (error.code === 'auth/expired-action-code') {
-        setError('Este link expirou. Solicite um novo link de redefinição.');
-      } else {
-        setError('Link inválido ou já utilizado.');
-      }
-      setLoading(false);
-    }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, oobCode, verifyCode]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

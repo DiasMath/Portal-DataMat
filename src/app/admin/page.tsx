@@ -66,9 +66,10 @@ export default function AdminPage() {
       }
 
       setIsEditDialogOpen(false);
-    } catch (error: Error) {
+    } catch (error: unknown) {
       console.error("Erro ao atualizar o link do dashboard:", error);
-      toast.error(error.message || "Ocorreu um erro desconhecido.");
+      const errorMessage = error instanceof Error ? error.message : "Ocorreu um erro desconhecido.";
+      toast.error(errorMessage);
     }
   };
 
