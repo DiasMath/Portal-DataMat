@@ -45,6 +45,7 @@ import { sendPasswordResetEmail } from "firebase/auth";
 import { db, auth } from "@/lib/firebase";
 import { Plus, Edit, Trash2, Check, X, Mail, Link2 } from "lucide-react";
 import { toast } from "sonner";
+import Link from "next/link";
 
 interface User {
   id: string;
@@ -482,14 +483,12 @@ export default function UsersManagementPage() {
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {user.dashboardLink ? (
-                          <a
-                            href={user.dashboardLink}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                          <Link
+                            href={`/dashboard?url=${encodeURIComponent(user.dashboardLink)}`}
                             className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
                           >
                             Configurado
-                          </a>
+                          </Link>
                         ) : (
                           <span className="text-muted-foreground">
                             Não configurado
