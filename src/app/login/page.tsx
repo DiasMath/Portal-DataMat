@@ -16,7 +16,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 export default function LoginPage() {
-  const { user, signInWithEmailPassword, isAuthorized, isAdmin, isMasterAdmin } = useAuth();
+  const { user, signInWithEmailPassword, isAuthorized, isAdmin, isMasterAdmin, loading: authLoading } = useAuth();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
@@ -24,24 +24,66 @@ export default function LoginPage() {
   const router = useRouter();
 
   useEffect(() => {
+    // Aguarda o carregamento inicial da autenticação
+    if (authLoading) {
+      console.log('[Login] Aguardando carregamento da autenticação...');
+      return;
+    }
+
+    console.log('[Login] Estado:', { user: !!user, isAuthorized, isAdmin, isMasterAdmin });
+
     if (user && isAuthorized) {
-      if (isAdmin || isMasterAdmin) {
-        router.push('/admin');
-      } else {
-        router.push('/dashboard');
-      }
+      console.log('[Login] Usuário autenticado e autorizado, redirecionando...');
+      const redirectPath = (isAdmin || isMasterAdmin) ? '/admin' : '/dashboard';
+      
+      // Timeout de segurança - força o redirecionamento
+      const timeoutId = setTimeout(() => {
+        console.log('[Login] Forçando redirecionamento para:', redirectPath);
+        window.location.href = redirectPath;
+      }, 2000);
+
+      // Tenta redirecionamento normal
+      router.push(redirectPath);
+
+      return () => clearTimeout(timeoutId);
     } else if (user && !isAuthorized) {
+      console.log('[Login] Usuário autenticado mas não autorizado, redirecionando para unauthorized');
       router.push('/unauthorized');
     }
-  }, [user, isAuthorized, router, isAdmin, isMasterAdmin]);
+  }, [user, isAuthorized, router, isAdmin, isMasterAdmin, authLoading]);
 
   const handleEmailPasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
+    
     try {
+      console.log('[Login] Verificando email:', email);
+      
+      // Primeiro verificar se o usuário existe no Firestore
+      const checkResponse = await fetch('/api/users/check-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+
+      const checkData = await checkResponse.json();
+      console.log('[Login] Resposta da verificação:', checkResponse.status, checkData);
+
+      // Só bloqueia se tiver certeza que não existe (status 404 e exists === false)
+      if (checkResponse.status === 404 && checkData.exists === false) {
+        console.log('[Login] Email não cadastrado, bloqueando login');
+        setError('Este email não está cadastrado no sistema. Entre em contato com a DataMat para solicitar acesso.');
+        setLoading(false);
+        return;
+      }
+
+      console.log('[Login] Tentando fazer login com Firebase Auth');
+      // Se o usuário existe (ou se houve erro na verificação), tentar fazer login
       await signInWithEmailPassword(email, password);
+      console.log('[Login] Login bem-sucedido');
     } catch (error: unknown) {
+      console.error('[Login] Erro no login:', error);
       const errorMessage = error instanceof Error ? error.message : "Falha no login com email/senha.";
       setError(errorMessage);
     } finally {
@@ -51,8 +93,17 @@ export default function LoginPage() {
 
 
 
-  // Se já está logado, não mostra a página de login
-  if (user) {
+  // Se ainda está carregando a autenticação, mostra loading
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+      </div>
+    );
+  }
+
+  // Se já está logado E autorizado, não mostra a página de login
+  if (user && isAuthorized) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>

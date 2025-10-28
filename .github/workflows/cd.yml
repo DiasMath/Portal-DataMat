@@ -1,0 +1,72 @@
+name: CD - Deploy to VPS
+
+on:
+  push:
+    branches:
+      - prod
+      - dev
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+        env:
+          NEXT_PUBLIC_FIREBASE_API_KEY: ${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}
+          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+          NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ secrets.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+          NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+          NEXT_PUBLIC_FIREBASE_APP_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}
+          FIREBASE_ADMIN_SDK_BASE64: ${{ secrets.FIREBASE_ADMIN_SDK_BASE64 }}
+
+      - name: Prune Dev Dependencies
+        run: npm prune --production
+
+      - name: Set Environment-specific Variables
+        id: get_vars
+        run: |
+          if [ "${{ github.ref_name }}" == "prod" ]; then
+            echo "path=/var/www/analise-frontend/prod" >> $GITHUB_OUTPUT
+            echo "pm2_name=analise-frontend-prod" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref_name }}" == "dev" ]; then
+            echo "path=/var/www/analise-frontend/dev" >> $GITHUB_OUTPUT
+            echo "pm2_name=analise-frontend-dev" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy files to VPS
+        uses: easingthemes/ssh-deploy@v5.0.0
+        with:
+          SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          REMOTE_HOST: ${{ secrets.VPS_HOST }}
+          REMOTE_USER: ${{ secrets.VPS_USER }}
+          SOURCE: "."
+          TARGET: ${{ steps.get_vars.outputs.path }}
+          EXCLUDE: "/node_modules/, /src/, /.git/, /.github/"
+
+      - name: Install dependencies and Restart server on VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          script: |
+            cd ${{ steps.get_vars.outputs.path }}
+            npm install --production
+            pm2 reload ${{ steps.get_vars.outputs.pm2_name }} || pm2 start npm --name "${{ steps.get_vars.outputs.pm2_name }}" -- start
+            pm2 save

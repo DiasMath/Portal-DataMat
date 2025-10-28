@@ -1,38 +1,17 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { validateMasterAdmin } from "@/lib/auth-helpers";
 
 // Explicitamente setamos o runtime para Node.js como uma medida de segurança.
 export const runtime = 'nodejs';
 
-/**
- * Valida a sessão do chamador e verifica se ele é um master_admin.
- * Usa import dinâmico para compatibilidade com Turbopack.
- */
-async function validateMasterAdmin(session: string | undefined) {
-  if (!session) return null;
-  try {
-    const { adminAuth, adminDb } = await import('@/lib/firebase-admin');
-    if (!adminAuth || !adminDb) return null;
-
-    const decodedToken = await adminAuth.verifySessionCookie(session, true);
-    if (!decodedToken) return null;
-
-    const userDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
-    if (userDoc?.exists && userDoc.data()?.role === 'master_admin') {
-      return decodedToken.uid;
-    }
-    return null;
-  } catch (error) {
-    console.error("Erro ao validar master_admin:", error);
-    return null;
-  }
-}
-
 export async function POST(request: NextRequest) {
-  const session = request.cookies.get("session")?.value;
-
-  const masterAdminUid = await validateMasterAdmin(session);
-  if (!masterAdminUid) {
-    return NextResponse.json({ error: "Acesso não autorizado." }, { status: 403 });
+  // Validar autenticação e permissões
+  const currentUser = await validateMasterAdmin(request);
+  
+  if (!currentUser) {
+    return NextResponse.json({ 
+      error: "Acesso negado. Apenas master admins podem excluir usuários." 
+    }, { status: 403 });
   }
 
   const { uid: uidToDelete } = await request.json();
@@ -41,7 +20,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "UID do usuário não fornecido ou inválido." }, { status: 400 });
   }
 
-  if (uidToDelete === masterAdminUid) {
+  if (uidToDelete === currentUser.uid) {
     return NextResponse.json({ error: "Um administrador não pode se auto-excluir." }, { status: 400 });
   }
 
@@ -56,7 +35,7 @@ export async function POST(request: NextRequest) {
     await adminAuth.deleteUser(uidToDelete);
     await adminDb.collection('users').doc(uidToDelete).delete();
 
-    console.log(`Usuário ${uidToDelete} excluído com sucesso pelo admin ${masterAdminUid}`);
+    console.log(`Usuário ${uidToDelete} excluído com sucesso pelo admin ${currentUser.uid}`);
     return NextResponse.json({ success: true, message: `Usuário ${uidToDelete} excluído com sucesso.` });
 
   } catch (error: any) {

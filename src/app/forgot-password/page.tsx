@@ -29,6 +29,23 @@ export default function ForgotPassword() {
     setLoading(true);
 
     try {
+      // Primeiro verificar se o usuário existe no Firestore
+      const checkResponse = await fetch('/api/users/check-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+
+      const checkData = await checkResponse.json();
+
+      // Só bloqueia se tiver certeza que não existe (status 404 e exists === false)
+      if (checkResponse.status === 404 && checkData.exists === false) {
+        toast.error('Este email não está cadastrado no sistema. Entre em contato com a DataMat para solicitar acesso.');
+        setLoading(false);
+        return;
+      }
+
+      // Se o usuário existe (ou se houve erro na verificação), enviar o email de redefinição
       await sendPasswordResetEmail(auth, email);
 
       setEmailSent(true);

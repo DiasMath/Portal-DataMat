@@ -56,6 +56,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sessionCookieCreated, setSessionCookieCreated] = useState(false);
 
   const fetchUserData = async (user: User) => {
     try {
@@ -81,17 +82,53 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      console.log('[AuthContext] Auth state changed:', { user: !!user, sessionCookieCreated });
+      
       setUser(user);
       if (user) {
         await fetchUserData(user);
+        
+        // Criar session cookie no servidor APENAS UMA VEZ
+        if (!sessionCookieCreated) {
+          try {
+            console.log('[AuthContext] Criando session cookie...');
+            const idToken = await user.getIdToken();
+            const response = await fetch('/api/auth/session', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ idToken })
+            });
+            
+            if (response.ok) {
+              console.log('[AuthContext] Session cookie criado com sucesso');
+              setSessionCookieCreated(true);
+            } else {
+              console.error('[AuthContext] Falha ao criar session cookie:', await response.text());
+            }
+          } catch (error) {
+            console.error('[AuthContext] Erro ao criar session cookie:', error);
+          }
+        }
       } else {
         setUserData(null);
+        
+        // Remover session cookie no logout
+        if (sessionCookieCreated) {
+          try {
+            console.log('[AuthContext] Removendo session cookie...');
+            await fetch('/api/auth/session', { method: 'DELETE' });
+            console.log('[AuthContext] Session cookie removido');
+            setSessionCookieCreated(false);
+          } catch (error) {
+            console.error('[AuthContext] Erro ao remover session cookie:', error);
+          }
+        }
       }
       setLoading(false);
     });
 
     return unsubscribe;
-  }, []);
+  }, [sessionCookieCreated]);
 
   const signInWithGoogle = async () => {
     try {

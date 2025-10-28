@@ -1,37 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminAuth, adminDb } from '@/lib/firebase-admin';
+import { adminDb } from '@/lib/firebase-admin';
+import { validateMasterAdmin } from '@/lib/auth-helpers';
 import admin from 'firebase-admin';
 
 export async function POST(request: NextRequest) {
-   console.log("bati");
-
-
   try {
-    // Verificar autenticação do usuário
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Token de autorização necessário' }, { status: 401 });
+    // Verificar autenticação e permissões
+    const currentUser = await validateMasterAdmin(request);
+    
+    if (!currentUser) {
+      return NextResponse.json({ 
+        error: 'Acesso negado. Apenas master admins podem atualizar dashboards.' 
+      }, { status: 403 });
     }
-
-    const token = authHeader.split('Bearer ')[1];
     
     // Verificar se o Firebase Admin está configurado
-    if (!adminAuth || !adminDb) {
+    if (!adminDb) {
       return NextResponse.json({ 
         error: 'Firebase Admin não configurado. Configure a chave de serviço.' 
       }, { status: 500 });
-    }
-
-    // Verificar o token do usuário
-    const decodedToken = await adminAuth.verifyIdToken(token);
-    const currentUserId = decodedToken.uid;
-
-    // Verificar se o usuário atual é admin
-    const currentUserDoc = await adminDb.collection('users').doc(currentUserId).get();
-    const currentUserData = currentUserDoc.data();
-
-    if (!currentUserData || currentUserData.role !== 'master_admin') {
-      return NextResponse.json({ error: 'Acesso negado. Apenas administradores podem criar usuários.' }, { status: 403 });
     }
 
     // Obter dados da requisição
@@ -42,7 +29,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Atualizar documento no Firestore
-    const userRef = adminDb.collection('users').doc(currentUserId);
+    const userRef = adminDb.collection('users').doc(currentUser.uid);
     await userRef.update({
       dashboardLink: newDashboardLink,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
