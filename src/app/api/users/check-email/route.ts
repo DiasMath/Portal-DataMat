@@ -15,6 +15,13 @@ export async function POST(request: Request) {
 
     console.log('[check-email] Verificando email:', email);
 
+    if (!adminDb) {
+      return NextResponse.json(
+        { error: 'Firebase Admin não está configurado', exists: false },
+        { status: 500 }
+      );
+    }
+
     // Buscar usuário no Firestore pelo email
     const usersRef = adminDb.collection('users');
     const snapshot = await usersRef.where('email', '==', email).get();

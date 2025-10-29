@@ -15,6 +15,13 @@ export async function POST(request: Request) {
 
     console.log('[session] Criando session cookie para token:', idToken.substring(0, 20) + '...');
 
+    if (!adminAuth) {
+      return NextResponse.json(
+        { error: 'Firebase Admin não está configurado' },
+        { status: 500 }
+      );
+    }
+
     // Verificar o ID token
     const decodedToken = await adminAuth.verifyIdToken(idToken);
     console.log('[session] Token verificado para UID:', decodedToken.uid);

@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useState, useEffect } from "react";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
@@ -64,7 +64,7 @@ export default function UsersManagementPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  
+
   // State for the edit modal
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -104,7 +104,7 @@ export default function UsersManagementPage() {
         orderBy("createdAt", "desc")
       );
       const querySnapshot = await getDocs(usersQuery);
-      const usersData = querySnapshot.docs.map(doc => ({
+      const usersData = querySnapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       })) as User[];
@@ -124,9 +124,9 @@ export default function UsersManagementPage() {
       if (!currentUser) {
         throw new Error("Usuário não autenticado");
       }
-      
+
       const token = await currentUser.getIdToken();
-      
+
       const response = await fetch("/api/users/create", {
         method: "POST",
         headers: {
@@ -155,8 +155,11 @@ export default function UsersManagementPage() {
 
       if (result.tempPassword) {
         if (navigator.clipboard) {
-          navigator.clipboard.writeText(result.tempPassword)
-            .then(() => toast.success("Senha copiada para a área de transferência!"))
+          navigator.clipboard
+            .writeText(result.tempPassword)
+            .then(() =>
+              toast.success("Senha copiada para a área de transferência!")
+            )
             .catch(() => toast.error("Não foi possível copiar a senha."));
         }
         toast.info("Senha Temporária Gerada", {
@@ -187,7 +190,10 @@ export default function UsersManagementPage() {
     }
   };
 
-  const handleUpdateUser = async (userId: string, updates: Partial<User>) => {
+  const handleUpdateUser = async (
+    userId: string,
+    updates: Partial<User>
+  ): Promise<boolean> => {
     try {
       await updateDoc(doc(db, "users", userId), {
         ...updates,
@@ -195,18 +201,24 @@ export default function UsersManagementPage() {
       });
 
       await fetchUsers();
+      return true;
     } catch (error) {
       console.error("Erro ao atualizar usuário:", error);
+      return false;
     }
   };
 
   const handleDeleteUser = async (userId: string) => {
-    if (confirm("Tem certeza que deseja excluir este usuário? Esta ação é irreversível e removerá o usuário da autenticação e do banco de dados.")) {
+    if (
+      confirm(
+        "Tem certeza que deseja excluir este usuário? Esta ação é irreversível e removerá o usuário da autenticação e do banco de dados."
+      )
+    ) {
       try {
-        const response = await fetch('/api/users/delete', {
-          method: 'POST',
+        const response = await fetch("/api/users/delete", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({ uid: userId }),
         });
@@ -214,21 +226,29 @@ export default function UsersManagementPage() {
         const result = await response.json();
 
         if (!response.ok) {
-          throw new Error(result.error || 'Falha ao excluir usuário.');
+          throw new Error(result.error || "Falha ao excluir usuário.");
         }
 
-        toast.success('Usuário excluído com sucesso!');
+        toast.success("Usuário excluído com sucesso!");
         await fetchUsers(); // Refresh the user list
-
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error("Erro ao excluir usuário:", error);
-        toast.error("Falha ao excluir usuário do banco de dados.");
+        const errorMessage =
+          error instanceof Error
+            ? error.message
+            : "Falha ao excluir usuário do banco de dados.";
+        toast.error(errorMessage);
       }
     }
   };
 
   const handleSendPasswordReset = async (email: string) => {
-    if (!confirm(`Tem certeza que deseja enviar um link de redefinição de senha para ${email}?`)) return;
+    if (
+      !confirm(
+        `Tem certeza que deseja enviar um link de redefinição de senha para ${email}?`
+      )
+    )
+      return;
 
     try {
       await sendPasswordResetEmail(auth, email);
@@ -241,7 +261,9 @@ export default function UsersManagementPage() {
 
   const handleDashboardLinkUpdate = async () => {
     if (!editingUser) return;
-    const success = await handleUpdateUser(editingUser.id, { dashboardLink: newDashboardLink });
+    const success = await handleUpdateUser(editingUser.id, {
+      dashboardLink: newDashboardLink,
+    });
     if (success) {
       toast.success("Link do dashboard atualizado com sucesso!");
       setShowEditModal(false);
@@ -494,7 +516,9 @@ export default function UsersManagementPage() {
                       <TableCell className="text-sm text-muted-foreground">
                         {user.dashboardLink ? (
                           <Link
-                            href={`/dashboard?url=${encodeURIComponent(user.dashboardLink)}`}
+                            href={`/dashboard?url=${encodeURIComponent(
+                              user.dashboardLink
+                            )}`}
                             className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
                           >
                             Configurado
@@ -518,14 +542,19 @@ export default function UsersManagementPage() {
                             size="sm"
                             variant="outline"
                             onClick={() => toggleAuthorization(user)}
+                            disabled={user.id === currentUserUid}
                           >
                             {user.authorized ? "Desautorizar" : "Autorizar"}
                           </Button>
-                          <Button size="sm" variant="outline" onClick={() => {
-                            setEditingUser(user);
-                            setNewDashboardLink(user.dashboardLink || '');
-                            setShowEditModal(true);
-                          }}>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setEditingUser(user);
+                              setNewDashboardLink(user.dashboardLink || "");
+                              setShowEditModal(true);
+                            }}
+                          >
                             <Edit className="w-4 h-4" />
                           </Button>
                           <Button
@@ -576,13 +605,19 @@ export default function UsersManagementPage() {
               <Label className="flex items-center">
                 <Mail className="w-4 h-4 mr-2" /> Ações de Email
               </Label>
-              <Button variant="secondary" className="w-full" onClick={() => handleSendPasswordReset(editingUser!.email)}>
+              <Button
+                variant="secondary"
+                className="w-full"
+                onClick={() => handleSendPasswordReset(editingUser!.email)}
+              >
                 Enviar Link para Redefinir Senha
               </Button>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowEditModal(false)}>Fechar</Button>
+            <Button variant="outline" onClick={() => setShowEditModal(false)}>
+              Fechar
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

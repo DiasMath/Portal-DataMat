@@ -38,9 +38,10 @@ export async function POST(request: NextRequest) {
     console.log(`Usuário ${uidToDelete} excluído com sucesso pelo admin ${currentUser.uid}`);
     return NextResponse.json({ success: true, message: `Usuário ${uidToDelete} excluído com sucesso.` });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error(`Falha ao excluir usuário ${uidToDelete}:`, error);
-    if (error.code === 'auth/user-not-found') {
+    const firebaseError = error as { code?: string };
+    if (firebaseError.code === 'auth/user-not-found') {
       return NextResponse.json({ error: "Usuário não encontrado na autenticação do Firebase." }, { status: 404 });
     }
     return NextResponse.json({ error: "Erro interno do servidor ao excluir usuário." }, { status: 500 });

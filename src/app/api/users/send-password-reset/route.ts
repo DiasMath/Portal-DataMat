@@ -44,10 +44,11 @@ export async function POST(request: NextRequest) {
       message: "Link de redefinição gerado",
       resetLink, // Você pode enviar por email ou mostrar ao admin
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Erro ao gerar link de reset:", error);
 
-    if (error.code === "auth/user-not-found") {
+    const firebaseError = error as { code?: string };
+    if (firebaseError.code === "auth/user-not-found") {
       return NextResponse.json(
         { error: "Usuário não encontrado" },
         { status: 404 }

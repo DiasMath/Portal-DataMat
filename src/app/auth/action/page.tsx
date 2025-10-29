@@ -54,7 +54,6 @@ export default function AuthAction() {
       setError('Ação não suportada');
       setLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, oobCode, verifyCode]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -77,9 +76,10 @@ export default function AuthAction() {
       setTimeout(() => {
         router.push('/login');
       }, 2000);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao redefinir senha:', error);
-      if (error.code === 'auth/weak-password') {
+      const firebaseError = error as { code?: string };
+      if (firebaseError.code === 'auth/weak-password') {
         toast.error('Senha muito fraca. Use uma senha mais forte');
       } else {
         toast.error('Erro ao redefinir senha. Tente novamente');

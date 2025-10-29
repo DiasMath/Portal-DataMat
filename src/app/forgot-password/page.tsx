@@ -50,12 +50,13 @@ export default function ForgotPassword() {
 
       setEmailSent(true);
       toast.success('Email de redefinição enviado!');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao enviar email de reset:', error);
       
-      if (error.code === 'auth/user-not-found') {
+      const firebaseError = error as { code?: string };
+      if (firebaseError.code === 'auth/user-not-found') {
         toast.error('Email não encontrado no sistema');
-      } else if (error.code === 'auth/invalid-email') {
+      } else if (firebaseError.code === 'auth/invalid-email') {
         toast.error('Email inválido');
       } else {
         toast.error('Erro ao enviar email. Tente novamente');
