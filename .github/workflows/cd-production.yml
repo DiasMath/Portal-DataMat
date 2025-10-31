@@ -1,15 +1,14 @@
-name: CD - Deploy to Production
+name: Deploy to Production
 
 on:
   push:
     branches:
-      - main  # ou prod, como preferir
-  workflow_dispatch:  # Permite deploy manual
+      - main
+  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: production  # Proteção adicional
     
     steps:
       - name: Checkout code
@@ -38,100 +37,100 @@ jobs:
       - name: Create deployment package
         run: |
           mkdir -p deploy-package
+          
+          # Copiar apenas o necessário
           cp -r .next deploy-package/
           cp -r public deploy-package/ || echo "No public folder"
           cp package.json deploy-package/
           cp package-lock.json deploy-package/
-          cp next.config.js deploy-package/ || cp next.config.mjs deploy-package/ || echo "No next.config"
+          cp next.config.* deploy-package/ || echo "No next config"
           
-          # Criar arquivo .env.production
-          cat > deploy-package/.env.production << EOF
-          NODE_ENV=production
-          PORT=3000
-          NEXT_PUBLIC_FIREBASE_API_KEY=${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}
-          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
-          NEXT_PUBLIC_FIREBASE_PROJECT_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
-          NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=${{ secrets.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
-          NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
-          NEXT_PUBLIC_FIREBASE_APP_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}
-          FIREBASE_SERVICE_ACCOUNT_KEY=${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
-          JWT_SECRET=${{ secrets.JWT_SECRET }}
-          JWT_REFRESH_SECRET=${{ secrets.JWT_REFRESH_SECRET }}
-          EOF
+          # Criar tarball (compactar)
+          tar -czf deploy.tar.gz -C deploy-package .
 
-      - name: Deploy to VPS
+      - name: Upload to VPS
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USER }}
           key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
-          port: 22
-          source: "deploy-package/*"
-          target: "/home/${{ secrets.USER }}/analise-frontend-staging"
-          strip_components: 1
+          source: "deploy.tar.gz"
+          target: "/tmp/"
 
-      - name: Setup and restart application
+      - name: Deploy on VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USER }}
           key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
-          port: 22
           script: |
-            cd /home/${{ secrets.USER }}/analise-frontend-staging
+            # Criar diretório temporário
+            mkdir -p /tmp/deploy-temp
             
-            # Install only production dependencies
-            npm ci --production --prefer-offline
+            # Extrair arquivos
+            tar -xzf /tmp/deploy.tar.gz -C /tmp/deploy-temp
             
-            # Backup atual (se existir)
+            # Backup atual
             if [ -d "/var/www/analise-frontend/prod" ]; then
               sudo rm -rf /var/www/analise-frontend/prod-backup
               sudo cp -r /var/www/analise-frontend/prod /var/www/analise-frontend/prod-backup
             fi
             
-            # Mover nova versão
-            sudo mkdir -p /var/www/analise-frontend
-            sudo rm -rf /var/www/analise-frontend/prod
-            sudo mv /home/${{ secrets.USER }}/analise-frontend-staging /var/www/analise-frontend/prod
+            # Parar aplicação
+            pm2 stop analise-frontend-prod || true
+            
+            # Criar diretório se não existir
+            sudo mkdir -p /var/www/analise-frontend/prod
+            
+            # Copiar novos arquivos
+            sudo rm -rf /var/www/analise-frontend/prod/.next
+            sudo cp -r /tmp/deploy-temp/.next /var/www/analise-frontend/prod/
+            sudo cp /tmp/deploy-temp/package.json /var/www/analise-frontend/prod/
+            sudo cp /tmp/deploy-temp/package-lock.json /var/www/analise-frontend/prod/
             
             # Ajustar permissões
-            sudo chown -R ${{ secrets.USER }}:${{ secrets.USER }} /var/www/analise-frontend/prod
+            sudo chown -R deploy:deploy /var/www/analise-frontend/prod
             
-            # Restart com PM2 (zero-downtime)
+            # Ir para diretório
             cd /var/www/analise-frontend/prod
+            
+            # Criar .env.production
+            cat > .env.production << 'ENVEOF'
+            NODE_ENV=production
+            PORT=3000
+            NEXT_PUBLIC_FIREBASE_API_KEY=${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}
+            NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+            NEXT_PUBLIC_FIREBASE_PROJECT_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+            NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=${{ secrets.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+            NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+            NEXT_PUBLIC_FIREBASE_APP_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}
+            FIREBASE_ADMIN_PROJECT_ID=${{ secrets.FIREBASE_ADMIN_PROJECT_ID }}
+            FIREBASE_ADMIN_CLIENT_EMAIL=${{ secrets.FIREBASE_ADMIN_CLIENT_EMAIL }}
+            FIREBASE_ADMIN_PRIVATE_KEY=${{ secrets.FIREBASE_ADMIN_PRIVATE_KEY }}
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            NEXT_PUBLIC_APP_URL=http://191.252.60.127
+            ENVEOF
+            
+            # Instalar APENAS dependências de produção (mais leve!)
+            npm ci --production --prefer-offline
+            
+            # Reiniciar aplicação
             pm2 reload analise-frontend-prod || pm2 start npm --name "analise-frontend-prod" -- start
             pm2 save
+            
+            # Limpar temporários
+            rm -rf /tmp/deploy-temp
+            rm /tmp/deploy.tar.gz
             
             # Health check
             sleep 5
             if pm2 list | grep -q "analise-frontend-prod.*online"; then
-              echo "✅ Deploy bem-sucedido!"
+              echo "✅ Deploy successful!"
+              sudo rm -rf /var/www/analise-frontend/prod-backup
             else
-              echo "❌ Erro no deploy, fazendo rollback..."
+              echo "❌ Deploy failed! Rolling back..."
               sudo rm -rf /var/www/analise-frontend/prod
               sudo mv /var/www/analise-frontend/prod-backup /var/www/analise-frontend/prod
               pm2 restart analise-frontend-prod
               exit 1
             fi
-
-      - name: Cleanup old backups
-        if: success()
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USER }}
-          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
-          port: 22
-          script: |
-            # Manter apenas último backup
-            sudo rm -rf /var/www/analise-frontend/prod-backup
-
-      - name: Notify deployment status
-        if: always()
-        run: |
-          if [ ${{ job.status }} == 'success' ]; then
-            echo "✅ Deploy para PRODUÇÃO realizado com sucesso!"
-          else
-            echo "❌ Falha no deploy para PRODUÇÃO"
-            exit 1
-          fi
