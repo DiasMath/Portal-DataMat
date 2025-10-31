@@ -66,8 +66,8 @@ jobs:
       - name: Upload to VPS
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
           key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
           port: 22
           source: "deploy.tar.gz"
@@ -77,8 +77,8 @@ jobs:
       - name: Deploy on VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
           key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
           port: 22
           timeout: 300s
@@ -129,13 +129,13 @@ jobs:
             cat > .env.production << 'ENVEOF'
             NODE_ENV=production
             PORT=3000
-            NEXT_PUBLIC_FIREBASE_API_KEY=${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}
-            NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
-            NEXT_PUBLIC_FIREBASE_PROJECT_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
-            NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=${{ secrets.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
-            NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
-            NEXT_PUBLIC_FIREBASE_APP_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}
-            FIREBASE_SERVICE_ACCOUNT_KEY=${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
+            NEXT_PUBLIC_FIREBASE_API_KEY: ${{ secrets.DEV_NEXT_PUBLIC_FIREBASE_API_KEY }}
+            NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ secrets.DEV_NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+            NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ secrets.DEV_NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+            NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ secrets.DEV_NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+            NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.DEV_NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+            NEXT_PUBLIC_FIREBASE_APP_ID: ${{ secrets.DEV_NEXT_PUBLIC_FIREBASE_APP_ID }}
+            FIREBASE_SERVICE_ACCOUNT_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
             JWT_SECRET=${{ secrets.JWT_SECRET }}
             NEXT_PUBLIC_APP_URL=http://191.252.60.127
             ENVEOF
@@ -176,8 +176,8 @@ jobs:
       - name: Verify deployment
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
           key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
           port: 22
           script: |

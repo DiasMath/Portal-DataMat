@@ -1,4 +1,4 @@
-name: CD - Deploy to Development
+name: Deploy to Development
 
 on:
   push:
@@ -7,9 +7,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
-    environment: development
     
     steps:
       - name: Checkout code
@@ -39,37 +38,14 @@ jobs:
         run: |
           mkdir -p deploy-package
           cp -r .next deploy-package/
-          cp -r public deploy-package/ || echo "No public folder"
+          cp -r public deploy-package/ 2>/dev/null || echo "No public folder"
           cp package.json deploy-package/
           cp package-lock.json deploy-package/
-          cp next.config.js deploy-package/ || cp next.config.mjs deploy-package/ || echo "No next.config"
-          
-          cat > deploy-package/.env.production << EOF
-          NODE_ENV=production
-          PORT=3001
-          NEXT_PUBLIC_FIREBASE_API_KEY=${{ secrets.DEV_NEXT_PUBLIC_FIREBASE_API_KEY }}
-          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${{ secrets.DEV_NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
-          NEXT_PUBLIC_FIREBASE_PROJECT_ID=${{ secrets.DEV_NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
-          NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=${{ secrets.DEV_NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
-          NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${{ secrets.DEV_NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
-          NEXT_PUBLIC_FIREBASE_APP_ID=${{ secrets.DEV_NEXT_PUBLIC_FIREBASE_APP_ID }}
-          FIREBASE_SERVICE_ACCOUNT_KEY=${{ secrets.DEV_FIREBASE_SERVICE_ACCOUNT_KEY }}
-          JWT_SECRET=${{ secrets.DEV_JWT_SECRET }}
-          JWT_REFRESH_SECRET=${{ secrets.DEV_JWT_REFRESH_SECRET }}
-          EOF
+          cp next.config.* deploy-package/ 2>/dev/null || echo "No next config"
+          tar -czf deploy.tar.gz -C deploy-package .
+          ls -lh deploy.tar.gz
 
-      - name: Deploy to VPS
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USER }}
-          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
-          port: 22
-          source: "deploy-package/*"
-          target: "/var/www/analise-frontend/dev"
-          strip_components: 1
-
-      - name: Setup and restart application
+      - name: Test SSH connection
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.HOST }}
@@ -77,16 +53,157 @@ jobs:
           key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
           port: 22
           script: |
-            cd /var/www/analise-frontend/dev
-            npm ci --production --prefer-offline
-            pm2 reload analise-frontend-dev || pm2 start npm --name "analise-frontend-dev" -- start
-            pm2 save
+            echo "✅ SSH connection successful!"
+            whoami
+            pwd
 
-      - name: Notify deployment status
-        if: always()
-        run: |
-          if [ ${{ job.status }} == 'success' ]; then
-            echo "✅ Deploy para DEV realizado com sucesso!"
-          else
-            echo "❌ Falha no deploy para DEV"
-          fi
+      - name: Upload to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          port: 22
+          source: "deploy.tar.gz"
+          target: "/tmp/"
+          timeout: 300s
+          debug: true
+
+      - name: Deploy on VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          port: 22
+          timeout: 600s
+          script: |
+            set -e
+            
+            echo "📦 Extracting deployment package..."
+            cd /tmp
+            rm -rf deploy-temp
+            mkdir -p deploy-temp
+            tar -xzf deploy.tar.gz -C deploy-temp
+            ls -la deploy-temp/
+            
+            echo "🔄 Preparing deployment..."
+            # Criar diretório se não existir
+            sudo mkdir -p /var/www/analise-frontend/prod
+            
+            # Parar app se estiver rodando
+            pm2 stop analise-frontend-prod 2>/dev/null || true
+            
+            echo "📁 Deploying files..."
+            # Remover .next antigo
+            sudo rm -rf /var/www/analise-frontend/prod/.next
+            
+            # Copiar novos arquivos
+            sudo cp -r /tmp/deploy-temp/.next /var/www/analise-frontend/prod/
+            
+            # Copiar package files se não existirem
+            if [ ! -f "/var/www/analise-frontend/prod/package.json" ]; then
+              sudo cp /tmp/deploy-temp/package.json /var/www/analise-frontend/prod/
+              sudo cp /tmp/deploy-temp/package-lock.json /var/www/analise-frontend/prod/
+            fi
+            
+            # Copiar public se existir
+            if [ -d "/tmp/deploy-temp/public" ]; then
+              sudo rm -rf /var/www/analise-frontend/prod/public
+              sudo cp -r /tmp/deploy-temp/public /var/www/analise-frontend/prod/
+            fi
+            
+            # Ajustar permissões
+            sudo chown -R deploy:deploy /var/www/analise-frontend/prod
+            
+            cd /var/www/analise-frontend/prod
+            
+            echo "📝 Updating environment variables..."
+            cat > .env.production << 'ENVEOF'
+            NODE_ENV=production
+            PORT=3000
+            NEXT_PUBLIC_FIREBASE_API_KEY: ${{ secrets.DEV_NEXT_PUBLIC_FIREBASE_API_KEY }}
+            NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ secrets.DEV_NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+            NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ secrets.DEV_NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+            NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ secrets.DEV_NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+            NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.DEV_NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+            NEXT_PUBLIC_FIREBASE_APP_ID: ${{ secrets.DEV_NEXT_PUBLIC_FIREBASE_APP_ID }}
+            FIREBASE_SERVICE_ACCOUNT_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            NEXT_PUBLIC_APP_URL=http://191.252.60.127
+            ENVEOF
+            
+            echo "📦 Installing dependencies..."
+            # Só instalar se node_modules não existir
+            if [ ! -d "node_modules" ]; then
+              npm ci --production --prefer-offline --no-audit || npm install --production
+            fi
+            
+            echo "🚀 Starting application..."
+            # Criar ecosystem.config.js se não existir
+            if [ ! -f "ecosystem.config.js" ]; then
+              cat > ecosystem.config.js << 'ECOEOF'
+            module.exports = {
+              apps: [{
+                name: 'analise-frontend-prod',
+                script: 'npm',
+                args: 'start',
+                cwd: '/var/www/analise-frontend/prod',
+                instances: 1,
+                autorestart: true,
+                watch: false,
+                max_memory_restart: '1G',
+                env: {
+                  NODE_ENV: 'production',
+                  PORT: 3000
+                }
+              }]
+            };
+            ECOEOF
+            fi
+            
+            # Iniciar ou reiniciar
+            pm2 start ecosystem.config.js 2>/dev/null || pm2 restart analise-frontend-prod
+            pm2 save
+            
+            echo "🧹 Cleaning up..."
+            rm -rf /tmp/deploy-temp
+            rm /tmp/deploy.tar.gz
+            
+            echo "✅ Waiting for application..."
+            sleep 8
+            
+            pm2 list
+            
+            if pm2 list | grep -q "analise-frontend-prod.*online"; then
+              echo "✅ Deploy successful!"
+              exit 0
+            else
+              echo "❌ Application failed to start"
+              pm2 logs analise-frontend-prod --lines 30 --nostream
+              exit 1
+            fi
+
+      - name: Final verification
+        if: success()
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          port: 22
+          script: |
+            echo "🔍 Testing application..."
+            for i in {1..15}; do
+              if curl -f -s http://localhost:3000 > /dev/null; then
+                echo "✅ Application is responding!"
+                echo "🌐 Access: http://191.252.60.127"
+                exit 0
+              fi
+              echo "⏳ Waiting... ($i/15)"
+              sleep 2
+            done
+            
+            echo "❌ Application not responding after 30s"
+            pm2 logs analise-frontend-prod --lines 50 --nostream
+            exit 1
