@@ -1,25 +1,20 @@
+// Arquivo: src/components/ui/header.tsx
 "use client";
 
-import { useAuth } from "@/contexts/AuthContext";
-import { UserNav } from "./user-nav";
-import Link from "next/link";
-import { ChartColumnIncreasing } from "lucide-react";
+import React from 'react';
+// 1. Importar o novo componente de "recheio"
+import { HeaderContent } from './header-content'; 
 
-export function Header() {
-  const { user } = useAuth();
-
+export const Header = () => {
   return (
-    <nav className="flex h-16 items-center justify-between px-6 border-b border-navbar-accent/20 bg-navbar backdrop-blur supports-[backdrop-filter]:bg-navbar/95">
-      <div className="flex items-center gap-2">
-        <ChartColumnIncreasing className="text-navbar-foreground" />
-        <Link href="/" className="text-xl font-semibold text-navbar-foreground">
-          Home
-        </Link>
-      </div>
+    // 2. A barra marrom (o "container")
+    <header className="sticky top-0 z-50 w-full h-[42px] bg-[#753838]">
+      
+      {/* 3. Renderizar o "recheio" aqui dentro */}
+      <HeaderContent />
 
-      <div className="flex items-center gap-4">
-        {user && <UserNav />}
-      </div>
-    </nav>
+    </header>
   );
-}
+};
+
+export default Header;
