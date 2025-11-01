@@ -1,88 +1,11 @@
-name: CD - Deploy to Production
-
-on:
-  push:
-    branches:
-      - prod
-  workflow_dispatch:
-
-jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build project
-        run: npm run build
-        env:
-          NEXT_PUBLIC_FIREBASE_API_KEY: ${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}
-          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
-          NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
-          NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ secrets.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
-          NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
-          NEXT_PUBLIC_FIREBASE_APP_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}
-          FIREBASE_SERVICE_ACCOUNT_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
-
-      - name: Create deployment package
-        run: |
-          # Criar diretório para deploy
-          mkdir -p deploy-package
-          
-          # Copiar arquivos compilados
-          cp -r .next deploy-package/
-          
-          # Copiar public (se existir)
-          if [ -d "public" ]; then
-            cp -r public deploy-package/
-          fi
-          
-          # Copiar arquivos de configuração
-          cp package.json deploy-package/
-          cp package-lock.json deploy-package/
-          
-          # Copiar next.config (se existir)
-          if [ -f "next.config.js" ]; then
-            cp next.config.js deploy-package/
-          elif [ -f "next.config.mjs" ]; then
-            cp next.config.mjs deploy-package/
-          fi
-          
-          # Listar o que foi empacotado
-          ls -la deploy-package/
-
-      - name: Create tarball
-        run: tar -czf deploy.tar.gz -C deploy-package .
-
-      - name: Upload to VPS
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USER }}
-          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
-          port: 22
-          source: "deploy.tar.gz"
-          target: "/tmp/"
-          timeout: 120s
-
-      - name: Deploy on VPS
+- name: Deploy on VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USER }}
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
           port: 22
-          timeout: 300s
+          timeout: 600s
           script: |
             set -e
             
@@ -93,36 +16,30 @@ jobs:
             tar -xzf deploy.tar.gz -C deploy-temp
             
             echo "🔄 Stopping application..."
-            pm2 stop analise-frontend-prod || true
+            pm2 stop analise-frontend-prod 2>/dev/null || true
             
             echo "💾 Creating backup..."
             if [ -d "/var/www/analise-frontend/prod/.next" ]; then
               rm -rf /var/www/analise-frontend/prod-backup
               mkdir -p /var/www/analise-frontend/prod-backup
               cp -r /var/www/analise-frontend/prod/.next /var/www/analise-frontend/prod-backup/
+              cp /var/www/analise-frontend/prod/package*.json /var/www/analise-frontend/prod-backup/ 2>/dev/null || true
             fi
             
             echo "📁 Deploying new version..."
-            # Remover .next antigo
-            rm -rf /var/www/analise-frontend/prod/.next
+            sudo rm -rf /var/www/analise-frontend/prod/.next
+            sudo rm -rf /var/www/analise-frontend/prod/node_modules
             
-            # Copiar novos arquivos
-            cp -r /tmp/deploy-temp/.next /var/www/analise-frontend/prod/
-            cp /tmp/deploy-temp/package.json /var/www/analise-frontend/prod/
-            cp /tmp/deploy-temp/package-lock.json /var/www/analise-frontend/prod/
+            sudo cp -r /tmp/deploy-temp/.next /var/www/analise-frontend/prod/
+            sudo cp /tmp/deploy-temp/package.json /var/www/analise-frontend/prod/
+            sudo cp /tmp/deploy-temp/package-lock.json /var/www/analise-frontend/prod/
             
-            # Copiar public se existir
             if [ -d "/tmp/deploy-temp/public" ]; then
-              rm -rf /var/www/analise-frontend/prod/public
-              cp -r /tmp/deploy-temp/public /var/www/analise-frontend/prod/
+              sudo rm -rf /var/www/analise-frontend/prod/public
+              sudo cp -r /tmp/deploy-temp/public /var/www/analise-frontend/prod/
             fi
             
-            # Copiar next.config se existir
-            if [ -f "/tmp/deploy-temp/next.config.js" ]; then
-              cp /tmp/deploy-temp/next.config.js /var/www/analise-frontend/prod/
-            elif [ -f "/tmp/deploy-temp/next.config.mjs" ]; then
-              cp /tmp/deploy-temp/next.config.mjs /var/www/analise-frontend/prod/
-            fi
+            sudo chown -R deploy:deploy /var/www/analise-frontend/prod
             
             cd /var/www/analise-frontend/prod
             
@@ -141,72 +58,72 @@ jobs:
             NEXT_PUBLIC_APP_URL=http://191.252.60.127
             ENVEOF
             
+            echo "🧹 Cleaning npm cache..."
+            npm cache clean --force
+            
             echo "📦 Installing production dependencies..."
-            npm ci --production --prefer-offline --no-audit || npm install --production --no-optional
+            # Tentar npm ci primeiro, se falhar usar npm install
+            if ! npm ci --production --prefer-offline --no-audit 2>/dev/null; then
+              echo "⚠️ npm ci failed, trying npm install..."
+              rm -rf node_modules package-lock.json
+              npm install --production --no-optional --legacy-peer-deps
+            fi
             
             echo "🚀 Starting application..."
-            pm2 start ecosystem.config.js || pm2 restart analise-frontend-prod
+            if [ ! -f "ecosystem.config.js" ]; then
+              cat > ecosystem.config.js << 'ECOEOF'
+            module.exports = {
+              apps: [{
+                name: 'analise-frontend-prod',
+                script: 'npm',
+                args: 'start',
+                cwd: '/var/www/analise-frontend/prod',
+                instances: 1,
+                autorestart: true,
+                watch: false,
+                max_memory_restart: '1G',
+                env: {
+                  NODE_ENV: 'production',
+                  PORT: 3000
+                }
+              }]
+            };
+            ECOEOF
+            fi
+            
+            pm2 start ecosystem.config.js 2>/dev/null || pm2 restart analise-frontend-prod
             pm2 save
             
             echo "🧹 Cleaning up..."
             rm -rf /tmp/deploy-temp
             rm /tmp/deploy.tar.gz
             
-            echo "✅ Waiting for application to start..."
-            sleep 5
+            echo "✅ Waiting for application..."
+            sleep 8
+            
+            pm2 list
             
             if pm2 list | grep -q "analise-frontend-prod.*online"; then
               echo "✅ Deploy successful!"
-              pm2 show analise-frontend-prod
               rm -rf /var/www/analise-frontend/prod-backup
               exit 0
             else
-              echo "❌ Deploy failed! Application not running."
-              pm2 logs analise-frontend-prod --lines 30 --nostream
+              echo "❌ Application failed to start, rolling back..."
               
               if [ -d "/var/www/analise-frontend/prod-backup" ]; then
-                echo "🔄 Rolling back..."
                 rm -rf /var/www/analise-frontend/prod/.next
                 cp -r /var/www/analise-frontend/prod-backup/.next /var/www/analise-frontend/prod/
+                
+                if [ -f "/var/www/analise-frontend/prod-backup/package-lock.json" ]; then
+                  cp /var/www/analise-frontend/prod-backup/package*.json /var/www/analise-frontend/prod/
+                  cd /var/www/analise-frontend/prod
+                  npm ci --production --prefer-offline || npm install --production
+                fi
+                
                 pm2 restart analise-frontend-prod
+                echo "🔄 Rolled back to previous version"
               fi
               
+              pm2 logs analise-frontend-prod --lines 30 --nostream
               exit 1
             fi
-
-      - name: Verify deployment
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USER }}
-          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
-          port: 22
-          script: |
-            echo "🔍 Final health check..."
-            pm2 list
-            
-            # Testar se app responde
-            for i in {1..10}; do
-              if curl -f http://localhost:3000 > /dev/null 2>&1; then
-                echo "✅ Application is responding!"
-                exit 0
-              fi
-              echo "⏳ Waiting... ($i/10)"
-              sleep 3
-            done
-            
-            echo "❌ Application is not responding after 30 seconds"
-            pm2 logs analise-frontend-prod --lines 50 --nostream
-            exit 1
-
-      - name: Deployment status
-        if: always()
-        run: |
-          if [ "${{ job.status }}" == "success" ]; then
-            echo "✅ Deploy to PRODUCTION completed successfully!"
-            echo "🌐 Application available at: http://191.252.60.127"
-          else
-            echo "❌ Deploy to PRODUCTION failed!"
-            echo "Check the logs above for details."
-            exit 1
-          fi
