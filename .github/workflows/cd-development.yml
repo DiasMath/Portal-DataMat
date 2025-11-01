@@ -136,7 +136,7 @@ jobs:
             echo "📦 Installing dependencies..."
             # Só instalar se node_modules não existir
             if [ ! -d "node_modules" ]; then
-              npm ci --production --prefer-offline --no-audit || npm install --production
+              npm ci --production --prefer-offline --no-audit || npm install --production --no-optional
             fi
             
             echo "🚀 Starting application..."
