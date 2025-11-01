@@ -48,8 +48,8 @@ jobs:
       - name: Upload to VPS
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
           key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
           port: 22
           source: "deploy.tar.gz"
@@ -59,8 +59,8 @@ jobs:
       - name: Deploy on VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
           key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
           port: 22
           timeout: 600s
@@ -71,8 +71,8 @@ jobs:
         if: success()
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
           key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
           port: 22
           script: |
