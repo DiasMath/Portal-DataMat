@@ -1,9 +1,9 @@
-name: Deploy to Production
+name: CD - Deploy to Production
 
 on:
   push:
     branches:
-      - main
+      - prod
   workflow_dispatch:
 
 jobs:
