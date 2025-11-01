@@ -1,50 +1,31 @@
-import admin from 'firebase-admin';
+import admin from "firebase-admin";
 
-// ✅ Verificar se variáveis existem antes de inicializar
-const initializeFirebaseAdmin = () => {
-  // Se já está inicializado, retornar
-  if (admin.apps.length > 0) {
-    return {
-      adminAuth: admin.auth(),
-      adminDb: admin.firestore()
-    };
-  }
-
-  // Verificar se variáveis existem
-  if (
-    !process.env.FIREBASE_ADMIN_PROJECT_ID ||
-    !process.env.FIREBASE_ADMIN_CLIENT_EMAIL ||
-    !process.env.FIREBASE_ADMIN_PRIVATE_KEY
-  ) {
-    console.warn('⚠️ Firebase Admin credentials not found');
-    return {
-      adminAuth: null,
-      adminDb: null
-    };
-  }
-
+// Inicializar Firebase Admin SDK apenas uma vez
+if (!admin.apps.length) {
   try {
-    admin.initializeApp({
-      credential: admin.credential.cert({
-        projectId: process.env.FIREBASE_ADMIN_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
-        privateKey: process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-      }),
-    });
+    // Se estiver em produção, use service account key
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+      const serviceAccount = JSON.parse(
+        process.env.FIREBASE_SERVICE_ACCOUNT_KEY
+      );
 
-    return {
-      adminAuth: admin.auth(),
-      adminDb: admin.firestore()
-    };
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+        projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+      });
+    }
+    // Para desenvolvimento local, você pode usar a emulação ou chave de serviço
+    else if (process.env.NODE_ENV === "development") {
+      // Em desenvolvimento, você pode configurar as credenciais manualmente
+      // ou usar o Firebase emulator
+      console.warn("Firebase Admin não configurado para desenvolvimento");
+    }
   } catch (error) {
-    console.error('❌ Error initializing Firebase Admin:', error);
-    return {
-      adminAuth: null,
-      adminDb: null
-    };
+    console.error("Erro ao inicializar Firebase Admin:", error);
   }
-};
+}
 
-const { adminAuth, adminDb } = initializeFirebaseAdmin();
+export const adminAuth = admin.apps.length ? admin.auth() : null;
+export const adminDb = admin.apps.length ? admin.firestore() : null;
 
-export { adminAuth, adminDb };
+export default admin;

@@ -163,7 +163,7 @@ jobs:
             fi
             
             # Iniciar ou reiniciar
-            pm2 start ecosystem.config.js 2>/dev/null || pm2 restart analise-frontend-prod
+            pm2 start ecosystem.config.js 2>/dev/null || pm2 restart analise-frontend-dev
             pm2 save
             
             echo "🧹 Cleaning up..."
@@ -174,13 +174,13 @@ jobs:
             sleep 8
             
             pm2 list
-            
-            if pm2 list | grep -q "analise-frontend-prod.*online"; then
+
+            if pm2 list | grep -q "analise-frontend-dev.*online"; then
               echo "✅ Deploy successful!"
               exit 0
             else
               echo "❌ Application failed to start"
-              pm2 logs analise-frontend-prod --lines 30 --nostream
+              pm2 logs analise-frontend-dev --lines 30 --nostream
               exit 1
             fi
 
