@@ -1,82 +1,127 @@
+// Arquivo: src/app/dashboard/page.tsx
 "use client";
 
-import { useAuth } from "@/contexts/AuthContext";
-import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { useEffect, useState, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import React, { useState, useEffect } from 'react';
+import dynamicImport from 'next/dynamic';
+import type { IEmbedConfiguration } from 'powerbi-client';
+import { ProtectedRoute } from '@/components/ProtectedRoute';
 
-function Dashboard() {
-  const { userData } = useAuth();
-  const searchParams = useSearchParams();
-  const dashboardUrlFromQuery = searchParams.get('url');
-  const [dashboardLink, setDashboardLink] = useState<string | null | undefined>(null);
-  const [isLoading, setIsLoading] = useState(true);
+// Desabilita pré-renderização estática desta página
+export const dynamic = 'force-dynamic';
 
+// Importação dinâmica para evitar erro "self is not defined" no SSR
+const PowerBIEmbed = dynamicImport(
+  () => import('powerbi-client-react').then((mod) => mod.PowerBIEmbed),
+  { ssr: false }
+);
+
+interface EmbedInfo {
+  accessToken: string;
+  embedUrl: string;
+  embedReportId: string;
+}
+
+function DashboardPage() {
+  const [embedConfig, setEmbedConfig] = useState<IEmbedConfiguration | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Efeito para buscar os dados de incorporação
   useEffect(() => {
-    const link = dashboardUrlFromQuery || userData?.dashboardLink;
-    setDashboardLink(link);
-    setIsLoading(false);
-  }, [userData, dashboardUrlFromQuery]);
+    async function fetchEmbedInfo() {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        // Importa models dinamicamente apenas no cliente
+        const { models } = await import('powerbi-client');
+        
+        // Chama a API route segura que criamos
+        const response = await fetch('/api/powerbi/get-embed-info');
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || `Falha ao buscar dados: ${response.statusText}`);
+        }
+        
+        const data: EmbedInfo = await response.json();
 
-  if (isLoading) {
+        // Monta o objeto de configuração do Power BI
+        const config: IEmbedConfiguration = {
+          type: 'report',
+          tokenType: models.TokenType.Embed,
+          accessToken: data.accessToken,
+          embedUrl: data.embedUrl,
+          id: data.embedReportId,
+          settings: {
+            panes: { 
+              pageNavigation: { visible: false }, 
+              filters: { visible: true } 
+            },
+            bars: { 
+              actionBar: { visible: false }, 
+              statusBar: { visible: false } 
+            },
+          },
+        };
+        setEmbedConfig(config);
+      } catch (err) {
+        const errorMessage = (err instanceof Error) ? err.message : "Erro desconhecido";
+        console.error("Erro ao incorporar relatório:", errorMessage);
+        setError(`Erro ao carregar relatório: ${errorMessage}`);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchEmbedInfo();
+  }, []); // Array vazio garante que rode apenas uma vez
+
+  // --- Renderização ---
+
+  // Estado de Carregamento
+  if (loading) {
     return (
-      <main className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4 text-muted-foreground">
-            Carregando seu dashboard...
-          </p>
-        </div>
-      </main>
+      <div className="flex items-center justify-center h-screen w-screen font-sans text-lg">
+        Carregando Relatório...
+      </div>
     );
   }
 
-  if (!dashboardLink) {
+  // Estado de Erro
+  if (error) {
     return (
-      <main className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <h2 className="text-2xl font-semibold mb-4">
-            Sem Dashboard Configurado
-          </h2>
-          <p className="text-muted-foreground">
-            Você tem acesso ao sistema, mas ainda não possui um dashboard
-            configurado.
-            <br />
-            Entre em contato com o administrador para mais informações.
-          </p>
-        </div>
-      </main>
+      <div className="flex items-center justify-center h-screen w-screen font-sans text-lg text-red-600">
+        {error}
+      </div>
     );
   }
 
-  // Add Power BI iframe optimization parameters
-  const optimizeUrl = (url: string) => {
-    const separator = url.includes("?") ? "&" : "?";
-    return `${url}${separator}chromeless=1&navContentPaneEnabled=false`;
-  };
-
+  // Estado de Sucesso (Relatório Pronto)
   return (
-    <div className="flex-1 w-full h-[calc(100vh-64px)] overflow-hidden">
-      <iframe
-        title="Dashboard do Power BI"
-        src={optimizeUrl(dashboardLink)}
-        className="w-full h-full border-0"
-        width="600" height="373.5"
-        allowFullScreen
-        loading="lazy"
-      />
-
-      <div className="absolute bottom-0 left-0 w-full h-[108px] bg-white"></div>
-    </div>
+    embedConfig && (
+      // Container de tela cheia com posicionamento relativo
+      <div className="h-screen w-screen overflow-hidden relative">
+        
+        {/* O relatório do Power BI */}
+        <PowerBIEmbed
+          embedConfig={embedConfig}
+          eventHandlers={new Map([
+            ['loaded', () => console.log('Relatório carregado.')],
+            ['error', (event?: { detail?: unknown }) => console.error('Erro do Power BI:', event?.detail)],
+          ])}
+          cssClassName="h-full w-full"
+        />
+      </div>
+    )
   );
 }
 
-export default function DashboardPage() {
+// Exportação padrão com o Wrapper de Rota Protegida
+export default function ProtectedDashboardPage() {
   return (
-    <ProtectedRoute requireAuth={true}>
-      <Suspense fallback={<div>Carregando...</div>}>
-        <Dashboard />
-      </Suspense>
+    <ProtectedRoute> 
+      <DashboardPage />
     </ProtectedRoute>
   );
 }
