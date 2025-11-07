@@ -2,13 +2,18 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { PowerBIEmbed } from 'powerbi-client-react';
-import { IEmbedConfiguration, models } from 'powerbi-client';
-
+import dynamicImport from 'next/dynamic';
+import type { IEmbedConfiguration } from 'powerbi-client';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 
-// Importa o "recheio" da navbar que criamos
-import { HeaderContent } from '@/components/ui/header-content';
+// Desabilita pré-renderização estática desta página
+export const dynamic = 'force-dynamic';
+
+// Importação dinâmica para evitar erro "self is not defined" no SSR
+const PowerBIEmbed = dynamicImport(
+  () => import('powerbi-client-react').then((mod) => mod.PowerBIEmbed),
+  { ssr: false }
+);
 
 interface EmbedInfo {
   accessToken: string;
@@ -27,6 +32,9 @@ function DashboardPage() {
       try {
         setLoading(true);
         setError(null);
+        
+        // Importa models dinamicamente apenas no cliente
+        const { models } = await import('powerbi-client');
         
         // Chama a API route segura que criamos
         const response = await fetch('/api/powerbi/get-embed-info');
@@ -95,20 +103,12 @@ function DashboardPage() {
       // Container de tela cheia com posicionamento relativo
       <div className="h-screen w-screen overflow-hidden relative">
         
-        {/* O "remendo" marrom que funciona como header */}
-        <div className="absolute top-0 left-0 w-full h-[42px] bg-[#753838] z-50">
-
-          {/* Renderiza o conteúdo (Home + UserNav) */}
-          <HeaderContent />
-
-        </div>
-        
         {/* O relatório do Power BI */}
         <PowerBIEmbed
           embedConfig={embedConfig}
           eventHandlers={new Map([
             ['loaded', () => console.log('Relatório carregado.')],
-            ['error', (event: any) => console.error('Erro do Power BI:', event?.detail)],
+            ['error', (event?: { detail?: unknown }) => console.error('Erro do Power BI:', event?.detail)],
           ])}
           cssClassName="h-full w-full"
         />

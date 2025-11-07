@@ -108,7 +108,7 @@ async function getEmbedToken(accessToken: string) {
 
 // --- 3. O HANDLER DA API ---
 
-export async function GET(request: Request) {
+export async function GET() {
   console.log("Recebida requisição para /api/powerbi/get-embed-info");
   
   try {
