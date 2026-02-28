@@ -60,16 +60,16 @@ export function UserNav() {
     }
   };
 
-  const getThemeLabel = () => {
-    switch (theme) {
-      case "light":
-        return "Claro";
-      case "dark":
-        return "Escuro";
-      default:
-        return "Sistema";
-    }
-  };
+  // const getThemeLabel = () => {
+  //   switch (theme) {
+  //     case "light":
+  //       return "Claro";
+  //     case "dark":
+  //       return "Escuro";
+  //     default:
+  //       return "Sistema";
+  //   }
+  // };
 
   return (
     <DropdownMenu>
@@ -116,24 +116,24 @@ export function UserNav() {
             </DropdownMenuItem>
           )}
         </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
+        {/* <DropdownMenuSeparator /> */}
+        {/* <DropdownMenuGroup>
           <DropdownMenuLabel className="text-xs text-muted-foreground">
             Tema: {getThemeLabel()}
-          </DropdownMenuLabel>
-          <DropdownMenuItem onClick={() => setTheme("light")}>
+          </DropdownMenuLabel> */}
+          {/* <DropdownMenuItem onClick={() => setTheme("light")}>
             <Sun className="mr-2 h-4 w-4" />
             Claro
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setTheme("dark")}>
+          </DropdownMenuItem> */}
+          {/* <DropdownMenuItem onClick={() => setTheme("dark")}>
             <Moon className="mr-2 h-4 w-4" />
             Escuro
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setTheme("system")}>
             <Monitor className="mr-2 h-4 w-4" />
             Sistema
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
+          </DropdownMenuItem> */}
+        {/* </DropdownMenuGroup> */}
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleLogout}>Sair</DropdownMenuItem>
       </DropdownMenuContent>
