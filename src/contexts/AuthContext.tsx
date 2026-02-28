@@ -10,9 +10,6 @@ import {
 import {
   onAuthStateChanged,
   signOut as firebaseSignOut,
-  GoogleAuthProvider,
-  signInWithPopup,
-  OAuthProvider,
   signInWithEmailAndPassword,
   User,
 } from "firebase/auth";
@@ -39,9 +36,6 @@ interface AuthContextType {
   userData: UserData | null;
   setUserData: React.Dispatch<React.SetStateAction<UserData | null>>;
   loading: boolean;
-  signInWithGoogle: () => Promise<void>;
-  signInWithMicrosoft: () => Promise<void>;
-  signInWithGitHub: () => Promise<void>;
   signInWithEmailPassword: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   isAdmin: boolean;
@@ -147,39 +141,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     return unsubscribe;
   }, [sessionCookieCreated]);
 
-  const signInWithGoogle = async () => {
-    try {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-      // O onAuthStateChanged cuidará de buscar os dados do usuário
-    } catch (error) {
-      console.error("Erro no login com Google:", error);
-      throw error;
-    }
-  };
-
-  const signInWithMicrosoft = async () => {
-    try {
-      const provider = new OAuthProvider("microsoft.com");
-      await signInWithPopup(auth, provider);
-      // O onAuthStateChanged cuidará de buscar os dados do usuário
-    } catch (error) {
-      console.error("Erro no login com Microsoft:", error);
-      throw error;
-    }
-  };
-
-  const signInWithGitHub = async () => {
-    try {
-      const provider = new OAuthProvider("github.com");
-      await signInWithPopup(auth, provider);
-      // O onAuthStateChanged cuidará de buscar os dados do usuário
-    } catch (error) {
-      console.error("Erro no login com GitHub:", error);
-      throw error;
-    }
-  };
-
   const signInWithEmailPassword = async (email: string, password: string) => {
     try {
       await signInWithEmailAndPassword(auth, email, password);
@@ -249,9 +210,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     userData,
     setUserData,
     loading,
-    signInWithGoogle,
-    signInWithMicrosoft,
-    signInWithGitHub,
     signInWithEmailPassword,
     signOut,
     isAdmin,
