@@ -48,9 +48,9 @@ export default function Home() {
     <div className="flex items-center justify-center min-h-screen w-full">
       <Card className="w-[450px]">
         <CardHeader>
-          <CardTitle>Sistema de Análise</CardTitle>
+          <CardTitle>Datamat Portal</CardTitle>
           <CardDescription>
-            Sistema de acesso controlado com autenticação Firebase e dashboards Power BI
+            Portal para visualização de dados dos clientes da Datamat
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
