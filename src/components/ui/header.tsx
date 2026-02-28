@@ -19,7 +19,7 @@ export function Header() {
           className="text-xl font-semibold text-navbar-foreground flex items-center gap-2"
         >
           <ChartColumnIncreasing className="text-navbar-foreground" />
-          Home
+          DataMat
         </Link>
 
         <div className="flex items-center gap-4">{user && <UserNav />}</div>
@@ -35,7 +35,7 @@ export function Header() {
         className="text-xl font-semibold text-navbar-foreground flex items-center gap-2"
       >
         <ChartColumnIncreasing className="text-navbar-foreground" />
-        Home
+        DataMat
       </Link>
 
       <div className="flex items-center gap-4">{user && <UserNav />}</div>
