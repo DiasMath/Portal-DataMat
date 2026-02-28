@@ -116,9 +116,6 @@ export default function LoginPage() {
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-2xl">Login</CardTitle>
-          <CardDescription>
-            Escolha um método de autenticação para acessar o sistema.
-          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Login com Email/Senha */}
@@ -157,7 +154,7 @@ export default function LoginPage() {
               className="w-full" 
               disabled={loading || !email || !password}
             >
-              {loading ? "Carregando..." : "Entrar com Email"}
+              {loading ? "Carregando..." : "Entrar"}
             </Button>
           </form>
 
@@ -169,7 +166,7 @@ export default function LoginPage() {
           )}
 
           <div className="text-sm text-gray-600 text-center mt-4">
-            <p>Apenas usuários autorizados podem acessar o sistema.</p>
+            <p>Apenas usuários autorizados podem acessar o portal.</p>
             <p>Entre em contato com a DataMat para solicitar acesso.</p>
           </div>
         </CardContent>
