@@ -114,17 +114,6 @@ export default function AdminPage() {
                     {userData?.role === "user" && "Usuário"}
                   </p>
                 </div>
-                {userData?.provider && (
-                  <div>
-                    <p className="font-semibold">Método de Login:</p>
-                    <p className="text-muted-foreground">
-                      {userData.provider === "google.com" && "Google"}
-                      {userData.provider === "microsoft.com" && "Microsoft"}
-                      {userData.provider === "github.com" && "GitHub"}
-                      {userData.provider === "password" && "Email/Senha"}
-                    </p>
-                  </div>
-                )}
                 {userData?.lastLogin && (
                   <div>
                     <p className="font-semibold">Último Acesso:</p>
@@ -150,9 +139,9 @@ export default function AdminPage() {
           {/* Dashboard do Power BI */}
           <Card>
             <CardHeader>
-              <CardTitle>Seu Dashboard</CardTitle>
+              <CardTitle>Dashboard</CardTitle>
               <CardDescription>
-                Acesse seu dashboard personalizado do Power BI
+                Acesse seus dashboards personalizados
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -186,7 +175,7 @@ export default function AdminPage() {
               <CardHeader>
                 <CardTitle>Ferramentas de Administração</CardTitle>
                 <CardDescription>
-                  Gerenciamento de usuários e configurações do sistema
+                  Gerenciamento de usuários e configurações do portal
                 </CardDescription>
               </CardHeader>
               <CardContent>
