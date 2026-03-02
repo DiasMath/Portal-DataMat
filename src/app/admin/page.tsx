@@ -42,12 +42,10 @@ export default function AdminPage() {
         throw new Error("Usuário não autenticado");
       }
 
-      const token = await currentUser.getIdToken();
       const response = await fetch("/api/users/update-dashboard", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ newDashboardLink }),
       });

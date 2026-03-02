@@ -15,6 +15,8 @@ const PowerBIEmbed = dynamicImport(
   { ssr: false }
 );
 
+const isDev = process.env.NODE_ENV !== 'production';
+
 interface EmbedInfo {
   accessToken: string;
   embedUrl: string;
@@ -107,7 +109,11 @@ function DashboardPage() {
         <PowerBIEmbed
           embedConfig={embedConfig}
           eventHandlers={new Map([
-            ['loaded', () => console.log('Relatório carregado.')],
+            ['loaded', () => {
+              if (isDev) {
+                console.log('Relatório carregado.');
+              }
+            }],
             ['error', (event?: { detail?: unknown }) => console.error('Erro do Power BI:', event?.detail)],
           ])}
           cssClassName="h-full w-full"

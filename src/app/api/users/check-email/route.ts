@@ -1,19 +1,25 @@
 import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
 
+const isDev = process.env.NODE_ENV !== 'production';
+
 export async function POST(request: Request) {
   try {
     const { email } = await request.json();
 
     if (!email) {
-      console.log('[check-email] Email não fornecido');
+      if (isDev) {
+        console.log('[check-email] Email não fornecido');
+      }
       return NextResponse.json(
         { error: 'Email é obrigatório', exists: false },
         { status: 400 }
       );
     }
 
-    console.log('[check-email] Verificando email:', email);
+    if (isDev) {
+      console.log('[check-email] Verificando email:', email);
+    }
 
     if (!adminDb) {
       return NextResponse.json(
@@ -27,7 +33,9 @@ export async function POST(request: Request) {
     const snapshot = await usersRef.where('email', '==', email).get();
 
     if (snapshot.empty) {
-      console.log('[check-email] Usuário não encontrado:', email);
+      if (isDev) {
+        console.log('[check-email] Usuário não encontrado:', email);
+      }
       return NextResponse.json(
         { exists: false, message: 'Usuário não encontrado no sistema' },
         { status: 404 }
@@ -35,7 +43,9 @@ export async function POST(request: Request) {
     }
 
     const userData = snapshot.docs[0].data();
-    console.log('[check-email] Usuário encontrado:', email, 'authorized:', userData?.authorized);
+    if (isDev) {
+      console.log('[check-email] Usuário encontrado:', email, 'authorized:', userData?.authorized);
+    }
 
     return NextResponse.json({
       exists: true,

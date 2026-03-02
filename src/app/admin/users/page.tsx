@@ -393,8 +393,10 @@ export default function UsersManagementPage() {
                           placeholder="Deixe vazio para gerar automaticamente"
                         />
                         <p className="text-xs text-muted-foreground">
-                          Se deixar vazio, uma senha será gerada automaticamente
-                          e um email de redefinição será enviado
+                          Se deixar vazio, uma senha será gerada automaticamente.
+                          Depois de criar o usuário, use a ação &quot;Enviar link
+                          para redefinir senha&quot; na tela de usuários para que
+                          o próprio cliente defina a senha definitiva.
                         </p>
                       </div>
 

@@ -16,6 +16,8 @@ import {
 import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../lib/firebase";
 
+const isDev = process.env.NODE_ENV !== "production";
+
 interface UserData {
   uid: string;
   email: string;
@@ -84,10 +86,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     if (!auth) return;
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      console.log("[AuthContext] Auth state changed:", {
-        user: !!user,
-        sessionCookieCreated,
-      });
+      if (isDev) {
+        console.log("[AuthContext] Auth state changed:", {
+          user: !!user,
+          sessionCookieCreated,
+        });
+      }
 
       setUser(user);
       if (user) {
@@ -96,7 +100,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         // Criar session cookie no servidor APENAS UMA VEZ
         if (!sessionCookieCreated) {
           try {
-            console.log("[AuthContext] Criando session cookie...");
+            if (isDev) {
+              console.log("[AuthContext] Criando session cookie...");
+            }
             const idToken = await user.getIdToken();
             const response = await fetch("/api/auth/session", {
               method: "POST",
@@ -105,7 +111,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             });
 
             if (response.ok) {
-              console.log("[AuthContext] Session cookie criado com sucesso");
+              if (isDev) {
+                console.log("[AuthContext] Session cookie criado com sucesso");
+              }
               setSessionCookieCreated(true);
             } else {
               console.error(
@@ -123,9 +131,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         // Remover session cookie no logout
         if (sessionCookieCreated) {
           try {
-            console.log("[AuthContext] Removendo session cookie...");
+            if (isDev) {
+              console.log("[AuthContext] Removendo session cookie...");
+            }
             await fetch("/api/auth/session", { method: "DELETE" });
-            console.log("[AuthContext] Session cookie removido");
+            if (isDev) {
+              console.log("[AuthContext] Session cookie removido");
+            }
             setSessionCookieCreated(false);
           } catch (error) {
             console.error(
@@ -215,6 +227,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     isAdmin,
     isMasterAdmin,
     isAuthorized,
+    companyId: userData?.companyId,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

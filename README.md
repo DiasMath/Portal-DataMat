@@ -21,34 +21,32 @@ The easiest way to deploy your Next.js app is to use the [Vercel Platform](https
 
 ## Sobre o Projeto
 
-Este é um projeto Next.js 15 com App Router, TailwindCSS e shadcn/ui.
+Este é um projeto Next.js com App Router, TailwindCSS, shadcn/ui e integração com Firebase e Power BI.
 
 ### Estado Atual
 
-⚠️ **IMPORTANTE**: O Firebase foi completamente removido da aplicação. O sistema de autenticação precisa ser reimplementado do zero.
-
-### O que foi removido:
-- Todas as dependências do Firebase (`firebase` e `firebase-admin`)
-- Diretório `/src/lib/firebase/` completo
-- Contexto de autenticação (`AuthContext`)
-- Rotas de API de autenticação (`/src/app/api/auth/`)
-- Variáveis de ambiente relacionadas ao Firebase
-- Middleware de autenticação baseado no Firebase
+- ✅ **Autenticação**: baseada em **Firebase Auth** (cliente) + **Firebase Admin** (servidor), com cookie de sessão HTTP-only.
+- ✅ **Base de dados**: **Firestore**, coleção `users` com informações de acesso (role, authorized, dashboardLink, etc.).
+- ✅ **Portal de dashboards**: incorporação de relatórios **Power BI** via API protegida (`/api/powerbi/get-embed-info`) e `powerbi-client-react`.
+- ✅ **Proteção de rotas**: componente `ProtectedRoute` no cliente e validações adicionais nas rotas de API.
+- ✅ **Painel administrativo**: gestão de usuários (criação, remoção, reset de senha, link de dashboard) em `/admin` e `/admin/users`.
 
 ### Estrutura Atual
 
-- ✅ `src/app`: Contém as páginas da aplicação
-- ✅ `src/components`: Contém os componentes React
-- ✅ `src/lib`: Contém funções utilitárias (Firebase removido)
-- ✅ `src/hooks`: Contém os hooks React
-- ⚠️ Sistema de Autenticação: **PRECISA SER REIMPLEMENTADO**
+- ✅ `src/app`: páginas e rotas (App Router)
+- ✅ `src/components`: componentes de UI (shadcn/ui, header, navegação do usuário, etc.)
+- ✅ `src/lib`: utilitários (`firebase`, `firebase-admin`, helpers de auth, etc.)
+- ✅ `src/contexts`: contextos globais (principalmente `AuthContext`)
+- ✅ `src/app/api`: rotas de API (auth, usuários, Power BI)
 
 ### Tecnologias
 
-- [Next.js](https://nextjs.org/) v15.5.4
+- [Next.js](https://nextjs.org/) v16.1.6
 - [TailwindCSS](https://tailwindcss.com/) v4
 - [shadcn/ui](https://ui.shadcn.com/)
 - [React](https://reactjs.org/) v19
+- [Firebase](https://firebase.google.com/) (Auth + Firestore + Admin)
+- [Power BI](https://powerbi.microsoft.com/) via `powerbi-client-react` e `@azure/msal-node`
 
 ## Como Rodar Localmente
 
@@ -64,13 +62,30 @@ Este é um projeto Next.js 15 com App Router, TailwindCSS e shadcn/ui.
    ```
 
 3. **Configure as Variáveis de Ambiente:**
-   - O arquivo `.env.local` já contém as configurações JWT básicas.
-   - Você pode gerar novos segredos se necessário:
+- Defina as chaves do Firebase e do Power BI no arquivo `.env.local` (nunca faça commit de valores sensíveis).
 
    ```env
-   # JWT Configuration
-   JWT_SECRET="cbb347379e9f772a7c6c2968a4a2dbd8f414fcbd8a0cc90abaad171ea3ca6b6165a21221c4893c11557071567bb5643d5856dc27be15b2772512e72b2af1112e"
-   JWT_REFRESH_SECRET="e8f7c3b1a9d5246f8e0c1d7b4a9f3c6e2d5b8a7c4f1e0d3b6a9c2e5f8d1b4a7c0e3f6d9b2a5e8c1f4d7b0a3e6f9c2d5b8a1e4f7c0d3b6a9e2f5c8d1b4a7"
+   # Firebase (exemplo – use os valores do seu projeto)
+   NEXT_PUBLIC_FIREBASE_API_KEY="..."
+   NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN="..."
+   NEXT_PUBLIC_FIREBASE_PROJECT_ID="..."
+   NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET="..."
+   NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID="..."
+   NEXT_PUBLIC_FIREBASE_APP_ID="..."
+
+   # Firebase Admin (service account em JSON)
+   FIREBASE_SERVICE_ACCOUNT_KEY="{ \"type\": \"service_account\", ... }"
+
+   # Power BI / Azure AD
+   PBI_TENANT_ID="..."
+   PBI_CLIENT_ID="..."
+   PBI_CLIENT_SECRET="..."
+   PBI_GROUP_ID="..."
+   PBI_REPORT_ID="..."
+   PBI_AUTHORITY_URL="https://login.microsoftonline.com/"
+   PBI_SCOPE="https://analysis.windows.net/powerbi/api/.default"
+   PBI_API_BASE_URL="https://api.powerbi.com/v1.0/myorg/"
+   NEXT_PUBLIC_APP_URL="http://localhost:3000"
    ```
 
 4. **Rode o servidor de desenvolvimento:**
@@ -83,23 +98,19 @@ Este é um projeto Next.js 15 com App Router, TailwindCSS e shadcn/ui.
 
 ## TODO: Próximos Passos
 
-Para restaurar a funcionalidade completa da aplicação, será necessário:
+Sugestões de melhorias para o futuro:
 
-1. **Implementar novo sistema de autenticação**
-   - Escolher nova solução (NextAuth.js, Supabase, custom JWT, etc.)
-   - Criar novas rotas de API para auth
-   - Implementar middleware de proteção
-   - Criar contexto de autenticação
+1. **Melhorar observabilidade**
+   - Centralizar logs em um logger único (e desativar logs verbosos em produção).
+   - Adicionar métricas básicas para chamadas ao Power BI e falhas de login.
 
-2. **Implementar banco de dados**
-   - Escolher solução de banco (PostgreSQL, MongoDB, Supabase, etc.)
-   - Configurar modelos de dados
-   - Implementar CRUD operations
+2. **Evoluir o sistema de permissões**
+   - Consolidar a lógica de roles/authorized em um único lugar (contexto + helpers).
+   - Padronizar checks de permissão nas rotas de API.
 
-3. **Restaurar funcionalidades**
-   - Sistema de usuários e roles
-   - Proteção de rotas
-   - Gerenciamento de sessões
+3. **Hardening de segurança**
+   - Validar e documentar melhor o fluxo de sessão (cookie + Firebase Admin).
+   - Revisar políticas de CORS, cookies e headers de segurança antes de deploy em produção.
 
 ## Deploy na Vercel
 

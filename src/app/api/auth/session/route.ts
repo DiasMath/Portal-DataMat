@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { cookies } from 'next/headers';
 
+const isDev = process.env.NODE_ENV !== 'production';
+
 export async function POST(request: Request) {
   try {
     const { idToken } = await request.json();
@@ -13,8 +15,6 @@ export async function POST(request: Request) {
       );
     }
 
-    console.log('[session] Criando session cookie para token:', idToken.substring(0, 20) + '...');
-
     if (!adminAuth) {
       return NextResponse.json(
         { error: 'Firebase Admin não está configurado' },
@@ -24,12 +24,16 @@ export async function POST(request: Request) {
 
     // Verificar o ID token
     const decodedToken = await adminAuth.verifyIdToken(idToken);
-    console.log('[session] Token verificado para UID:', decodedToken.uid);
+    if (isDev) {
+      console.log('[session] Token verificado para UID:', decodedToken.uid);
+    }
 
     // Criar session cookie com expiração de 14 dias
     const expiresIn = 60 * 60 * 24 * 14 * 1000; // 14 dias em ms
     const sessionCookie = await adminAuth.createSessionCookie(idToken, { expiresIn });
-    console.log('[session] Session cookie criado com sucesso');
+    if (isDev) {
+      console.log('[session] Session cookie criado com sucesso');
+    }
 
     // Definir o cookie
     const cookieStore = await cookies();
@@ -58,7 +62,9 @@ export async function POST(request: Request) {
 // DELETE para logout
 export async function DELETE() {
   try {
-    console.log('[session] Removendo session cookie');
+    if (isDev) {
+      console.log('[session] Removendo session cookie');
+    }
     const cookieStore = await cookies();
     cookieStore.delete('session');
     

@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +15,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
+const isDev = process.env.NODE_ENV !== "production";
+
 export default function LoginPage() {
   const { user, signInWithEmailPassword, isAuthorized, isAdmin, isMasterAdmin, loading: authLoading } = useAuth();
   const [error, setError] = useState("");
@@ -26,28 +28,21 @@ export default function LoginPage() {
   useEffect(() => {
     // Aguarda o carregamento inicial da autenticação
     if (authLoading) {
-      console.log('[Login] Aguardando carregamento da autenticação...');
       return;
     }
 
-    console.log('[Login] Estado:', { user: !!user, isAuthorized, isAdmin, isMasterAdmin });
-
     if (user && isAuthorized) {
-      console.log('[Login] Usuário autenticado e autorizado, redirecionando...');
       const redirectPath = (isAdmin || isMasterAdmin) ? '/admin' : '/dashboard';
       
       // Timeout de segurança - força o redirecionamento
       const timeoutId = setTimeout(() => {
-        console.log('[Login] Forçando redirecionamento para:', redirectPath);
         window.location.href = redirectPath;
       }, 2000);
 
-      // Tenta redirecionamento normal
       router.push(redirectPath);
 
       return () => clearTimeout(timeoutId);
     } else if (user && !isAuthorized) {
-      console.log('[Login] Usuário autenticado mas não autorizado, redirecionando para unauthorized');
       router.push('/unauthorized');
     }
   }, [user, isAuthorized, router, isAdmin, isMasterAdmin, authLoading]);
@@ -58,8 +53,6 @@ export default function LoginPage() {
     setError("");
     
     try {
-      console.log('[Login] Verificando email:', email);
-      
       // Primeiro verificar se o usuário existe no Firestore
       const checkResponse = await fetch('/api/users/check-email', {
         method: 'POST',
@@ -68,20 +61,19 @@ export default function LoginPage() {
       });
 
       const checkData = await checkResponse.json();
-      console.log('[Login] Resposta da verificação:', checkResponse.status, checkData);
+      if (isDev) {
+        console.log('[Login] Resposta da verificação:', checkResponse.status, checkData);
+      }
 
       // Só bloqueia se tiver certeza que não existe (status 404 e exists === false)
       if (checkResponse.status === 404 && checkData.exists === false) {
-        console.log('[Login] Email não cadastrado, bloqueando login');
         setError('Este email não está cadastrado no sistema. Entre em contato com a DataMat para solicitar acesso.');
         setLoading(false);
         return;
       }
 
-      console.log('[Login] Tentando fazer login com Firebase Auth');
       // Se o usuário existe (ou se houve erro na verificação), tentar fazer login
       await signInWithEmailPassword(email, password);
-      console.log('[Login] Login bem-sucedido');
     } catch (error: unknown) {
       console.error('[Login] Erro no login:', error);
       const errorMessage = error instanceof Error ? error.message : "Falha no login com email/senha.";

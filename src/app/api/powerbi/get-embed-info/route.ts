@@ -1,6 +1,9 @@
 // Arquivo: src/app/api/powerbi/get-embed-info/route.ts
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import * as msal from '@azure/msal-node';
+import { validateAuthorized } from '@/lib/auth-helpers';
+
+const isDev = process.env.NODE_ENV !== 'production';
 
 // --- 1. CONFIGURAÇÃO SEGURA (Lendo do .env.local) ---
 const TENANT_ID = process.env.PBI_TENANT_ID;
@@ -51,8 +54,10 @@ async function getReportDetails(accessToken: string) {
 
     if (!response.ok) {
       const errorBody = await response.text();
-      console.error("Erro da API Power BI (getReportDetails):", errorBody);
-      throw new Error(`Falha ao obter detalhes do relatório (Etapa B-1): ${response.statusText} | ${errorBody}`);
+      if (isDev) {
+        console.error("Erro da API Power BI (getReportDetails):", errorBody);
+      }
+      throw new Error(`Falha ao obter detalhes do relatório (Etapa B-1): ${response.statusText}`);
     }
     
     const data = await response.json();
@@ -91,11 +96,13 @@ async function getEmbedToken(accessToken: string) {
 
     if (!response.ok) {
       const errorBody = await response.text(); 
-      console.error("====================================================");
-      console.error("ERRO CRÍTICO NA ETAPA B-2 (getEmbedToken):");
-      console.error(errorBody); 
-      console.error("====================================================");
-      throw new Error(`Falha ao gerar embed token: ${errorBody}`);
+      if (isDev) {
+        console.error("====================================================");
+        console.error("ERRO CRÍTICO NA ETAPA B-2 (getEmbedToken):");
+        console.error(errorBody); 
+        console.error("====================================================");
+      }
+      throw new Error('Falha ao gerar embed token');
     }
 
     const data = await response.json();
@@ -108,8 +115,19 @@ async function getEmbedToken(accessToken: string) {
 
 // --- 3. O HANDLER DA API ---
 
-export async function GET() {
-  console.log("Recebida requisição para /api/powerbi/get-embed-info");
+export async function GET(request: NextRequest) {
+  // Garante que apenas usuários autenticados e autorizados acessem o relatório
+  const user = await validateAuthorized(request);
+  if (!user) {
+    return NextResponse.json(
+      { error: 'Não autenticado ou não autorizado.' },
+      { status: 401 }
+    );
+  }
+
+  if (isDev) {
+    console.log("Recebida requisição para /api/powerbi/get-embed-info pelo usuário:", user.uid);
+  }
   
   try {
     const accessToken = await getAccessToken();
