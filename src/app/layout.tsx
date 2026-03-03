@@ -19,6 +19,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Datamat Portal",
   description: "Portal para visualização de dados dos clientes da Datamat",
+  icons: {
+    icon: "/logo-aba-web.ico",
+  },
 };
 
 export default async function RootLayout({
