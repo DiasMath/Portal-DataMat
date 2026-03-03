@@ -153,6 +153,20 @@ export default function UsersManagementPage() {
       // Mostrar mensagem de sucesso
       toast.success(`Usuário criado com sucesso! ${result.message}`);
 
+      // já dispara email de redefinição de senha para o novo usuário
+      try {
+        await sendPasswordResetEmail(auth, formData.email);
+        toast.success(`Email de redefinição enviado para ${formData.email}`);
+      } catch (error) {
+        console.error(
+          "Erro ao enviar email de redefinição após criação de usuário:",
+          error
+        );
+        toast.error(
+          "Usuário criado, mas houve falha ao enviar o email de redefinição."
+        );
+      }
+
       if (result.tempPassword) {
         if (navigator.clipboard) {
           navigator.clipboard
