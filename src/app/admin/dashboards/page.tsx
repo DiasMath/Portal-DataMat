@@ -38,6 +38,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Company {
   id: string;
@@ -55,6 +56,7 @@ interface Dashboard {
 }
 
 export default function DashboardsManagementPage() {
+  const { isMasterAdmin } = useAuth();
   const [dashboards, setDashboards] = useState<Dashboard[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
@@ -265,7 +267,7 @@ export default function DashboardsManagementPage() {
 
   if (loading && dashboards.length === 0) {
     return (
-      <ProtectedRoute requireMasterAdmin>
+      <ProtectedRoute requireAdmin>
         <main className="flex min-h-screen items-center justify-center">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900" />
         </main>
@@ -274,7 +276,7 @@ export default function DashboardsManagementPage() {
   }
 
   return (
-    <ProtectedRoute requireMasterAdmin>
+    <ProtectedRoute requireAdmin>
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto space-y-6">
           <Card>
@@ -286,6 +288,9 @@ export default function DashboardsManagementPage() {
                     Cadastre e gerencie dashboards associados aos workspaces das empresas.
                   </CardDescription>
                 </div>
+
+                {/* Modal - Criação Dashboard */}
+                {isMasterAdmin && (
                 <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
                   <DialogTrigger asChild>
                     <Button className="bg-create-buttons text-yellow-text hover:bg-navbar/55">
@@ -405,6 +410,9 @@ export default function DashboardsManagementPage() {
                     </form>
                   </DialogContent>
                 </Dialog>
+                )}
+                {/* Fim */}
+
               </div>
             </CardHeader>
           </Card>
@@ -427,7 +435,7 @@ export default function DashboardsManagementPage() {
                       <TableHead>CompanyId</TableHead>
                       <TableHead>ReportId</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead className="w-[160px]">Ações</TableHead>
+                      {isMasterAdmin && <TableHead className="w-[160px]">Ações</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -472,6 +480,9 @@ export default function DashboardsManagementPage() {
                               )}
                             </div>
                           </TableCell>
+
+                          {/* Botões */}
+                          {isMasterAdmin && (
                           <TableCell>
                             <div className="flex gap-2">
                               <Button
@@ -492,6 +503,9 @@ export default function DashboardsManagementPage() {
                               </Button>
                             </div>
                           </TableCell>
+                          )}
+                          {/* Fim */}
+
                         </TableRow>
                       );
                     })}

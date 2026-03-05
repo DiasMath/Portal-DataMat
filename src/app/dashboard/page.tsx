@@ -113,10 +113,10 @@ function MasterAdminCompaniesView() {
 }
 
 function DashboardPage() {
-  const { isMasterAdmin, companyId } = useAuth();
+  const { isAdmin, companyId } = useAuth();
   const router = useRouter();
 
-  if (isMasterAdmin) {
+  if (isAdmin) {
     return <MasterAdminCompaniesView />;
   }
 

@@ -44,6 +44,7 @@ import { sendPasswordResetEmail } from "firebase/auth";
 import { db, auth } from "@/lib/firebase";
 import { Plus, Edit, Trash2, Check, X, Mail } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface User {
   id: string;
@@ -64,6 +65,7 @@ interface Company {
 }
 
 export default function UsersManagementPage() {
+  const { isMasterAdmin } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -335,7 +337,7 @@ export default function UsersManagementPage() {
   }
 
   return (
-    <ProtectedRoute requireMasterAdmin={true}>
+    <ProtectedRoute requireAdmin={true}>
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-7xl mx-auto space-y-6">
           {/* Header */}
@@ -350,6 +352,7 @@ export default function UsersManagementPage() {
                     Gerencie usuários, suas permissões e acesso aos dashboards
                   </p>
                 </div>
+                {isMasterAdmin && (
                 <Dialog
                   open={showCreateModal}
                   onOpenChange={setShowCreateModal}
@@ -470,6 +473,7 @@ export default function UsersManagementPage() {
                     </form>
                   </DialogContent>
                 </Dialog>
+                )}
               </div>
             </CardHeader>
           </Card>
@@ -485,7 +489,7 @@ export default function UsersManagementPage() {
                     <TableHead>Papel</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Último Acesso</TableHead>
-                    <TableHead>Ações</TableHead>
+                    {isMasterAdmin && <TableHead>Ações</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -550,8 +554,11 @@ export default function UsersManagementPage() {
                             ).toLocaleDateString("pt-BR")
                           : "Nunca"}
                       </TableCell>
-                      <TableCell>
-                        <div className="flex space-x-2">
+                      
+                      {/* Botões */}
+                      {isMasterAdmin && (
+                        <TableCell>
+                          <div className="flex space-x-2">
                           <Button
                             size="sm"
                             variant="outline"
@@ -577,6 +584,9 @@ export default function UsersManagementPage() {
                           </Button>
                         </div>
                       </TableCell>
+                      )}
+                      {/* Fim */}
+
                     </TableRow>
                   ))}
                 </TableBody>

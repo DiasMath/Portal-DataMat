@@ -22,7 +22,7 @@ interface Dashboard {
 }
 
 function CompanyDashboardsPage() {
-  const { isMasterAdmin } = useAuth();
+  const { isAdmin } = useAuth();
   const params = useParams<{ companyId: string }>();
   const router = useRouter();
 
@@ -78,12 +78,12 @@ function CompanyDashboardsPage() {
       }
     }
 
-    if (isMasterAdmin) {
+    if (isAdmin) {
       fetchData();
     }
-  }, [params?.companyId, isMasterAdmin]);
+  }, [params?.companyId, isAdmin]);
 
-  if (!isMasterAdmin) {
+  if (!isAdmin) {
     // Proteção extra: apenas master_admin deve acessar esta rota
     return (
       <main className="flex min-h-screen items-center justify-center">
@@ -171,7 +171,7 @@ function CompanyDashboardsPage() {
 
 export default function ProtectedCompanyDashboardsPage() {
   return (
-    <ProtectedRoute requireMasterAdmin>
+    <ProtectedRoute requireAdmin>
       <CompanyDashboardsPage />
     </ProtectedRoute>
   );

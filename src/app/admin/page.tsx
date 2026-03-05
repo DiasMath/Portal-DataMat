@@ -13,12 +13,26 @@ import { useAuth } from "@/contexts/AuthContext";
 import { UserNav } from "@/components/layout/UserNav";
 import { Users, Building2, LayoutDashboard } from "lucide-react";
 import Link from "next/link";
+import { useState, useEffect } from "react";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 export default function AdminPage() {
-  const { userData, isMasterAdmin } = useAuth();
+  const { userData, isAdmin } = useAuth();
+  const [companyName, setCompanyName] = useState<string>("");
+
+  useEffect(() => {
+      if (userData?.companyId) {
+        getDoc(doc(db, "companies", userData.companyId)).then((snap) => {
+          if (snap.exists()) {
+            setCompanyName(snap.data().name);
+          }
+        });
+      }
+    }, [userData?.companyId]);
 
   return (
-    <ProtectedRoute requireMasterAdmin={true}>
+    <ProtectedRoute requireAdmin={true}>
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto space-y-6">
           {/* Header */}
@@ -72,7 +86,7 @@ export default function AdminPage() {
                   <div>
                     <p className="font-semibold">Empresa:</p>
                     <p className="text-muted-foreground">
-                      {userData?.companyId}
+                      {companyName || "Carregando..."}
                     </p>
                   </div>
                 )}
@@ -81,7 +95,7 @@ export default function AdminPage() {
           </Card>
 
           {/* Ferramentas Administrativas */}
-          {isMasterAdmin && (
+          {isAdmin && (
             <Card>
               <CardHeader>
                 <CardTitle>Ferramentas de Administração</CardTitle>

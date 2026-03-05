@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { collection, getDocs, addDoc, serverTimestamp, query, orderBy, doc, updateDoc, deleteDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Building2, Plus, Edit, Trash2, Power } from "lucide-react";
+import { Plus, Edit, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   Table,
@@ -28,6 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Company {
   id: string;
@@ -38,6 +39,7 @@ interface Company {
 }
 
 export default function CompaniesManagementPage() {
+  const { isMasterAdmin } = useAuth();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -201,7 +203,7 @@ export default function CompaniesManagementPage() {
 
   if (loading && companies.length === 0) {
     return (
-      <ProtectedRoute requireMasterAdmin>
+      <ProtectedRoute requireAdmin>
         <main className="flex min-h-screen items-center justify-center">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900" />
         </main>
@@ -210,7 +212,7 @@ export default function CompaniesManagementPage() {
   }
 
   return (
-    <ProtectedRoute requireMasterAdmin>
+    <ProtectedRoute requireAdmin>
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto space-y-6">
           <Card>
@@ -222,6 +224,9 @@ export default function CompaniesManagementPage() {
                     Cadastre e gerencie os clientes (empresas) que possuem workspaces no Power BI.
                   </CardDescription>
                 </div>
+
+                {/* Modal - Criação Empresa */}
+                {isMasterAdmin && (
                 <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
                   <DialogTrigger asChild>
                     <Button className="bg-create-buttons text-yellow-text hover:bg-navbar/55">
@@ -304,6 +309,9 @@ export default function CompaniesManagementPage() {
                     </form>
                   </DialogContent>
                 </Dialog>
+                )}
+                {/* Fim */}
+
               </div>
             </CardHeader>
           </Card>
@@ -325,7 +333,7 @@ export default function CompaniesManagementPage() {
                       <TableHead>ID</TableHead>
                       <TableHead>GroupId</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead className="w-[160px]">Ações</TableHead>
+                      {isMasterAdmin && <TableHead className="w-[160px]">Ações</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -347,8 +355,11 @@ export default function CompaniesManagementPage() {
                             {company.active ? "Ativa" : "Inativa"}
                           </span>
                         </TableCell>
-                        <TableCell>
-                          <div className="flex gap-2">
+
+                        {/* Botões */}
+                        {isMasterAdmin && (
+                          <TableCell>
+                            <div className="flex gap-2">
                             <Button
                               size="sm"
                               variant="outline"
@@ -367,6 +378,9 @@ export default function CompaniesManagementPage() {
                             </Button>
                           </div>
                         </TableCell>
+                        )}
+                        {/* Fim */}
+                        
                       </TableRow>
                     ))}
                   </TableBody>
