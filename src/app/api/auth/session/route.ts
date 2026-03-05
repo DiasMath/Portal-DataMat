@@ -28,8 +28,8 @@ export async function POST(request: Request) {
       console.log('[session] Token verificado para UID:', decodedToken.uid);
     }
 
-    // Criar session cookie com expiração de 14 dias
-    const expiresIn = 60 * 60 * 24 * 14 * 1000; // 14 dias em ms
+    // Criar session cookie com expiração de 8 horas
+    const expiresIn = 60 * 60 * 8 * 1000; // 8 horas em ms
     const sessionCookie = await adminAuth.createSessionCookie(idToken, { expiresIn });
     if (isDev) {
       console.log('[session] Session cookie criado com sucesso');

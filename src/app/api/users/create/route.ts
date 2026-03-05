@@ -22,21 +22,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Obter dados do usuário a ser criado
-    const { email, displayName, role, authorized, dashboardLink, password, companyId } = await request.json();
+    const { email, displayName, role, authorized, companyId } = await request.json();
 
     if (!email) {
       return NextResponse.json({ error: 'Email é obrigatório' }, { status: 400 });
     }
 
-    // Gerar senha temporária se não fornecida
-    const tempPassword = password || generateTempPassword();
-
-    // Criar usuário no Firebase Auth
+    // Criar usuário no Firebase Auth sem senha inicial definida aqui.
+    // O usuário definirá a própria senha através do email de redefinição.
     const userRecord = await adminAuth.createUser({
       email,
-      password: tempPassword,
       displayName,
-      emailVerified: false, // Usuário precisará verificar email
+      emailVerified: false,
     });
 
     // Criar documento no Firestore
@@ -47,7 +44,6 @@ export async function POST(request: NextRequest) {
       companyId: companyId || null,
       role: role || 'user',
       authorized: authorized !== undefined ? authorized : true,
-      dashboardLink: dashboardLink || '',
       provider: 'email',
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -63,8 +59,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ 
       success: true,
       uid: userRecord.uid,
-      message: 'Usuário criado com sucesso. Um email de redefinição de senha foi enviado.',
-      tempPassword: password ? undefined : tempPassword // Retorna senha temporária apenas se foi gerada automaticamente
+      message: 'Usuário criado com sucesso. Um email de redefinição de senha foi enviado para o usuário configurar a própria senha.',
     });
 
   } catch (error: unknown) {
@@ -89,13 +84,4 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ error: errorMessage }, { status: statusCode });
   }
-}
-
-function generateTempPassword(): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%';
-  let password = '';
-  for (let i = 0; i < 12; i++) {
-    password += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return password;
 }

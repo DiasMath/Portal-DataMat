@@ -24,7 +24,6 @@ interface UserData {
   displayName?: string;
   role: "user" | "admin" | "master_admin";
   authorized: boolean;
-  dashboardLink?: string;
   photoURL?: string;
   provider?: string;
   createdAt?: { seconds: number };
