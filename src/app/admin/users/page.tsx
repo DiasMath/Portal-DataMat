@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -42,9 +42,8 @@ import {
 } from "firebase/firestore";
 import { sendPasswordResetEmail } from "firebase/auth";
 import { db, auth } from "@/lib/firebase";
-import { Plus, Edit, Trash2, Check, X, Mail, Link2 } from "lucide-react";
+import { Plus, Edit, Trash2, Check, X, Mail } from "lucide-react";
 import { toast } from "sonner";
-import Link from "next/link";
 
 interface User {
   id: string;
@@ -54,22 +53,36 @@ interface User {
   companyId?: string;
   role: "user" | "admin" | "master_admin";
   authorized: boolean;
-  dashboardLink?: string;
   provider?: string;
   createdAt?: { seconds: number };
   lastLogin?: { seconds: number };
+}
+
+interface Company {
+  id: string;
+  name: string;
 }
 
 export default function UsersManagementPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [companies, setCompanies] = useState<Company[]>([]);
 
   // State for the edit modal
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [newDashboardLink, setNewDashboardLink] = useState("");
   const [currentUserUid, setCurrentUserUid] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmMode, setConfirmMode] = useState<"delete" | "passwordReset" | null>(null);
+  const [targetUser, setTargetUser] = useState<User | null>(null);
+
+  const [editFormData, setEditFormData] = useState({
+    displayName: "",
+    companyId: "",
+    role: "user" as User["role"],
+    authorized: true,
+  });
 
   // Form state for new user
   const [formData, setFormData] = useState({
@@ -78,8 +91,6 @@ export default function UsersManagementPage() {
     companyId: "",
     role: "user",
     authorized: true,
-    dashboardLink: "",
-    password: "", // Campo opcional para senha personalizada
   });
 
   useEffect(() => {
@@ -92,6 +103,7 @@ export default function UsersManagementPage() {
     });
 
     fetchUsers();
+    fetchCompanies();
 
     return () => unsubscribe();
   }, []);
@@ -113,6 +125,26 @@ export default function UsersManagementPage() {
       console.error("Erro ao buscar usuários:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchCompanies = async () => {
+    try {
+      const companiesQuery = query(
+        collection(db, "companies"),
+        orderBy("name", "asc")
+      );
+      const snapshot = await getDocs(companiesQuery);
+      const data: Company[] = snapshot.docs.map((doc) => {
+        const d = doc.data() as Partial<Company>;
+        return {
+          id: doc.id,
+          name: d.name ?? doc.id,
+        };
+      });
+      setCompanies(data);
+    } catch (error) {
+      console.error("Erro ao buscar empresas para seleção:", error);
     }
   };
 
@@ -138,8 +170,6 @@ export default function UsersManagementPage() {
           displayName: formData.displayName,
           role: formData.role,
           authorized: formData.authorized,
-          dashboardLink: formData.dashboardLink || "",
-          password: formData.password || undefined, // Enviar senha apenas se fornecida
           companyId: formData.companyId || undefined,
         }),
       });
@@ -167,21 +197,6 @@ export default function UsersManagementPage() {
         );
       }
 
-      if (result.tempPassword) {
-        if (navigator.clipboard) {
-          navigator.clipboard
-            .writeText(result.tempPassword)
-            .then(() =>
-              toast.success("Senha copiada para a área de transferência!")
-            )
-            .catch(() => toast.error("Não foi possível copiar a senha."));
-        }
-        toast.info("Senha Temporária Gerada", {
-          description: `A senha ${result.tempPassword} foi copiada. Compartilhe com o usuário de forma segura.`,
-          duration: Infinity,
-        });
-      }
-
       setShowCreateModal(false);
       setFormData({
         email: "",
@@ -189,8 +204,6 @@ export default function UsersManagementPage() {
         companyId: "",
         role: "user",
         authorized: true,
-        dashboardLink: "",
-        password: "",
       });
 
       await fetchUsers();
@@ -223,47 +236,34 @@ export default function UsersManagementPage() {
   };
 
   const handleDeleteUser = async (userId: string) => {
-    if (
-      confirm(
-        "Tem certeza que deseja excluir este usuário? Esta ação é irreversível e removerá o usuário da autenticação e do banco de dados."
-      )
-    ) {
-      try {
-        const response = await fetch("/api/users/delete", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ uid: userId }),
-        });
+    try {
+      const response = await fetch("/api/users/delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ uid: userId }),
+      });
 
-        const result = await response.json();
+      const result = await response.json();
 
-        if (!response.ok) {
-          throw new Error(result.error || "Falha ao excluir usuário.");
-        }
-
-        toast.success("Usuário excluído com sucesso!");
-        await fetchUsers(); // Refresh the user list
-      } catch (error: unknown) {
-        console.error("Erro ao excluir usuário:", error);
-        const errorMessage =
-          error instanceof Error
-            ? error.message
-            : "Falha ao excluir usuário do banco de dados.";
-        toast.error(errorMessage);
+      if (!response.ok) {
+        throw new Error(result.error || "Falha ao excluir usuário.");
       }
+
+      toast.success("Usuário excluído com sucesso!");
+      await fetchUsers(); // Refresh the user list
+    } catch (error: unknown) {
+      console.error("Erro ao excluir usuário:", error);
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Falha ao excluir usuário do banco de dados.";
+      toast.error(errorMessage);
     }
   };
 
   const handleSendPasswordReset = async (email: string) => {
-    if (
-      !confirm(
-        `Tem certeza que deseja enviar um link de redefinição de senha para ${email}?`
-      )
-    )
-      return;
-
     try {
       await sendPasswordResetEmail(auth, email);
       toast.success(`Email de redefinição enviado para ${email}`);
@@ -273,19 +273,57 @@ export default function UsersManagementPage() {
     }
   };
 
-  const handleDashboardLinkUpdate = async () => {
-    if (!editingUser) return;
-    const success = await handleUpdateUser(editingUser.id, {
-      dashboardLink: newDashboardLink,
+  const toggleAuthorization = async (user: User) => {
+    await handleUpdateUser(user.id, { authorized: !user.authorized });
+  };
+
+  const handleOpenEdit = (user: User) => {
+    setEditingUser(user);
+    setEditFormData({
+      displayName: user.displayName ?? "",
+      companyId: user.companyId ?? "",
+      role: user.role,
+      authorized: user.authorized,
     });
+    setShowEditModal(true);
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+
+    const success = await handleUpdateUser(editingUser.id, {
+      displayName: editFormData.displayName,
+      companyId: editFormData.companyId || undefined,
+      role: editFormData.role,
+      authorized: editFormData.authorized,
+    });
+
     if (success) {
-      toast.success("Link do dashboard atualizado com sucesso!");
+      toast.success("Usuário atualizado com sucesso!");
       setShowEditModal(false);
+      setEditingUser(null);
+    } else {
+      toast.error("Falha ao atualizar usuário.");
     }
   };
 
-  const toggleAuthorization = async (user: User) => {
-    await handleUpdateUser(user.id, { authorized: !user.authorized });
+  const openConfirm = (user: User, mode: "delete" | "passwordReset") => {
+    setTargetUser(user);
+    setConfirmMode(mode);
+    setConfirmOpen(true);
+  };
+
+  const handleConfirmAction = async () => {
+    if (!targetUser || !confirmMode) return;
+    if (confirmMode === "delete") {
+      await handleDeleteUser(targetUser.id);
+    } else if (confirmMode === "passwordReset") {
+      await handleSendPasswordReset(targetUser.email);
+    }
+    setConfirmOpen(false);
+    setConfirmMode(null);
+    setTargetUser(null);
   };
 
   if (loading && users.length === 0) {
@@ -317,7 +355,7 @@ export default function UsersManagementPage() {
                   onOpenChange={setShowCreateModal}
                 >
                   <DialogTrigger asChild>
-                    <Button className="bg-navbar text-navbar-foreground hover:bg-navbar/65">
+                    <Button className="bg-create-buttons text-yellow-text hover:bg-navbar/55">
                       <Plus className="w-4 h-4 mr-2" />
                       Novo Usuário
                     </Button>
@@ -361,9 +399,10 @@ export default function UsersManagementPage() {
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="companyId">Nome da Empresa</Label>
+                        <Label htmlFor="companyId">Empresa (companyId)</Label>
                         <Input
                           id="companyId"
+                          list="companies-list"
                           value={formData.companyId}
                           onChange={(e) =>
                             setFormData({
@@ -371,15 +410,22 @@ export default function UsersManagementPage() {
                               companyId: e.target.value,
                             })
                           }
-                          placeholder="DataMat"
+                          placeholder="ID da empresa (companies)"
                         />
+                        <datalist id="companies-list">
+                          {companies.map((company) => (
+                            <option key={company.id} value={company.id}>
+                              {company.name}
+                            </option>
+                          ))}
+                        </datalist>
                       </div>
 
                       <div className="space-y-2">
                         <Label htmlFor="role">Papel *</Label>
                         <Select
                           value={formData.role}
-                          onValueChange={(value: "user") =>
+                          onValueChange={(value: "user" | "admin") =>
                             setFormData({ ...formData, role: value })
                           }
                         >
@@ -388,45 +434,9 @@ export default function UsersManagementPage() {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="user">Usuário</SelectItem>
+                            <SelectItem value="admin">Admin</SelectItem>
                           </SelectContent>
                         </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="password">Senha</Label>
-                        <Input
-                          id="password"
-                          type="password"
-                          value={formData.password}
-                          onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              password: e.target.value,
-                            })
-                          }
-                          placeholder="Deixe vazio para gerar automaticamente"
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Se deixar vazio, uma senha será gerada automaticamente.
-                          Depois de criar o usuário, use a ação &quot;Enviar link
-                          para redefinir senha&quot; na tela de usuários para que
-                          o próprio cliente defina a senha definitiva.
-                        </p>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="dashboardLink">Link do Dashboard</Label>
-                        <Input
-                          id="dashboardLink"
-                          value={formData.dashboardLink}
-                          onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              dashboardLink: e.target.value,
-                            })
-                          }
-                          placeholder="https://app.powerbi.com/view?..."
-                        />
                       </div>
 
                       <div className="flex items-center space-x-2">
@@ -474,7 +484,6 @@ export default function UsersManagementPage() {
                     <TableHead>Empresa</TableHead>
                     <TableHead>Papel</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Dashboard</TableHead>
                     <TableHead>Último Acesso</TableHead>
                     <TableHead>Ações</TableHead>
                   </TableRow>
@@ -530,22 +539,6 @@ export default function UsersManagementPage() {
                         </div>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {user.dashboardLink ? (
-                          <Link
-                            href={`/dashboard?url=${encodeURIComponent(
-                              user.dashboardLink
-                            )}`}
-                            className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                          >
-                            Configurado
-                          </Link>
-                        ) : (
-                          <span className="text-muted-foreground">
-                            Não configurado
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
                         {user.lastLogin
                           ? new Date(
                               user.lastLogin.seconds * 1000
@@ -565,18 +558,14 @@ export default function UsersManagementPage() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => {
-                              setEditingUser(user);
-                              setNewDashboardLink(user.dashboardLink || "");
-                              setShowEditModal(true);
-                            }}
+                            onClick={() => handleOpenEdit(user)}
                           >
                             <Edit className="w-4 h-4" />
                           </Button>
                           <Button
                             size="sm"
                             variant="destructive"
-                            onClick={() => handleDeleteUser(user.id)}
+                            onClick={() => openConfirm(user, "delete")}
                             disabled={user.id === currentUserUid}
                           >
                             <Trash2 className="w-4 h-4" />
@@ -599,40 +588,154 @@ export default function UsersManagementPage() {
             <DialogTitle>Editar Usuário</DialogTitle>
             <DialogDescription>{editingUser?.email}</DialogDescription>
           </DialogHeader>
-          <div className="space-y-6 py-4">
-            {/* Update Dashboard Link Section */}
-            <div className="space-y-2">
-              <Label htmlFor="dashboard-link" className="flex items-center">
-                <Link2 className="w-4 h-4 mr-2" /> Link do Dashboard
-              </Label>
-              <div className="flex space-x-2">
+          <form onSubmit={handleSaveEdit} className="space-y-6 py-4">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-displayName">Nome de Exibição</Label>
                 <Input
-                  id="dashboard-link"
-                  value={newDashboardLink}
-                  onChange={(e) => setNewDashboardLink(e.target.value)}
-                  placeholder="https://app.powerbi.com/..."
+                  id="edit-displayName"
+                  value={editFormData.displayName}
+                  onChange={(e) =>
+                    setEditFormData({
+                      ...editFormData,
+                      displayName: e.target.value,
+                    })
+                  }
+                  placeholder="João Silva"
                 />
-                <Button onClick={handleDashboardLinkUpdate}>Salvar Link</Button>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-companyId">Empresa (CompanyId)</Label>
+                <Input
+                  id="edit-companyId"
+                  list="companies-list-edit"
+                  value={editFormData.companyId}
+                  onChange={(e) =>
+                    setEditFormData({
+                      ...editFormData,
+                      companyId: e.target.value,
+                    })
+                  }
+                  placeholder="ID da empresa (companies)"
+                />
+                <datalist id="companies-list-edit">
+                  {companies.map((company) => (
+                    <option key={company.id} value={company.id}>
+                      {company.name}
+                    </option>
+                  ))}
+                </datalist>
+              </div>
+
+              {editingUser?.role === "master_admin" ? (
+                <div className="space-y-1">
+                  <Label htmlFor="edit-role">Papel</Label>
+                  <p className="text-sm font-medium">
+                    Master Admin{" "}
+                    <span className="text-xs text-muted-foreground">
+                      (não editável pela interface)
+                    </span>
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label htmlFor="edit-role">Papel</Label>
+                  <Select
+                    value={editFormData.role}
+                    onValueChange={(value: "user" | "admin") =>
+                      setEditFormData({ ...editFormData, role: value })
+                    }
+                  >
+                    <SelectTrigger id="edit-role">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="user">Usuário</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="edit-authorized"
+                  checked={editFormData.authorized}
+                  onCheckedChange={(checked) =>
+                    setEditFormData({
+                      ...editFormData,
+                      authorized: !!checked,
+                    })
+                  }
+                />
+                <Label
+                  htmlFor="edit-authorized"
+                  className="cursor-pointer text-sm font-medium"
+                >
+                  Usuário autorizado
+                </Label>
+              </div>
+
+              <div className="space-y-2 pt-2 border-t">
+                <Label className="flex items-center">
+                  <Mail className="w-4 h-4 mr-2" /> Ações de Email
+                </Label>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full"
+                  onClick={() =>
+                    editingUser && openConfirm(editingUser, "passwordReset")
+                  }
+                >
+                  Enviar Link para Redefinir Senha
+                </Button>
               </div>
             </div>
 
-            {/* Send Password Reset Section */}
-            <div className="space-y-2">
-              <Label className="flex items-center">
-                <Mail className="w-4 h-4 mr-2" /> Ações de Email
-              </Label>
+            <DialogFooter>
               <Button
-                variant="secondary"
-                className="w-full"
-                onClick={() => handleSendPasswordReset(editingUser!.email)}
+                type="button"
+                variant="outline"
+                onClick={() => setShowEditModal(false)}
               >
-                Enviar Link para Redefinir Senha
+                Fechar
               </Button>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowEditModal(false)}>
-              Fechar
+              <Button type="submit">Salvar alterações</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de confirmação para exclusão e envio de email */}
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>
+              {confirmMode === "delete"
+                ? "Confirmar exclusão"
+                : "Confirmar envio de email"}
+            </DialogTitle>
+            <DialogDescription>
+              {confirmMode === "delete"
+                ? `Tem certeza que deseja excluir o usuário "${
+                    targetUser?.email ?? ""
+                  }"? Esta ação é irreversível e removerá o usuário da autenticação e do banco de dados.`
+                : `Tem certeza que deseja enviar um link de redefinição de senha para ${
+                    targetUser?.email ?? ""
+                  }?`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setConfirmOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              variant={confirmMode === "delete" ? "destructive" : "default"}
+              onClick={handleConfirmAction}
+            >
+              Confirmar
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import {
   Card,
   CardHeader,
@@ -11,65 +10,12 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
-import { UserNav } from "@/components/ui/user-nav";
-import { Users, BarChart3, Pencil } from "lucide-react";
+import { UserNav } from "@/components/layout/UserNav";
+import { Users, Building2, LayoutDashboard } from "lucide-react";
 import Link from "next/link";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-  DialogClose,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { toast } from "sonner";
-import { auth } from "@/lib/firebase";
 
 export default function AdminPage() {
-  const { userData, isMasterAdmin, setUserData } = useAuth();
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [newDashboardLink, setNewDashboardLink] = useState(
-    userData?.dashboardLink || ""
-  );
-
-  const handleUpdateDashboardLink = async () => {
-    try {
-      const currentUser = auth.currentUser;
-      if (!currentUser) {
-        throw new Error("Usuário não autenticado");
-      }
-
-      const response = await fetch("/api/users/update-dashboard", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ newDashboardLink }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || "Falha ao atualizar o link.");
-      }
-
-      toast.success("Link do dashboard atualizado com sucesso!");
-
-      // Atualiza o contexto localmente para refletir a mudança instantaneamente
-      if (userData) {
-        setUserData({ ...userData, dashboardLink: newDashboardLink });
-      }
-
-      setIsEditDialogOpen(false);
-    } catch (error: unknown) {
-      console.error("Erro ao atualizar o link do dashboard:", error);
-      const errorMessage = error instanceof Error ? error.message : "Ocorreu um erro desconhecido.";
-      toast.error(errorMessage);
-    }
-  };
+  const { userData, isMasterAdmin } = useAuth();
 
   return (
     <ProtectedRoute requireMasterAdmin={true}>
@@ -134,51 +80,18 @@ export default function AdminPage() {
             </CardContent>
           </Card>
 
-          {/* Dashboard do Power BI */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Dashboard</CardTitle>
-              <CardDescription>
-                Acesse seus dashboards personalizados
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex space-x-2">
-                <Button
-                  asChild
-                  className="bg-navbar text-navbar-foreground hover:bg-navbar/65"
-                >
-                  <Link href="/dashboard" className="inline-flex items-center">
-                    <BarChart3 className="w-4 h-4 mr-2" />
-                    Abrir Dashboard
-                  </Link>
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setNewDashboardLink(userData?.dashboardLink || "");
-                    setIsEditDialogOpen(true);
-                  }}
-                >
-                  <Pencil className="w-4 h-4 mr-2" />
-                  Editar link do Dashboard
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
           {/* Ferramentas Administrativas */}
           {isMasterAdmin && (
             <Card>
               <CardHeader>
                 <CardTitle>Ferramentas de Administração</CardTitle>
                 <CardDescription>
-                  Gerenciamento de usuários e configurações do portal
+                  Gerenciamento de usuários, clientes e dashboards do portal
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <Button asChild variant="outline">
+              <CardContent className="space-y-3">
+                <div className="flex flex-wrap gap-3">
+                  <Button asChild variant="outline" className="justify-start min-w-[180px]">
                     <Link
                       href="/admin/users"
                       className="inline-flex items-center"
@@ -187,70 +100,35 @@ export default function AdminPage() {
                       Gerenciar Usuários
                     </Link>
                   </Button>
-                  {isMasterAdmin && (
-                    <div className="text-sm text-muted-foreground mt-2">
-                      Você tem acesso completo como Master Administrador
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
 
-          {/* Mensagem para usuários sem dashboard */}
-          {!userData?.dashboardLink && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Dashboard em Configuração</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">
-                  Seu dashboard personalizado ainda não foi configurado. Entre
-                  em contato com o administrador para solicitar acesso aos
-                  relatórios.
-                </p>
+                  <Button asChild variant="outline" className="justify-start min-w-[200px]">
+                    <Link
+                      href="/admin/companies"
+                      className="inline-flex items-center"
+                    >
+                      <Building2 className="w-4 h-4 mr-2" />
+                      Gerenciar Empresas
+                    </Link>
+                  </Button>
+
+                  <Button asChild variant="outline" className="justify-start min-w-[200px]">
+                    <Link
+                      href="/admin/dashboards"
+                      className="inline-flex items-center"
+                    >
+                      <LayoutDashboard className="w-4 h-4 mr-2" />
+                      Gerenciar Dashboards
+                    </Link>
+                  </Button>
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  Você tem acesso completo como Master Administrador
+                </div>
               </CardContent>
             </Card>
           )}
         </div>
       </main>
-
-      {/* Dialog para Editar Link do Dashboard */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Editar Link do Dashboard</DialogTitle>
-            <DialogDescription>
-              Cole a nova URL do seu dashboard do Power BI aqui. Clique em
-              salvar quando terminar.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="dashboard-link" className="text-right">
-                URL
-              </Label>
-              <Input
-                id="dashboard-link"
-                value={newDashboardLink}
-                onChange={(e) => setNewDashboardLink(e.target.value)}
-                className="col-span-3"
-                placeholder="https://app.powerbi.com/..."
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button type="button" variant="secondary">
-                Cancelar
-              </Button>
-            </DialogClose>
-            <Button type="submit" onClick={handleUpdateDashboardLink}>
-              Salvar Alterações
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </ProtectedRoute>
   );
 }
