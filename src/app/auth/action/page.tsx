@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, KeyRound, XCircle } from 'lucide-react';
+import { Loader2, KeyRound, XCircle, Eye, EyeOff } from "lucide-react";
 import Link from 'next/link';
 
 export default function AuthAction() {
@@ -21,6 +21,8 @@ export default function AuthAction() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const mode = searchParams.get('mode');
   const oobCode = searchParams.get('oobCode');
@@ -60,11 +62,16 @@ export default function AuthAction() {
     e.preventDefault();
 
     if (newPassword !== confirmPassword) {
-      toast.error('As senhas não coincidem');
+      toast.error("As senhas não coincidem");
       return;
     }
-    if (newPassword.length < 6) {
-      toast.error('A senha deve ter pelo menos 6 caracteres');
+
+    const passwordRegex =
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\W).{6,}$/;
+    if (!passwordRegex.test(newPassword)) {
+      toast.error(
+        "A senha deve ter pelo menos 6 caracteres, com letra maiúscula, minúscula e caractere especial.",
+      );
       return;
     }
 
@@ -139,32 +146,70 @@ export default function AuthAction() {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="newPassword">Nova Senha</Label>
-              <Input
-                id="newPassword"
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Digite sua nova senha"
-                required
-                minLength={6}
-                disabled={submitting}
-              />
+              <div className="relative">
+                <Input
+                  id="newPassword"
+                  type={showNewPassword ? "text" : "password"}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Digite sua nova senha"
+                  required
+                  minLength={6}
+                  disabled={submitting}
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword((prev) => !prev)}
+                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground"
+                  aria-label={
+                    showNewPassword ? "Ocultar senha" : "Mostrar senha"
+                  }
+                >
+                  {showNewPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
               <p className="text-xs text-muted-foreground">
-                Mínimo de 6 caracteres
+                Mínimo de 6 caracteres, com letra maiúscula, minúscula e caractere especial.
               </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirmar Nova Senha</Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Digite a senha novamente"
-                required
-                minLength={6}
-                disabled={submitting}
-              />
+              <div className="relative">
+                <Input
+                  id="confirmPassword"
+                  type={showConfirmPassword ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Digite a senha novamente"
+                  required
+                  minLength={6}
+                  disabled={submitting}
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    setShowConfirmPassword((prev) => !prev)
+                  }
+                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground"
+                  aria-label={
+                    showConfirmPassword
+                      ? "Ocultar senha"
+                      : "Mostrar senha"
+                  }
+                >
+                  {showConfirmPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
             </div>
             <Button
               type="submit"

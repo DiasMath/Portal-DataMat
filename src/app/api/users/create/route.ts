@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import { validateMasterAdmin } from '@/lib/auth-helpers';
 import admin from 'firebase-admin';
+import { logAuditEvent } from '@/lib/audit';
 
 export async function POST(request: NextRequest) {
   try {
@@ -55,6 +56,20 @@ export async function POST(request: NextRequest) {
     } catch (emailError) {
       console.warn('Erro ao enviar email de redefinição:', emailError);
     }
+
+    // Registrar auditoria
+    await logAuditEvent({
+      action: "USER_CREATE",
+      actorUid: currentUser.uid,
+      targetType: "user",
+      targetId: userRecord.uid,
+      details: {
+        email,
+        role: role || "user",
+        authorized: authorized !== undefined ? authorized : true,
+        companyId: companyId || null,
+      },
+    });
 
     return NextResponse.json({ 
       success: true,

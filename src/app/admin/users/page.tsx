@@ -504,7 +504,12 @@ export default function UsersManagementPage() {
                       <TableCell>
                         <div>
                           <div className="text-sm font-medium">
-                            {user.companyId || "N/A"}
+                            {(() => {
+                              const company = companies.find(
+                                (c) => c.id === user.companyId
+                              );
+                              return company?.name || user.companyId || "N/A";
+                            })()}
                           </div>
                         </div>
                       </TableCell>
