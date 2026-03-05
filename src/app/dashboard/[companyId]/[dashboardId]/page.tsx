@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import dynamicImport from "next/dynamic";
 import type { IEmbedConfiguration } from "powerbi-client";
 import { useParams, useRouter } from "next/navigation";
@@ -85,20 +85,9 @@ function CompanyDashboardEmbedPage() {
       }
     }
 
-    if (isMasterAdmin) {
-      fetchEmbedInfo();
-    }
-  }, [params?.companyId, params?.dashboardId, isMasterAdmin]);
+    fetchEmbedInfo();
 
-  if (!isMasterAdmin) {
-    return (
-      <main className="flex min-h-screen items-center justify-center">
-        <p className="text-sm text-muted-foreground">
-          Você não tem permissão para visualizar esta página.
-        </p>
-      </main>
-    );
-  }
+  }, [params?.companyId, params?.dashboardId, isMasterAdmin]);
 
   if (loading) {
     return (
@@ -141,7 +130,7 @@ function CompanyDashboardEmbedPage() {
 
 export default function ProtectedCompanyDashboardEmbedPage() {
   return (
-    <ProtectedRoute requireMasterAdmin>
+    <ProtectedRoute>
       <CompanyDashboardEmbedPage />
     </ProtectedRoute>
   );
