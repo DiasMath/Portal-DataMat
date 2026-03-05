@@ -33,6 +33,12 @@ jobs:
           NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
           NEXT_PUBLIC_FIREBASE_APP_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}
           FIREBASE_SERVICE_ACCOUNT_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
+          PBI_TENANT_ID: ${{ secrets.PBI_TENANT_ID }}
+          PBI_CLIENT_ID: ${{ secrets.PBI_CLIENT_ID }}
+          PBI_CLIENT_SECRET: ${{ secrets.PBI_CLIENT_SECRET }}
+          PBI_AUTHORITY_URL: ${{ secrets.PBI_AUTHORITY_URL }}
+          PBI_SCOPE: ${{ secrets.PBI_SCOPE }}
+          PBI_API_BASE_URL: ${{ secrets.PBI_API_BASE_URL }}
 
       - name: Create deployment package
         run: |
@@ -121,7 +127,12 @@ jobs:
             NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
             NEXT_PUBLIC_FIREBASE_APP_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}
             FIREBASE_SERVICE_ACCOUNT_KEY=${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
-            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            PBI_TENANT_ID=${{ secrets.PBI_TENANT_ID }}
+            PBI_CLIENT_ID=${{ secrets.PBI_CLIENT_ID }}
+            PBI_CLIENT_SECRET=${{ secrets.PBI_CLIENT_SECRET }}
+            PBI_AUTHORITY_URL=${{ secrets.PBI_AUTHORITY_URL }}
+            PBI_SCOPE=${{ secrets.PBI_SCOPE }}
+            PBI_API_BASE_URL=${{ secrets.PBI_API_BASE_URL }}
             NEXT_PUBLIC_APP_URL=http://191.252.60.127
             ENVEOF
 
