@@ -562,14 +562,6 @@ export default function UsersManagementPage() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => toggleAuthorization(user)}
-                            disabled={user.id === currentUserUid}
-                          >
-                            {user.authorized ? "Desautorizar" : "Autorizar"}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
                             onClick={() => handleOpenEdit(user)}
                           >
                             <Edit className="w-4 h-4" />
