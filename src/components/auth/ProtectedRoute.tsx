@@ -3,6 +3,7 @@
 import { useEffect, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -11,15 +12,52 @@ interface ProtectedRouteProps {
   requireMasterAdmin?: boolean;
 }
 
+// 8 horas exatas em milissegundos
+const EIGHT_HOURS_MS = 8 * 60 * 60 * 1000;
+
 export const ProtectedRoute = ({
   children,
   requireAuth = true,
   requireAdmin = false,
   requireMasterAdmin = false,
 }: ProtectedRouteProps) => {
-  const { user, userData, loading, isAdmin, isMasterAdmin, isAuthorized } = useAuth();
+  const { user, userData, loading, isAdmin, isMasterAdmin, isAuthorized, signOut } = useAuth();
   const router = useRouter();
 
+  // ==========================================
+  // LÓGICA DE EXPIRAÇÃO ABSOLUTA DE 8 HORAS
+  // ==========================================
+  useEffect(() => {
+    // Se a rota não exige auth, ou o usuário não está logado, ignoramos
+    if (!requireAuth || !user || !user.metadata.lastSignInTime) return;
+
+    // Converte a string de data do último login para milissegundos
+    const lastSignInTime = new Date(user.metadata.lastSignInTime).getTime();
+    const now = Date.now();
+    const timeElapsed = now - lastSignInTime;
+    const timeLeft = EIGHT_HOURS_MS - timeElapsed;
+
+    const forceLogout = async () => {
+      toast.warning("Sua sessão de 8 horas expirou. Por favor, faça login novamente.");
+      await signOut();
+      router.push('/login');
+    };
+
+    if (timeLeft <= 0) {
+      // Já se passaram 8 horas desde o login: derruba na mesma hora
+      forceLogout();
+    } else {
+      // Ainda não deu 8 horas: programa a queda EXATAMENTE para quando o tempo acabar
+      const timer = setTimeout(forceLogout, timeLeft);
+      
+      // Limpa o cronômetro da memória se o usuário mudar de página
+      return () => clearTimeout(timer);
+    }
+  }, [user, requireAuth, signOut, router]);
+
+  // ==========================================
+  // LÓGICA DE REDIRECIONAMENTO E PERMISSÕES
+  // ==========================================
   useEffect(() => {
     if (loading) return;
 
@@ -81,4 +119,3 @@ export const ProtectedRoute = ({
 
   return <>{children}</>;
 };
-
