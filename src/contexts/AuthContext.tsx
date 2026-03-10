@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useState,
+  useRef,
   ReactNode,
 } from "react";
 import {
@@ -57,7 +58,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [sessionCookieCreated, setSessionCookieCreated] = useState(false);
+  
+  // useRef para não causar re-renderizações (loops) invisíveis
+  const sessionCookieCreated = useRef(false);
 
   const fetchUserData = async (user: User) => {
     try {
@@ -85,19 +88,25 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     if (!auth) return;
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      // Ativar o loading IMEDIATAMENTE antes de processar qualquer coisa 
+      // para evitar o "piscar" da tela de não autorizado
+      setLoading(true);
+
       if (isDev) {
         console.log("[AuthContext] Auth state changed:", {
           user: !!user,
-          sessionCookieCreated,
+          sessionCookieCreated: sessionCookieCreated.current,
         });
       }
 
       setUser(user);
+      
       if (user) {
+        // Espera puxar as regras do Firestore (role, authorized, etc)
         await fetchUserData(user);
 
         // Criar session cookie no servidor APENAS UMA VEZ
-        if (!sessionCookieCreated) {
+        if (!sessionCookieCreated.current) {
           try {
             if (isDev) {
               console.log("[AuthContext] Criando session cookie...");
@@ -113,7 +122,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
               if (isDev) {
                 console.log("[AuthContext] Session cookie criado com sucesso");
               }
-              setSessionCookieCreated(true);
+              sessionCookieCreated.current = true;
             } else {
               console.error(
                 "[AuthContext] Falha ao criar session cookie:",
@@ -128,7 +137,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         setUserData(null);
 
         // Remover session cookie no logout
-        if (sessionCookieCreated) {
+        if (sessionCookieCreated.current) {
           try {
             if (isDev) {
               console.log("[AuthContext] Removendo session cookie...");
@@ -137,7 +146,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             if (isDev) {
               console.log("[AuthContext] Session cookie removido");
             }
-            setSessionCookieCreated(false);
+            sessionCookieCreated.current = false;
           } catch (error) {
             console.error(
               "[AuthContext] Erro ao remover session cookie:",
@@ -146,20 +155,21 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           }
         }
       }
+      
+      // Só desativa o loading DEPOIS que tudo (Firebase e Cookie) já resolveu
       setLoading(false);
     });
 
+    // Array de dependências vazio para o hook rodar apenas na montagem
     return unsubscribe;
-  }, [sessionCookieCreated]);
+  }, []); 
 
   const signInWithEmailPassword = async (email: string, password: string) => {
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      // O onAuthStateChanged cuidará de buscar os dados do usuário
     } catch (error: unknown) {
       console.error("Erro no login com email/senha:", error);
 
-      // Melhor tratamento de erros específicos do Firebase Auth
       let errorMessage = "Erro no login com email/senha.";
 
       if (error && typeof error === "object" && "code" in error) {
@@ -200,8 +210,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const signOut = async () => {
     try {
-      // Apenas executa o signOut do Firebase.
-      // O listener onAuthStateChanged cuidará de limpar o estado e o cookie de sessão.
       await firebaseSignOut(auth);
       setUser(null);
       setUserData(null);
