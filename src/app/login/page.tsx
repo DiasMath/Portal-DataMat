@@ -90,8 +90,8 @@ export default function LoginPage() {
   // Se ainda está carregando a autenticação, mostra loading
   if (authLoading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+      <div className="flex items-center justify-center h-[calc(100vh-42px)]">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-yellow-text"></div>
       </div>
     );
   }
@@ -99,14 +99,14 @@ export default function LoginPage() {
   // Se já está logado E autorizado, não mostra a página de login
   if (user && isAuthorized) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+      <div className="flex items-center justify-center h-[calc(100vh-42px)]">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-yellow-text"></div>
       </div>
     );
   }
 
   return (
-    <main className="flex items-center justify-center h-screen p-4">
+    <div className="flex items-center justify-center h-[calc(100vh-42px)] p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-2xl">Login</CardTitle>
@@ -183,6 +183,6 @@ export default function LoginPage() {
           </div>
         </CardContent>
       </Card>
-    </main>
+    </div>
   );
 }

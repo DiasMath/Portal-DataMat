@@ -65,7 +65,7 @@ function MasterAdminCompaniesView() {
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center">
-        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-gray-900" />
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-yellow-text" />
       </main>
     );
   }
