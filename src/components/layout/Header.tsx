@@ -26,11 +26,11 @@ export function Header() {
         className="flex items-center gap-2 text-xl font-semibold text-yellow-text"
       >
         <Image
-          src="/logo.png"
+          src="/logo.ico"
           alt="Datamat"
           width={120}
           height={32}
-          className="h-6 w-auto"
+          className="h-6 w-8"
         />
         Datamat
       </Link>

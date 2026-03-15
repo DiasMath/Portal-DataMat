@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   title: "Datamat Portal",
   description: "Portal para visualização de dados dos clientes da Datamat",
   icons: {
-    icon: "/logo-aba-web.ico",
+    icon: "logo.ico",
   },
 };
 
