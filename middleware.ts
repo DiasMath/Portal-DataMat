@@ -24,7 +24,8 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon.ico") ||
     pathname.startsWith("/assets") ||
-    pathname.startsWith("/public")
+    pathname.startsWith("/public") ||
+    pathname.match(/\.(png|svg|ico|jpg|jpeg)$/i)
   ) {
     return NextResponse.next();
   }
