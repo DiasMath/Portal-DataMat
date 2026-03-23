@@ -66,7 +66,35 @@ export async function GET(
   }
 
   try {
-    // 1) Buscar empresa para obter o groupId (workspaceId do Power BI)
+    // =========================================================================
+    // 1) A TRAVA DE SEGURANÇA (PREVENÇÃO DE IDOR)
+    // =========================================================================
+    
+    // Vamos buscar os dados reais deste utilizador à base de dados
+    const userDoc = await adminDb.collection("users").doc(user.uid).get();
+    
+    if (!userDoc.exists) {
+      return NextResponse.json(
+        { error: "Utilizador não encontrado na base de dados." },
+        { status: 403 }
+      );
+    }
+
+    const userData = userDoc.data();
+    const userRole = userData?.role || "user";
+    const userCompanyId = userData?.companyId;
+
+    // Se for um utilizador comum (não-admin), ele SÓ pode aceder à sua própria empresa.
+    if (userRole === "user" && userCompanyId !== companyId) {
+      console.warn(`[ALERTA DE SEGURANÇA] UID: ${user.uid} tentou aceder ao dashboard da empresa: ${companyId}`);
+      return NextResponse.json(
+        { error: "Acesso negado. Não tem permissão para visualizar relatórios desta empresa." },
+        { status: 403 }
+      );
+    }
+    // =========================================================================
+
+    // 2) Buscar empresa para obter o groupId (workspaceId do Power BI)
     const companyRef = adminDb.collection("companies").doc(companyId);
     const companySnap = await companyRef.get();
 
@@ -89,7 +117,7 @@ export async function GET(
       );
     }
 
-    // 2) Buscar dashboard para obter reportId
+    // 3) Buscar dashboard para obter reportId
     const dashboardRef = adminDb.collection("dashboards").doc(dashboardId);
     const dashboardSnap = await dashboardRef.get();
 
@@ -103,8 +131,17 @@ export async function GET(
     const dashboardData = dashboardSnap.data() as {
       reportId?: string;
       pbiReportId?: string;
+      companyId?: string;
     };
     const reportId = dashboardData.reportId ?? dashboardData.pbiReportId;
+
+    // Verificação extra de consistência: O dashboard pertence mesmo a esta empresa?
+    if (dashboardData.companyId && dashboardData.companyId !== companyId) {
+       return NextResponse.json(
+        { error: "Este dashboard não pertence à empresa solicitada." },
+        { status: 400 }
+      );
+    }
 
     if (!reportId) {
       return NextResponse.json(
@@ -113,7 +150,7 @@ export async function GET(
       );
     }
 
-    // 3) Obter accessToken do Azure AD
+    // 4) Obter accessToken do Azure AD
     const accessToken = await getAccessToken();
     if (!accessToken) {
       return NextResponse.json(
@@ -122,7 +159,7 @@ export async function GET(
       );
     }
 
-    // 4) Obter detalhes do relatório
+    // 5) Obter detalhes do relatório
     const detailsUrl = `${API_BASE_URL}groups/${groupId}/reports/${reportId}`;
     const detailsResponse = await fetch(detailsUrl, {
       method: "GET",
@@ -146,7 +183,7 @@ export async function GET(
     const embedUrl = detailsJson.embedUrl;
     const embedReportId = detailsJson.id;
 
-    // 5) Gerar embed token
+    // 6) Gerar embed token
     const tokenUrl = `${API_BASE_URL}groups/${groupId}/reports/${reportId}/GenerateToken`;
 
     const tokenResponse = await fetch(tokenUrl, {
@@ -155,6 +192,7 @@ export async function GET(
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
       },
+      // Restringe o acesso ao Embed Token apenas para Leitura (View)
       body: JSON.stringify({ accessLevel: "View" }),
     });
 
@@ -184,4 +222,3 @@ export async function GET(
     return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
-
