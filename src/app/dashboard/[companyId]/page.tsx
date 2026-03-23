@@ -22,8 +22,12 @@ interface Dashboard {
 }
 
 function CompanyDashboardsPage() {
-  const { isAdmin } = useAuth();
+  const { isMasterAdmin, userData } = useAuth();
   const params = useParams<{ companyId: string }>();
+  
+  // Verificações de Permissão
+  const canViewList = isMasterAdmin || userData?.permissions?.canViewDashboardList;
+  const companyAccess = isMasterAdmin ? "all" : userData?.permissions?.allowedDashboards?.[params?.companyId ?? ""];
   const router = useRouter();
 
   const [company, setCompany] = useState<Company | null>(null);
@@ -60,7 +64,7 @@ function CompanyDashboardsPage() {
         );
         const dashboardsSnap = await getDocs(q);
 
-        const dashboardsData: Dashboard[] = dashboardsSnap.docs.map((docSnap) => {
+        let dashboardsData: Dashboard[] = dashboardsSnap.docs.map((docSnap) => {
           const d = docSnap.data() as Partial<Dashboard>;
           return {
             id: docSnap.id,
@@ -68,6 +72,12 @@ function CompanyDashboardsPage() {
             description: d.description,
           };
         });
+
+        // Filtra os dashboards que o utilizador pode ver nesta empresa
+        if (!isMasterAdmin && companyAccess !== "all") {
+          const allowedList = Array.isArray(companyAccess) ? companyAccess : [];
+          dashboardsData = dashboardsData.filter(d => allowedList.includes(d.id));
+        }
 
         setDashboards(dashboardsData);
       } catch (err) {
@@ -78,13 +88,13 @@ function CompanyDashboardsPage() {
       }
     }
 
-    if (isAdmin) {
+    // Só busca os dados se tiver permissão de ver a lista e o acesso da empresa já estiver carregado
+    if (canViewList && companyAccess !== undefined) {
       fetchData();
     }
-  }, [params?.companyId, isAdmin]);
+  }, [params?.companyId, canViewList, companyAccess, isMasterAdmin]);
 
-  if (!isAdmin) {
-    // Proteção extra: apenas master_admin deve acessar esta rota
+  if (!canViewList || companyAccess === undefined) {
     return (
       <main className="flex min-h-screen items-center justify-center">
         <p className="text-sm text-muted-foreground">
@@ -171,7 +181,7 @@ function CompanyDashboardsPage() {
 
 export default function ProtectedCompanyDashboardsPage() {
   return (
-    <ProtectedRoute requireAdmin>
+    <ProtectedRoute>
       <CompanyDashboardsPage />
     </ProtectedRoute>
   );

@@ -19,6 +19,14 @@ import { auth, db } from "../lib/firebase";
 
 const isDev = process.env.NODE_ENV !== "production";
 
+export interface UserPermissions {
+  canViewDashboardList: boolean;
+  canEdit: boolean;
+  allowedDashboards: {
+    [companyId: string]: "all" | string[];
+  };
+}
+
 interface UserData {
   uid: string;
   email: string;
@@ -31,6 +39,8 @@ interface UserData {
   updatedAt?: { seconds: number };
   lastLogin?: { seconds: number };
   companyId?: string;
+  defaultDashboardId?: string;
+  permissions?: UserPermissions;
 }
 
 interface AuthContextType {

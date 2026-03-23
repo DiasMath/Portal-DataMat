@@ -25,7 +25,7 @@ interface EmbedInfo {
 }
 
 function CompanyDashboardEmbedPage() {
-  const { isMasterAdmin } = useAuth();
+  const { isMasterAdmin, userData } = useAuth();
   const params = useParams<{ companyId: string; dashboardId: string }>();
   const router = useRouter();
 
@@ -40,6 +40,41 @@ function CompanyDashboardEmbedPage() {
       try {
         setLoading(true);
         setError(null);
+
+        // --- VALIDAÇÃO DE PERMISSÕES ANTES DE CARREGAR O RELATÓRIO ---
+        let hasAccess = false;
+
+        if (isMasterAdmin) {
+          hasAccess = true;
+        } else {
+          const canViewList = userData?.permissions?.canViewDashboardList;
+          const companyAccess = userData?.permissions?.allowedDashboards?.[params.companyId];
+          const hasGranularAccess = companyAccess === "all" || (Array.isArray(companyAccess) && companyAccess.includes(params.dashboardId));
+
+          if (canViewList) {
+            // Se ele TEM acesso à lista, o sistema exige que o dashboard tenha sido marcado nos checkboxes
+            hasAccess = hasGranularAccess;
+          } else {
+            // Se ele NÃO tem acesso à lista, ele é um utilizador operacional de acesso direto
+            // Regra 1: Só pode aceder se o link for da própria empresa dele
+            if (params.companyId === userData?.companyId) {
+              if (userData?.defaultDashboardId) {
+                // Regra 2: Se lhe foi atribuído um painel fixo, ele SÓ pode ver esse painel
+                hasAccess = params.dashboardId === userData.defaultDashboardId;
+              } else {
+                // Regra 3: Se não tem painel fixo, ele foi redirecionado para o padrão da empresa, logo tem acesso
+                hasAccess = true;
+              }
+            }
+          }
+        }
+
+        if (!hasAccess) {
+          setError("Acesso Negado: Você não tem permissão para visualizar este dashboard.");
+          setLoading(false);
+          return;
+        }
+        // --------------------------------------------------------------
 
         const { models } = await import("powerbi-client");
 

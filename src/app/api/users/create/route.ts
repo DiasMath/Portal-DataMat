@@ -23,19 +23,26 @@ export async function POST(request: NextRequest) {
     }
 
     // Obter dados do usuário a ser criado
-    const { email, displayName, role, authorized, companyId } = await request.json();
-
+    const { email, displayName, role, authorized, companyId, permissions, defaultDashboardId } = await request.json();
     if (!email) {
       return NextResponse.json({ error: 'Email é obrigatório' }, { status: 400 });
     }
 
     // Criar usuário no Firebase Auth sem senha inicial definida aqui.
-    // O usuário definirá a própria senha através do email de redefinição.
     const userRecord = await adminAuth.createUser({
       email,
       displayName,
       emailVerified: false,
     });
+
+    // HIGIENE DE DADOS: Força as regras de negócio no backend por segurança
+    const safePermissions = {
+      ...(permissions || {}), // Pega o que veio na requisição
+      // A Regra de Ouro: canEdit só pode ser true se o cargo for 'admin'. Se for 'user', o backend força false!
+      canEdit: role === 'admin' ? (permissions?.canEdit || false) : false,
+      canViewDashboardList: permissions?.canViewDashboardList ?? true,
+      allowedDashboards: companyId ? { [companyId]: "all" } : {}
+    };
 
     // Criar documento no Firestore
     await adminDb.collection('users').doc(userRecord.uid).set({
@@ -45,6 +52,8 @@ export async function POST(request: NextRequest) {
       companyId: companyId || null,
       role: role || 'user',
       authorized: authorized !== undefined ? authorized : true,
+      permissions: safePermissions, // <--- Usamos o objeto seguro aqui
+      defaultDashboardId: defaultDashboardId || null,
       provider: 'email',
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),

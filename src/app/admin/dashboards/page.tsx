@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -56,7 +57,9 @@ interface Dashboard {
 }
 
 export default function DashboardsManagementPage() {
-  const { isMasterAdmin } = useAuth();
+  const { isMasterAdmin, isAdmin, userData } = useAuth(); 
+  const router = useRouter();
+  const canWriteDashboards = isMasterAdmin || (isAdmin && userData?.permissions?.canEdit);
   const [dashboards, setDashboards] = useState<Dashboard[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
@@ -75,6 +78,14 @@ export default function DashboardsManagementPage() {
     active: true,
     isDefault: false,
   });
+
+  // TRAVA DE SEGURANÇA COM REDIRECIONAMENTO: 
+  // Se os dados do usuário já carregaram e ele é apenas "user", manda para o dashboard
+  useEffect(() => {
+    if (userData && !isAdmin && !isMasterAdmin) {
+      router.replace("/dashboard");
+    }
+  }, [userData, isAdmin, isMasterAdmin, router]);
 
   useEffect(() => {
     fetchCompaniesAndDashboards();
@@ -267,7 +278,7 @@ export default function DashboardsManagementPage() {
 
   if (loading && dashboards.length === 0) {
     return (
-      <ProtectedRoute requireAdmin>
+      <ProtectedRoute>
         <main className="flex min-h-screen items-center justify-center">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-yellow-text" />
         </main>
@@ -275,8 +286,13 @@ export default function DashboardsManagementPage() {
     );
   }
 
+  // Enquanto avalia e redireciona, não renderiza a página administrativa
+  if (userData && !isAdmin && !isMasterAdmin) {
+    return null; 
+  }
+
   return (
-    <ProtectedRoute requireAdmin>
+    <ProtectedRoute>
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto space-y-6">
           <Card>
@@ -290,7 +306,8 @@ export default function DashboardsManagementPage() {
                 </div>
 
                 {/* Modal - Criação Dashboard */}
-                {isMasterAdmin && (
+                {/* Só Master Admin ou Admin com permissão podem criar dashboards */}
+                {canWriteDashboards && (
                 <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
                   <DialogTrigger asChild>
                     <Button className="bg-create-buttons text-yellow-text hover:bg-navbar/55">
@@ -435,7 +452,8 @@ export default function DashboardsManagementPage() {
                       <TableHead>CompanyId</TableHead>
                       <TableHead>ReportId</TableHead>
                       <TableHead>Status</TableHead>
-                      {isMasterAdmin && <TableHead className="w-[160px]">Ações</TableHead>}
+                      {/* Ações visíveis apenas para quem tem permissão de escrita */}
+                      {canWriteDashboards && <TableHead className="w-[160px]">Ações</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -482,7 +500,8 @@ export default function DashboardsManagementPage() {
                           </TableCell>
 
                           {/* Botões */}
-                          {isMasterAdmin && (
+                          {/* Botões visíveis apenas para quem tem permissão de escrita */}
+                          {canWriteDashboards && (
                           <TableCell>
                             <div className="flex gap-2">
                               <Button

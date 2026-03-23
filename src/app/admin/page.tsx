@@ -16,9 +16,12 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { useRouter } from "next/navigation";
 
 export default function AdminPage() {
-  const { userData, isAdmin } = useAuth();
+  const { userData, isAdmin, isMasterAdmin } = useAuth();
+  const router = useRouter();
+  const hasEditPermission = isMasterAdmin || userData?.permissions?.canEdit;
   const [companyName, setCompanyName] = useState<string>("");
 
   useEffect(() => {
@@ -31,8 +34,21 @@ export default function AdminPage() {
       }
     }, [userData?.companyId]);
 
+  // TRAVA DE SEGURANÇA COM REDIRECIONAMENTO: 
+  // Se os dados do usuário já carregaram e ele é apenas "user", manda para o dashboard
+  useEffect(() => {
+    if (userData && !isAdmin && !isMasterAdmin) {
+      router.replace("/dashboard");
+    }
+  }, [userData, isAdmin, isMasterAdmin, router]);
+
+  // Enquanto avalia e redireciona, não renderiza a página administrativa
+  if (userData && !isAdmin && !isMasterAdmin) {
+    return null; 
+  }
+
   return (
-    <ProtectedRoute requireAdmin={true}>
+    <ProtectedRoute>
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto space-y-6">
           {/* Header */}
@@ -70,6 +86,7 @@ export default function AdminPage() {
                       "Master Administrador"}
                     {userData?.role === "admin" && "Administrador"}
                     {userData?.role === "user" && "Usuário"}
+                    {hasEditPermission && userData?.role !== "master_admin" && " (Com Permissão de Edição)"}
                   </p>
                 </div>
                 {userData?.lastLogin && (
@@ -106,37 +123,30 @@ export default function AdminPage() {
               <CardContent className="space-y-3">
                 <div className="flex flex-wrap gap-3">
                   <Button asChild variant="outline" className="justify-start min-w-[180px]">
-                    <Link
-                      href="/admin/users"
-                      className="inline-flex items-center"
-                    >
+                    <Link href="/admin/users" className="inline-flex items-center">
                       <Users className="w-4 h-4 mr-2" />
                       Gerenciar Usuários
                     </Link>
                   </Button>
 
                   <Button asChild variant="outline" className="justify-start min-w-[200px]">
-                    <Link
-                      href="/admin/companies"
-                      className="inline-flex items-center"
-                    >
+                    <Link href="/admin/companies" className="inline-flex items-center">
                       <Building2 className="w-4 h-4 mr-2" />
                       Gerenciar Empresas
                     </Link>
                   </Button>
 
                   <Button asChild variant="outline" className="justify-start min-w-[200px]">
-                    <Link
-                      href="/admin/dashboards"
-                      className="inline-flex items-center"
-                    >
+                    <Link href="/admin/dashboards" className="inline-flex items-center">
                       <LayoutDashboard className="w-4 h-4 mr-2" />
                       Gerenciar Dashboards
                     </Link>
                   </Button>
                 </div>
-                <div className="text-sm text-muted-foreground">
-                  Você tem acesso completo como Master Administrador
+                <div className="text-sm text-muted-foreground pt-2">
+                  {isMasterAdmin 
+                    ? "Você tem acesso completo como Master Administrador." 
+                    : "Você tem acesso de Administrador. Suas ações podem ser limitadas de acordo com as suas permissões."}
                 </div>
               </CardContent>
             </Card>

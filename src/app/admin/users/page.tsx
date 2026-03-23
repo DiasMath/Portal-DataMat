@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -46,6 +47,12 @@ import { Plus, Edit, Trash2, Check, X, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 
+interface UserPermissions {
+  canViewDashboardList: boolean;
+  canEdit: boolean;
+  allowedDashboards: Record<string, "all" | string[]>;
+}
+
 interface User {
   id: string;
   uid: string;
@@ -57,6 +64,8 @@ interface User {
   provider?: string;
   createdAt?: { seconds: number };
   lastLogin?: { seconds: number };
+  permissions?: UserPermissions;
+  defaultDashboardId?: string | null;
 }
 
 interface Company {
@@ -64,12 +73,20 @@ interface Company {
   name: string;
 }
 
+interface Dashboard {
+  id: string;
+  name: string;
+  companyId: string;
+}
+
 export default function UsersManagementPage() {
-  const { isMasterAdmin } = useAuth();
+  const { isMasterAdmin, isAdmin, userData } = useAuth(); 
+  const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [dashboards, setDashboards] = useState<Dashboard[]>([]);
 
   // State for the edit modal
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -79,11 +96,19 @@ export default function UsersManagementPage() {
   const [confirmMode, setConfirmMode] = useState<"delete" | "passwordReset" | null>(null);
   const [targetUser, setTargetUser] = useState<User | null>(null);
 
+  const defaultPerms = {
+    canViewDashboardList: true,
+    canEdit: false,
+    allowedDashboards: {} as Record<string, "all" | string[]>,
+  };
+
   const [editFormData, setEditFormData] = useState({
     displayName: "",
     companyId: "",
     role: "user" as User["role"],
     authorized: true,
+    defaultDashboardId: "",
+    permissions: defaultPerms,
   });
 
   // Form state for new user
@@ -93,7 +118,17 @@ export default function UsersManagementPage() {
     companyId: "",
     role: "user",
     authorized: true,
+    defaultDashboardId: "",
+    permissions: defaultPerms,
   });
+
+  // TRAVA DE SEGURANÇA COM REDIRECIONAMENTO: 
+  // Se os dados do usuário já carregaram e ele é apenas "user", manda para o dashboard
+  useEffect(() => {
+    if (userData && !isAdmin && !isMasterAdmin) {
+      router.replace("/dashboard");
+    }
+  }, [userData, isAdmin, isMasterAdmin, router]);
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
@@ -106,6 +141,7 @@ export default function UsersManagementPage() {
 
     fetchUsers();
     fetchCompanies();
+    fetchDashboards();
 
     return () => unsubscribe();
   }, []);
@@ -150,6 +186,20 @@ export default function UsersManagementPage() {
     }
   };
 
+  const fetchDashboards = async () => {
+    try {
+      const snap = await getDocs(collection(db, "dashboards"));
+      const data = snap.docs.map((doc) => ({
+        id: doc.id,
+        name: doc.data().name,
+        companyId: doc.data().companyId,
+      })) as Dashboard[];
+      setDashboards(data);
+    } catch (error) {
+      console.error("Erro ao buscar dashboards", error);
+    }
+  };
+
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -173,6 +223,8 @@ export default function UsersManagementPage() {
           role: formData.role,
           authorized: formData.authorized,
           companyId: formData.companyId || undefined,
+          permissions: formData.permissions,
+          defaultDashboardId: formData.permissions.canViewDashboardList ? null : (formData.defaultDashboardId || null),
         }),
       });
 
@@ -206,6 +258,8 @@ export default function UsersManagementPage() {
         companyId: "",
         role: "user",
         authorized: true,
+        defaultDashboardId: "",
+        permissions: defaultPerms,
       });
 
       await fetchUsers();
@@ -286,6 +340,11 @@ export default function UsersManagementPage() {
       companyId: user.companyId ?? "",
       role: user.role,
       authorized: user.authorized,
+      defaultDashboardId: user.defaultDashboardId ?? "",
+      permissions: user.permissions || {
+        ...defaultPerms,
+        allowedDashboards: user.companyId ? { [user.companyId]: "all" } : {}
+      },
     });
     setShowEditModal(true);
   };
@@ -299,8 +358,12 @@ export default function UsersManagementPage() {
       companyId: editFormData.companyId || undefined,
       role: editFormData.role,
       authorized: editFormData.authorized,
+      defaultDashboardId: editFormData.permissions.canViewDashboardList ? null : (editFormData.defaultDashboardId || null),
+      permissions: {
+        ...editFormData.permissions,
+        canEdit: editFormData.role === "admin" ? editFormData.permissions.canEdit : false
+      },
     });
-
     if (success) {
       toast.success("Usuário atualizado com sucesso!");
       setShowEditModal(false);
@@ -328,6 +391,134 @@ export default function UsersManagementPage() {
     setTargetUser(null);
   };
 
+  // --- INÍCIO: Funções Auxiliares para o Bloco de Permissões ---
+  const handlePermChange = (isEditing: boolean, field: keyof UserPermissions, value: any) => {
+    if (isEditing) {
+      setEditFormData((prev) => ({ ...prev, permissions: { ...prev.permissions, [field]: value } }));
+    } else {
+      setFormData((prev) => ({ ...prev, permissions: { ...prev.permissions, [field]: value } }));
+    }
+  };
+
+  const handleAllowedDashboardsType = (isEditing: boolean, companyId: string, type: "none" | "all" | "specific") => {
+    const updateLogic = (prev: any) => {
+      const newAllowed = { ...prev.permissions.allowedDashboards };
+      if (type === "none") delete newAllowed[companyId];
+      else if (type === "all") newAllowed[companyId] = "all";
+      else newAllowed[companyId] = [];
+      return { ...prev, permissions: { ...prev.permissions, allowedDashboards: newAllowed } };
+    };
+
+    if (isEditing) setEditFormData(updateLogic);
+    else setFormData(updateLogic);
+  };
+
+  const handleToggleSpecificDash = (isEditing: boolean, companyId: string, dashId: string) => {
+    const updateLogic = (prev: any) => {
+      const newAllowed = { ...prev.permissions.allowedDashboards };
+      const current = newAllowed[companyId];
+      if (Array.isArray(current)) {
+        newAllowed[companyId] = current.includes(dashId) ? current.filter((id: string) => id !== dashId) : [...current, dashId];
+      }
+      return { ...prev, permissions: { ...prev.permissions, allowedDashboards: newAllowed } };
+    };
+
+    if (isEditing) setEditFormData(updateLogic);
+    else setFormData(updateLogic);
+  };
+
+  const renderPermissionsBlock = (isEditing: boolean) => {
+    const state = isEditing ? editFormData : formData;
+    if (state.role === "master_admin") return null;
+
+    return (
+      <div className="space-y-4 p-4 border rounded-md bg-muted/20">
+        <h4 className="font-semibold border-b pb-2">Regras e Permissões de Acesso</h4>
+        
+        <div className="space-y-3">
+          <div className="flex items-center space-x-2">
+            <Checkbox 
+              id={`canViewList-${isEditing}`} 
+              checked={state.permissions.canViewDashboardList}
+              onCheckedChange={(c) => handlePermChange(isEditing, "canViewDashboardList", !!c)}
+            />
+            <Label htmlFor={`canViewList-${isEditing}`}>Pode acessar a listagem de dashboards das empresas</Label>
+          </div>
+          {/* O checkbox de permissões avançadas só aparece se for Admin */}
+          {state.role === "admin" && (
+            <div className="flex items-center space-x-2 mt-2">
+              <Checkbox 
+                id={`canEdit-${isEditing}`} 
+                checked={state.permissions.canEdit}
+                onCheckedChange={(c) => handlePermChange(isEditing, "canEdit", !!c)}
+              />
+              <Label htmlFor={`canEdit-${isEditing}`}>Pode Criar, Editar e Excluir Dashboards</Label>
+            </div>
+          )}
+        </div>
+
+        {/* Só mostra este bloco se o canViewDashboardList for true */}
+        {state.permissions.canViewDashboardList && (
+        <div className="pt-4 border-t">
+          <Label className="mb-3 block font-semibold">Quais dashboards este usuário pode ver?</Label>
+          <div className="max-h-60 overflow-y-auto space-y-3 border p-3 rounded-md bg-background">
+            {companies.map(company => {
+              const companyDashboards = dashboards.filter(d => d.companyId === company.id);
+              if (companyDashboards.length === 0) return null;
+
+              const access = state.permissions.allowedDashboards[company.id];
+              const hasAccess = access !== undefined;
+              const isAll = access === "all";
+              const specificList = Array.isArray(access) ? access : [];
+
+              return (
+                <div key={company.id} className="border p-3 rounded-md space-y-3">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id={`comp-${company.id}-${isEditing}`}
+                      checked={hasAccess} 
+                      onCheckedChange={(c) => handleAllowedDashboardsType(isEditing, company.id, c ? "all" : "none")} 
+                    />
+                    <Label htmlFor={`comp-${company.id}-${isEditing}`} className="font-semibold">{company.name}</Label>
+                  </div>
+                  
+                  {hasAccess && (
+                    <div className="pl-6 space-y-3">
+                      <Select value={isAll ? "all" : "specific"} onValueChange={(v) => handleAllowedDashboardsType(isEditing, company.id, v as any)}>
+                        <SelectTrigger className="h-8 text-xs w-[220px]"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Acessa Todos os Dashboards</SelectItem>
+                          <SelectItem value="specific">Apenas Dashboards Específicos</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      {!isAll && (
+                        <div className="space-y-2 mt-2 pl-3 border-l-2 border-primary/40">
+                          {companyDashboards.map(dash => (
+                            <div key={dash.id} className="flex items-center space-x-2">
+                              <Checkbox 
+                                id={`dash-${dash.id}-${isEditing}`}
+                                checked={specificList.includes(dash.id)}
+                                onCheckedChange={() => handleToggleSpecificDash(isEditing, company.id, dash.id)}
+                              />
+                              <Label htmlFor={`dash-${dash.id}-${isEditing}`} className="text-xs font-normal">{dash.name}</Label>
+                            </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  };
+  // --- FIM: Funções Auxiliares ---
+
   if (loading && users.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -336,8 +527,13 @@ export default function UsersManagementPage() {
     );
   }
 
+  // Enquanto avalia e redireciona, não renderiza a página administrativa
+  if (userData && !isAdmin && !isMasterAdmin) {
+    return null; 
+  }
+
   return (
-    <ProtectedRoute requireAdmin={true}>
+    <ProtectedRoute>
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-7xl mx-auto space-y-6">
           {/* Header */}
@@ -363,7 +559,7 @@ export default function UsersManagementPage() {
                       Novo Usuário
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="sm:max-w-md">
+                  <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                       <DialogTitle>Criar Novo Usuário</DialogTitle>
                       <DialogDescription>
@@ -458,6 +654,44 @@ export default function UsersManagementPage() {
                         </Label>
                       </div>
 
+                      {/* --- BLOCO DO DASHBOARD PADRÃO ADICIONADO AQUI --- */}
+                      {formData.role !== "master_admin" && !formData.permissions.canViewDashboardList && (
+                        <div className="space-y-2 pt-2">
+                          <Label>Dashboard Padrão (Opcional)</Label>
+                          <Select
+                            value={formData.defaultDashboardId}
+                            onValueChange={(value) =>
+                              setFormData({
+                                ...formData,
+                                defaultDashboardId: value === "none" ? "" : value,
+                              })
+                            }
+                            disabled={!formData.companyId}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione um dashboard inicial" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">
+                                Nenhum (usar padrão da empresa)
+                              </SelectItem>
+                              {dashboards
+                                .filter((d) => d.companyId === formData.companyId)
+                                .map((dash) => (
+                                  <SelectItem key={dash.id} value={dash.id}>
+                                    {dash.name}
+                                  </SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-muted-foreground">
+                            O usuário será redirecionado para este painel ao logar.
+                          </p>
+                        </div>
+                      )}
+                      {/* ------------------------------------------------ */}
+
+                      {renderPermissionsBlock(false)}
                       <DialogFooter className="gap-2">
                         <Button
                           type="button"
@@ -590,7 +824,7 @@ export default function UsersManagementPage() {
 
       {/* Edit User Modal */}
       <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar Usuário</DialogTitle>
             <DialogDescription>{editingUser?.email}</DialogDescription>
@@ -634,6 +868,33 @@ export default function UsersManagementPage() {
                   ))}
                 </datalist>
               </div>
+              {/* Oculta o Dashboard Padrão se for master_admin, pois ele tem acesso global */}
+              {editingUser?.role !== "master_admin" && !editFormData.permissions.canViewDashboardList && (
+                <div className="space-y-2">
+                  <Label htmlFor="edit-defaultDashboardId">Dashboard Padrão (Opcional)</Label>
+                  <Select
+                    value={editFormData.defaultDashboardId}
+                    onValueChange={(value) =>
+                      setEditFormData({ ...editFormData, defaultDashboardId: value === "none" ? "" : value })
+                    }
+                    disabled={!editFormData.companyId}
+                  >
+                    <SelectTrigger id="edit-defaultDashboardId">
+                      <SelectValue placeholder="Selecione um dashboard padrão" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Usar padrão da empresa</SelectItem>
+                      {dashboards
+                        .filter((d) => d.companyId === editFormData.companyId)
+                        .map((dash) => (
+                          <SelectItem key={dash.id} value={dash.id}>
+                            {dash.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               {editingUser?.role === "master_admin" ? (
                 <div className="space-y-1">
@@ -683,7 +944,7 @@ export default function UsersManagementPage() {
                   Usuário autorizado
                 </Label>
               </div>
-
+              {renderPermissionsBlock(true)}
               <div className="space-y-2 pt-2 border-t">
                 <Label className="flex items-center">
                   <Mail className="w-4 h-4 mr-2" /> Ações de Email

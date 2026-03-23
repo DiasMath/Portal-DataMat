@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,7 +40,8 @@ interface Company {
 }
 
 export default function CompaniesManagementPage() {
-  const { isMasterAdmin } = useAuth();
+  const { isMasterAdmin, isAdmin, userData } = useAuth(); 
+  const router = useRouter();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -55,6 +57,14 @@ export default function CompaniesManagementPage() {
     description: "",
     active: true,
   });
+
+  // TRAVA DE SEGURANÇA COM REDIRECIONAMENTO: 
+  // Se os dados do usuário já carregaram e ele é apenas "user", manda para o dashboard
+  useEffect(() => {
+    if (userData && !isAdmin && !isMasterAdmin) {
+      router.replace("/dashboard");
+    }
+  }, [userData, isAdmin, isMasterAdmin, router]);
 
   useEffect(() => {
     fetchCompanies();
@@ -203,7 +213,7 @@ export default function CompaniesManagementPage() {
 
   if (loading && companies.length === 0) {
     return (
-      <ProtectedRoute requireAdmin>
+      <ProtectedRoute>
         <main className="flex min-h-screen items-center justify-center">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-yellow-text" />
         </main>
@@ -211,8 +221,13 @@ export default function CompaniesManagementPage() {
     );
   }
 
+  // Enquanto avalia e redireciona, não renderiza a página administrativa
+  if (userData && !isAdmin && !isMasterAdmin) {
+    return null; 
+  }
+
   return (
-    <ProtectedRoute requireAdmin>
+    <ProtectedRoute>
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto space-y-6">
           <Card>
@@ -333,6 +348,7 @@ export default function CompaniesManagementPage() {
                       <TableHead>ID</TableHead>
                       <TableHead>GroupId</TableHead>
                       <TableHead>Status</TableHead>
+                      {/* Só o Master Admin vê a coluna de Ações */}
                       {isMasterAdmin && <TableHead className="w-[160px]">Ações</TableHead>}
                     </TableRow>
                   </TableHeader>
@@ -357,6 +373,7 @@ export default function CompaniesManagementPage() {
                         </TableCell>
 
                         {/* Botões */}
+                        {/* Só o Master Admin vê os botões de Editar/Excluir */}
                         {isMasterAdmin && (
                           <TableCell>
                             <div className="flex gap-2">

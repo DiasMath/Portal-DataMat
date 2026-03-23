@@ -16,7 +16,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 export function UserNav() {
-  const { user, userData, signOut, isAdmin } = useAuth();
+  const { user, userData, signOut, isAdmin, isMasterAdmin } = useAuth();
+  const hasAdminAccess = isAdmin || isMasterAdmin || userData?.permissions?.canEdit;
   const router = useRouter();
 
   const handleLogout = async () => {
@@ -88,7 +89,7 @@ export function UserNav() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          {isAdmin && (
+          {hasAdminAccess && (
             <DropdownMenuItem asChild>
               <Link href="/admin">Painel Administrativo</Link>
             </DropdownMenuItem>

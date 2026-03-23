@@ -28,6 +28,7 @@ interface Company {
 }
 
 function MasterAdminCompaniesView() {
+  const { isMasterAdmin, userData } = useAuth();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +41,7 @@ function MasterAdminCompaniesView() {
 
         const q = query(collection(db, "companies"), orderBy("name", "asc"));
         const snapshot = await getDocs(q);
-        const data: Company[] = snapshot.docs.map((doc) => {
+        let data: Company[] = snapshot.docs.map((doc) => {
           const d = doc.data() as Partial<Company>;
           return {
             id: doc.id,
@@ -49,6 +50,13 @@ function MasterAdminCompaniesView() {
             active: d.active ?? true,
           };
         });
+
+        // Filtrar as empresas caso não seja master_admin
+        if (!isMasterAdmin && userData?.permissions?.allowedDashboards) {
+          data = data.filter(company => 
+            userData.permissions!.allowedDashboards[company.id] !== undefined
+          );
+        }
 
         setCompanies(data);
       } catch (err) {
@@ -113,19 +121,21 @@ function MasterAdminCompaniesView() {
 }
 
 function DashboardPage() {
-  const { isAdmin, companyId } = useAuth();
+  const { isMasterAdmin, userData, companyId } = useAuth();
   const router = useRouter();
 
-  if (isAdmin) {
+  // Verifica se pode ver a lista
+  const canViewList = isMasterAdmin || userData?.permissions?.canViewDashboardList;
+
+  if (canViewList) {
     return <MasterAdminCompaniesView />;
   }
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Para usuários não master_admin: redirecionar para o dashboard padrão da empresa
   useEffect(() => {
-    async function redirectToCompanyDefaultDashboard() {
+    async function redirectToDefaultDashboard() {
       try {
         if (!companyId) {
           setError("Usuário não está associado a nenhuma empresa (companyId).");
@@ -136,7 +146,14 @@ function DashboardPage() {
         setLoading(true);
         setError(null);
 
+        // 1. Tenta redirecionar para o dashboard ESPECÍFICO do usuário
+        if (userData?.defaultDashboardId) {
+          router.replace(`/dashboard/${companyId}/${userData.defaultDashboardId}`);
+          return;
+        }
+
         const dashboardsRef = collection(db, "dashboards");
+
         const q = query(
           dashboardsRef,
           where("companyId", "==", companyId),
@@ -149,7 +166,7 @@ function DashboardPage() {
 
         if (snapshot.empty) {
           setError(
-            "Nenhum dashboard padrão ativo foi configurado para a sua empresa. Peça para um administrador configurar."
+            "Nenhum dashboard foi configurado para o seu usuário. Peça para um administrador configurar o seu acesso."
           );
           setLoading(false);
           return;
@@ -160,21 +177,20 @@ function DashboardPage() {
 
         router.replace(`/dashboard/${companyId}/${dashboardId}`);
       } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : "Erro desconhecido";
-        console.error("Erro ao localizar dashboard padrão:", errorMessage);
-        setError(`Erro ao localizar dashboard padrão: ${errorMessage}`);
+        const errorMessage = err instanceof Error ? err.message : "Erro desconhecido";
+        console.error("Erro ao localizar dashboard:", errorMessage);
+        setError(`Erro ao localizar dashboard: ${errorMessage}`);
         setLoading(false);
       }
     }
 
-    redirectToCompanyDefaultDashboard();
-  }, [companyId, router]);
+    redirectToDefaultDashboard();
+  }, [companyId, userData?.defaultDashboardId, router]);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen w-screen font-sans text-lg">
-        Carregando dashboard padrão...
+        Carregando seu painel...
       </div>
     );
   }
@@ -187,7 +203,6 @@ function DashboardPage() {
     );
   }
 
-  // Em teoria nunca chega aqui, porque fazemos redirect
   return null;
 }
 
