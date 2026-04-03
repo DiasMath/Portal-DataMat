@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { Header } from "@/components/layout/Header";
@@ -16,9 +15,10 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// TODO - Porque esta direcionando pro portal ao inves do site.
 export const metadata: Metadata = {
-  title: "Datamat Portal",
-  description: "Portal para visualização de dados dos clientes da Datamat",
+  title: "DATAMAT | DATA & IA",
+  description: "Somos uma consultoria de Business Intelligence jovem e dinâmica, dedicada a ajudar empresas a tomarem decisões mais inteligentes. Traduzimos dados complexos em estratégias claras e acionáveis — sem jargões, sem complicações.",
   icons: {
     icon: "logo.ico",
   },
