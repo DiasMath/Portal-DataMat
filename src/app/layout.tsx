@@ -19,7 +19,7 @@ const geistMono = Geist_Mono({
 // TODO - Porque esta direcionando pro portal ao inves do site.
 export const metadata: Metadata = {
   title: "Datamat Portal",
-  description: "Do dado à decisão | Somos uma consultoria de Business Intelligence jovem e dinâmica, dedicada a ajudar empresas a tomarem decisões mais inteligentes. Traduzimos dados complexos em estratégias claras e acionáveis — sem jargões, sem complicações.",
+  description: "Portal de visualização de dados dos clientes da DATAMAT.",
   icons: {
     icon: "logo.ico",
   },
