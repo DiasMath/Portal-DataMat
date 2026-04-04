@@ -1,3 +1,4 @@
+import "./globals.css";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "sonner";
@@ -17,8 +18,8 @@ const geistMono = Geist_Mono({
 
 // TODO - Porque esta direcionando pro portal ao inves do site.
 export const metadata: Metadata = {
-  title: "DATAMAT | DATA & IA",
-  description: "Somos uma consultoria de Business Intelligence jovem e dinâmica, dedicada a ajudar empresas a tomarem decisões mais inteligentes. Traduzimos dados complexos em estratégias claras e acionáveis — sem jargões, sem complicações.",
+  title: "Datamat Portal",
+  description: "Do dado à decisão | Somos uma consultoria de Business Intelligence jovem e dinâmica, dedicada a ajudar empresas a tomarem decisões mais inteligentes. Traduzimos dados complexos em estratégias claras e acionáveis — sem jargões, sem complicações.",
   icons: {
     icon: "logo.ico",
   },
