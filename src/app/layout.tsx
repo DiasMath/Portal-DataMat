@@ -3,8 +3,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
-import { Header } from "@/components/layout/Header";
 import { ThemeProvider } from "@/components/theme-provider";
+import { LayoutClient } from "@/components/layout/LayoutClient";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -21,7 +21,7 @@ export const metadata: Metadata = {
   title: "Datamat Portal",
   description: "Portal de visualização de dados dos clientes da DATAMAT.",
   icons: {
-    icon: "logo.ico",
+    icon: "logo.png",
   },
 };
 
@@ -42,8 +42,7 @@ export default async function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
-            <Header />
-            <main className="flex-grow">{children}</main>
+            <LayoutClient>{children}</LayoutClient>
             <Toaster richColors />
           </ThemeProvider>
         </AuthProvider>
