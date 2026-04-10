@@ -230,12 +230,12 @@ export default function CompaniesManagementPage() {
     <ProtectedRoute>
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto space-y-6">
-          <Card>
+          <Card className="bg-[#1a1a1a] border border-yellow-500/20 shadow-lg shadow-yellow-500/5">
             <CardHeader>
               <div className="flex justify-between items-center">
                 <div>
-                  <CardTitle className="text-2xl">Gerenciamento de Empresas</CardTitle>
-                  <CardDescription>
+                  <CardTitle className="text-2xl text-white">Gerenciamento de Empresas</CardTitle>
+                  <CardDescription className="text-gray-400">
                     Cadastre e gerencie os clientes (empresas) que possuem workspaces no Power BI.
                   </CardDescription>
                 </div>
@@ -244,12 +244,12 @@ export default function CompaniesManagementPage() {
                 {isMasterAdmin && (
                 <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
                   <DialogTrigger asChild>
-                    <Button className="bg-create-buttons text-yellow-text hover:bg-navbar/55">
+                    <Button className="bg-yellow-text text-black hover:bg-yellow-text/90">
                       <Plus className="w-4 h-4 mr-2" />
                       Nova Empresa
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="sm:max-w-md">
+                  <DialogContent className="sm:max-w-md bg-[#1a1a1a] border border-yellow-500/20">
                     <DialogHeader>
                       <DialogTitle>Criar Nova Empresa</DialogTitle>
                       <DialogDescription>
@@ -331,42 +331,41 @@ export default function CompaniesManagementPage() {
             </CardHeader>
           </Card>
 
-          <Card>
+          <Card className="bg-[#1a1a1a] border border-yellow-500/20 shadow-lg shadow-yellow-500/5">
             <CardHeader>
-              <CardTitle>Empresas Cadastradas</CardTitle>
+              <CardTitle className="text-white">Empresas Cadastradas</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               {companies.length === 0 ? (
-                <p className="p-4 text-sm text-muted-foreground">
+                <p className="p-4 text-sm text-gray-400">
                   Nenhuma empresa cadastrada até o momento.
                 </p>
               ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Empresa</TableHead>
-                      <TableHead>ID</TableHead>
-                      <TableHead>GroupId</TableHead>
-                      <TableHead>Status</TableHead>
-                      {/* Só o Master Admin vê a coluna de Ações */}
-                      {isMasterAdmin && <TableHead className="w-[160px]">Ações</TableHead>}
+                      <TableHead className="text-gray-300 text-left">Empresa</TableHead>
+                      <TableHead className="text-gray-300 text-center">ID</TableHead>
+                      <TableHead className="text-gray-300 text-center">GroupId</TableHead>
+                      <TableHead className="text-gray-300 text-center">Status</TableHead>
+                      {isMasterAdmin && <TableHead className="text-gray-300 text-center w-[160px]">Ações</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {companies.map((company) => (
                       <TableRow key={company.id}>
-                        <TableCell className="font-medium">
+                        <TableCell className="font-medium text-left">
                           {company.name}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="text-center">
                           <span className="text-xs font-mono">{company.id}</span>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="text-center">
                           <span className="text-xs font-mono">
                             {company.pbiGroupId}
                           </span>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="text-center">
                           <span className="text-xs text-muted-foreground">
                             {company.active ? "Ativa" : "Inativa"}
                           </span>
@@ -375,8 +374,8 @@ export default function CompaniesManagementPage() {
                         {/* Botões */}
                         {/* Só o Master Admin vê os botões de Editar/Excluir */}
                         {isMasterAdmin && (
-                          <TableCell>
-                            <div className="flex gap-2">
+                          <TableCell className="text-center">
+                            <div className="flex gap-2 justify-center">
                             <Button
                               size="sm"
                               variant="outline"
@@ -410,7 +409,7 @@ export default function CompaniesManagementPage() {
 
       {/* Modal de edição de empresa */}
       <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md bg-[#1a1a1a] border border-yellow-500/20">
           <DialogHeader>
             <DialogTitle>Editar Empresa</DialogTitle>
             <DialogDescription>
@@ -493,7 +492,7 @@ export default function CompaniesManagementPage() {
 
       {/* Dialog de confirmação para ativar/desativar/excluir */}
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent className="sm:max-w-[420px]">
+        <DialogContent className="sm:max-w-[420px] bg-[#1a1a1a] border border-yellow-500/20">
           <DialogHeader>
             <DialogTitle>
               {confirmMode === "delete"

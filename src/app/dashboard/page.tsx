@@ -90,7 +90,7 @@ function MasterAdminCompaniesView() {
     <main className="min-h-screen px-4 pt-16 pb-8 md:px-8 bg-background">
       <div className="max-w-4xl space-y-6">
         {companies.length === 0 ? (
-          <Card>
+          <Card className="shadow-md">
             <CardHeader>
               <CardTitle>Nenhuma empresa cadastrada</CardTitle>
             </CardHeader>
@@ -103,7 +103,7 @@ function MasterAdminCompaniesView() {
                 href={`/dashboard/${company.id}`}
                 className="block"
               >
-                <Card className="hover:border-primary/60 hover:bg-primary/5 cursor-pointer transition-colors">
+                <Card className="hover:shadow-lg hover:border-yellow-text cursor-pointer transition-all">
                   <CardHeader className="flex items-center gap-3">
                     <span className="rounded-full bg-primary/10 p-2">
                       <Building2 className="h-4 w-4 text-primary" />

@@ -149,7 +149,7 @@ function CompanyDashboardsPage() {
         </header>
 
         {dashboards.length === 0 ? (
-          <Card>
+          <Card className="shadow-md">
             <CardHeader>
               <CardTitle>Nenhum dashboard cadastrado</CardTitle>
             </CardHeader>
@@ -159,7 +159,7 @@ function CompanyDashboardsPage() {
             {dashboards.map((dashboard) => (
               <Card
                 key={dashboard.id}
-                className="hover:border-primary/60 hover:bg-primary/5 cursor-pointer transition-colors"
+                className="hover:shadow-lg hover:border-yellow-text cursor-pointer transition-all"
                 onClick={() =>
                   router.push(`/dashboard/${company!.id}/${dashboard.id}`)
                 }

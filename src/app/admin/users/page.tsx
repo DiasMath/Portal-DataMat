@@ -537,14 +537,14 @@ export default function UsersManagementPage() {
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-7xl mx-auto space-y-6">
           {/* Header */}
-          <Card>
+          <Card className="bg-[#1a1a1a] border border-yellow-500/20 shadow-lg shadow-yellow-500/5">
             <CardHeader>
               <div className="flex justify-between items-center">
                 <div>
-                  <CardTitle className="text-2xl">
+                  <CardTitle className="text-2xl text-white">
                     Gerenciamento de Usuários
                   </CardTitle>
-                  <p className="text-gray-600 mt-2">
+                  <p className="text-gray-400 mt-2">
                     Gerencie usuários, suas permissões e acesso aos dashboards
                   </p>
                 </div>
@@ -554,12 +554,12 @@ export default function UsersManagementPage() {
                   onOpenChange={setShowCreateModal}
                 >
                   <DialogTrigger asChild>
-                    <Button className="bg-create-buttons text-yellow-text hover:bg-navbar/55">
+                    <Button className="bg-yellow-text text-black hover:bg-yellow-text/90">
                       <Plus className="w-4 h-4 mr-2" />
                       Novo Usuário
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto bg-[#1a1a1a] border border-yellow-500/20">
                     <DialogHeader>
                       <DialogTitle>Criar Novo Usuário</DialogTitle>
                       <DialogDescription>
@@ -713,23 +713,23 @@ export default function UsersManagementPage() {
           </Card>
 
           {/* Users List */}
-          <Card>
+          <Card className="bg-[#1a1a1a] border border-yellow-500/20 shadow-lg shadow-yellow-500/5">
             <CardContent className="p-0">
               <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Usuário</TableHead>
-                    <TableHead>Empresa</TableHead>
-                    <TableHead>Papel</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Último Acesso</TableHead>
-                    {isMasterAdmin && <TableHead>Ações</TableHead>}
+                  <TableHeader>
+                    <TableRow>
+                    <TableHead className="text-gray-300 text-left">Usuário</TableHead>
+                    <TableHead className="text-gray-300 text-center">Empresa</TableHead>
+                    <TableHead className="text-gray-300 text-center">Papel</TableHead>
+                    <TableHead className="text-gray-300 text-center">Status</TableHead>
+                    <TableHead className="text-gray-300 text-center">Último Acesso</TableHead>
+                    {isMasterAdmin && <TableHead className="text-gray-300 text-center">Ações</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {users.map((user) => (
                     <TableRow key={user.id}>
-                      <TableCell>
+                      <TableCell className="text-left">
                         <div>
                           <div className="text-sm font-medium">
                             {user.displayName || "N/A"}
@@ -739,7 +739,7 @@ export default function UsersManagementPage() {
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="text-center">
                         <div>
                           <div className="text-sm font-medium">
                             {(() => {
@@ -751,7 +751,7 @@ export default function UsersManagementPage() {
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="text-center">
                         <span
                           className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                             user.role === "master_admin"
@@ -766,8 +766,8 @@ export default function UsersManagementPage() {
                           {user.role === "user" && "Usuário"}
                         </span>
                       </TableCell>
-                      <TableCell>
-                        <div className="flex items-center">
+                      <TableCell className="text-center">
+                        <div className="flex items-center justify-center">
                           {user.authorized ? (
                             <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
                               <Check className="w-3 h-3 mr-1" />
@@ -781,7 +781,7 @@ export default function UsersManagementPage() {
                           )}
                         </div>
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
+                      <TableCell className="text-center text-sm text-muted-foreground">
                         {user.lastLogin
                           ? new Date(
                               user.lastLogin.seconds * 1000
@@ -791,8 +791,8 @@ export default function UsersManagementPage() {
                       
                       {/* Botões */}
                       {isMasterAdmin && (
-                        <TableCell>
-                          <div className="flex space-x-2">
+                        <TableCell className="text-center">
+                          <div className="flex space-x-2 justify-center">
                           <Button
                             size="sm"
                             variant="outline"
@@ -824,7 +824,7 @@ export default function UsersManagementPage() {
 
       {/* Edit User Modal */}
       <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto bg-[#1a1a1a] border border-yellow-500/20">
           <DialogHeader>
             <DialogTitle>Editar Usuário</DialogTitle>
             <DialogDescription>{editingUser?.email}</DialogDescription>

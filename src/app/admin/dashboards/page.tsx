@@ -145,19 +145,12 @@ export default function DashboardsManagementPage() {
     }
 
     try {
-      // garantir que a empresa exista
       const companyExists = companies.some(
         (c) => c.id === formData.companyId
       );
       if (!companyExists) {
         toast.error("Empresa selecionada não existe.");
         return;
-      }
-
-      // evitar múltiplos defaults para mesma empresa (simplesmente marca os outros como não-default depois, se necessário)
-      if (formData.isDefault) {
-        // TODO: aqui poderíamos atualizar outros dashboards da mesma empresa para isDefault = false
-        // TODO: por enquanto, apenas permitimos múltiplos defaults se o admin quiser
       }
 
       await addDoc(collection(db, "dashboards"), {
@@ -295,12 +288,12 @@ export default function DashboardsManagementPage() {
     <ProtectedRoute>
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto space-y-6">
-          <Card>
+          <Card className="bg-[#1a1a1a] border border-gray-800">
             <CardHeader>
               <div className="flex justify-between items-center">
                 <div>
-                  <CardTitle className="text-2xl">Gerenciamento de Dashboards</CardTitle>
-                  <CardDescription>
+                  <CardTitle className="text-2xl text-white">Gerenciamento de Dashboards</CardTitle>
+                  <CardDescription className="text-gray-400">
                     Cadastre e gerencie dashboards associados aos workspaces das empresas.
                   </CardDescription>
                 </div>
@@ -310,12 +303,12 @@ export default function DashboardsManagementPage() {
                 {canWriteDashboards && (
                 <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
                   <DialogTrigger asChild>
-                    <Button className="bg-create-buttons text-yellow-text hover:bg-navbar/55">
+                    <Button className="bg-yellow-text text-black hover:bg-yellow-text/90">
                       <Plus className="w-4 h-4 mr-2" />
                       Novo Dashboard
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="sm:max-w-md">
+                  <DialogContent className="sm:max-w-md bg-[#1a1a1a] border border-yellow-500/20">
                     <DialogHeader>
                       <DialogTitle>Criar Novo Dashboard</DialogTitle>
                       <DialogDescription>
@@ -434,26 +427,25 @@ export default function DashboardsManagementPage() {
             </CardHeader>
           </Card>
 
-          <Card>
+          <Card className="bg-[#1a1a1a] border border-gray-800">
             <CardHeader>
-              <CardTitle>Dashboards Cadastrados</CardTitle>
+              <CardTitle className="text-white">Dashboards Cadastrados</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               {dashboards.length === 0 ? (
-                <p className="p-4 text-sm text-muted-foreground">
+                <p className="p-4 text-sm text-gray-400">
                   Nenhum dashboard cadastrado até o momento.
                 </p>
               ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Dashboard</TableHead>
-                      <TableHead>Empresa</TableHead>
-                      <TableHead>CompanyId</TableHead>
-                      <TableHead>ReportId</TableHead>
-                      <TableHead>Status</TableHead>
-                      {/* Ações visíveis apenas para quem tem permissão de escrita */}
-                      {canWriteDashboards && <TableHead className="w-[160px]">Ações</TableHead>}
+                      <TableHead className="text-gray-300 text-left">Dashboard</TableHead>
+                      <TableHead className="text-gray-300 text-center">Empresa</TableHead>
+                      <TableHead className="text-gray-300 text-center">CompanyId</TableHead>
+                      <TableHead className="text-gray-300 text-center">ReportId</TableHead>
+                      <TableHead className="text-gray-300 text-center">Status</TableHead>
+                      {canWriteDashboards && <TableHead className="text-gray-300 text-center w-[160px]">Ações</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -463,7 +455,7 @@ export default function DashboardsManagementPage() {
                       );
                       return (
                         <TableRow key={dashboard.id}>
-                          <TableCell>
+                          <TableCell className="text-left">
                             <div>
                               <p className="font-medium">{dashboard.name}</p>
                               {dashboard.description && (
@@ -473,23 +465,23 @@ export default function DashboardsManagementPage() {
                               )}
                             </div>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="text-center">
                             <span className="text-sm">
                               {company ? company.name : "—"}
                             </span>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="text-center">
                             <span className="text-xs font-mono">
                               {dashboard.companyId}
                             </span>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="text-center">
                             <span className="text-xs font-mono">
                               {dashboard.pbiReportId}
                             </span>
                           </TableCell>
-                          <TableCell>
-                            <div className="flex flex-col text-xs text-muted-foreground">
+                          <TableCell className="text-center">
+                            <div className="flex flex-col text-xs text-muted-foreground items-center">
                               <span>{dashboard.active ? "Ativo" : "Inativo"}</span>
                               {dashboard.isDefault && (
                                 <span className="mt-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] text-primary w-fit">
@@ -502,8 +494,8 @@ export default function DashboardsManagementPage() {
                           {/* Botões */}
                           {/* Botões visíveis apenas para quem tem permissão de escrita */}
                           {canWriteDashboards && (
-                          <TableCell>
-                            <div className="flex gap-2">
+                          <TableCell className="text-center">
+                            <div className="flex gap-2 justify-center">
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -538,7 +530,7 @@ export default function DashboardsManagementPage() {
 
       {/* Modal de edição de dashboard */}
       <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md bg-[#1a1a1a] border border-yellow-500/20">
           <DialogHeader>
             <DialogTitle>Editar Dashboard</DialogTitle>
             <DialogDescription>
@@ -658,7 +650,7 @@ export default function DashboardsManagementPage() {
 
       {/* Dialog de confirmação para ativar/desativar/excluir */}
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent className="sm:max-w-[420px]">
+        <DialogContent className="sm:max-w-[420px] bg-[#1a1a1a] border border-yellow-500/20">
           <DialogHeader>
             <DialogTitle>
               {confirmMode === "delete"

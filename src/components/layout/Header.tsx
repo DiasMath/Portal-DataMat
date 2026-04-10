@@ -23,16 +23,16 @@ export function Header() {
     >
       <Link
         href="/"
-        className="flex items-center gap-2 text-xl font-semibold text-yellow-text"
+        className="flex items-center text-2xl font-bold tracking-tight"
       >
         <Image
           src="/logo.png"
-          alt="Datamat"
-          width={120}
+          alt="DataMat"
+          width={32}
           height={32}
-          className="h-6 w-8"
+          className="h-8 w-8 mr-2"
         />
-        Datamat
+        DATA<span className="text-yellow-text">MAT</span>
       </Link>
 
       <div className="flex items-center gap-4">{user && <UserNav />}</div>
