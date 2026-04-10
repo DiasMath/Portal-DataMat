@@ -1,8 +1,8 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
 import { validateMasterAdmin } from '@/lib/auth-helpers';
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
     const currentUser = await validateMasterAdmin(request);
     
