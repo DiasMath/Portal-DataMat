@@ -3,7 +3,6 @@
 import { useEffect, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { toast } from 'sonner';
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -38,7 +37,6 @@ export const ProtectedRoute = ({
     const timeLeft = EIGHT_HOURS_MS - timeElapsed;
 
     const forceLogout = async () => {
-      toast.warning("Sua sessão de 8 horas expirou. Por favor, faça login novamente.");
       await signOut();
       router.push('/login');
     };
