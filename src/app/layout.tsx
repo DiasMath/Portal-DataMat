@@ -16,7 +16,6 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// TODO - Porque esta direcionando pro portal ao inves do site.
 export const metadata: Metadata = {
   title: "Datamat Portal",
   description: "Portal de visualização de dados dos clientes da DATAMAT.",

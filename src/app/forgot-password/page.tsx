@@ -40,7 +40,7 @@ export default function ForgotPassword() {
 
       // Só bloqueia se tiver certeza que não existe (status 404 e exists === false)
       if (checkResponse.status === 404 && checkData.exists === false) {
-        toast.error('Este email não está cadastrado no sistema. Entre em contato com a DataMat para solicitar acesso.');
+        toast.error('Este email não está cadastrado no sistema. Entre em contato com a Datamat para solicitar acesso.');
         setLoading(false);
         return;
       }

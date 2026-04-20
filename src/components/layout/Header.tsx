@@ -27,7 +27,7 @@ export function Header() {
       >
         <Image
           src="/logo.png"
-          alt="DataMat"
+          alt="Datamat"
           width={32}
           height={32}
           className="h-8 w-8 mr-2"

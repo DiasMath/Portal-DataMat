@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "DataMat Portal",
+  title: "Datamat Portal",
   description: "Visualize os dashboards da sua empresa",
 };
 

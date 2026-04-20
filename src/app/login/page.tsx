@@ -54,7 +54,7 @@ export default function LoginPage() {
       }
 
       if (checkResponse.status === 404 && checkData.exists === false) {
-        setError('Este email não está cadastrado no sistema. Entre em contato com a DataMat para solicitar acesso.');
+        setError('Este email não está cadastrado no sistema. Entre em contato com a Datamat para solicitar acesso.');
         setLoading(false);
         return;
       }
@@ -102,7 +102,7 @@ export default function LoginPage() {
             <div className="w-16 h-16 md:w-24 md:h-24 mb-4 md:mb-8 rounded-xl md:rounded-2xl bg-[#FFB03F]/10 flex items-center justify-center overflow-hidden">
               <Image
                 src="/logo.png"
-                alt="DataMat"
+                alt="Datamat"
                 width={56}
                 height={56}
                 className="object-contain"
