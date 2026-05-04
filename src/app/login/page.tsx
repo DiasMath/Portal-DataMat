@@ -87,10 +87,10 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 md:p-8">
-      <div className="w-full max-w-5xl bg-[#1a1a1a] rounded-2xl md:rounded-3xl overflow-hidden shadow-2xl flex flex-col md:flex-row h-[85vh] md:h-[90vh] lg:h-[700px]">
+      <div className="w-full max-w-7xl bg-[#1a1a1a] rounded-2xl md:rounded-3xl overflow-hidden shadow-2xl flex flex-col md:flex-row h-[90vh] md:h-[95vh] lg:h-[800px]">
         
         {/* Lado Esquerdo - Branding */}
-        <div className="md:w-1/2 bg-gradient-to-br from-[#1a1a1a] to-[#2a2a2a] p-6 md:p-12 flex flex-col justify-between relative overflow-hidden">
+        <div className="md:w-1/2 bg-gradient-to-br from-[#1a1a1a] to-[#2a2a2a] p-8 md:p-16 flex flex-col justify-between relative overflow-hidden">
           {/* Background pattern */}
           <div className="absolute inset-0 opacity-10">
             <div className="absolute top-0 left-0 w-32 h-32 md:w-40 md:h-40 bg-yellow-text rounded-full blur-3xl -translate-x-10 -translate-y-10"></div>
@@ -110,7 +110,7 @@ export default function LoginPage() {
             </div>
             
             {/* DATA MAT */}
-            <h1 className="text-4xl md:text-7xl font-bold tracking-tight">
+            <h1 className="text-4xl md:text-7xl font-datamat font-[700] tracking-tight">
               <span className="text-white">DATA</span>
               <span className="text-yellow-text">MAT</span>
             </h1>
@@ -137,7 +137,7 @@ export default function LoginPage() {
           <div className="max-w-md mx-auto w-full">
             {/* Título */}
             <div className="mb-6 md:mb-8">
-              <h2 className="text-2xl md:text-3xl font-bold text-white mb-2">Entrar</h2>
+              <h2 className="text-2xl md:text-3xl font-datamat font-[600] text-white mb-2">Entrar</h2>
               <p className="text-sm md:text-base text-gray-400">Acesse o portal de dados da sua empresa.</p>
             </div>
 
