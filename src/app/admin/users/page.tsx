@@ -433,7 +433,7 @@ export default function UsersManagementPage() {
 
     return (
       <div className="space-y-4 p-4 border rounded-md bg-muted/20">
-        <h4 className="font-semibold border-b pb-2">Regras e Permissões de Acesso</h4>
+        <h4 className="font-heading font-semibold border-b pb-2">Regras e Permissões de Acesso</h4>
         
         <div className="space-y-3">
           <div className="flex items-center space-x-2">
@@ -442,7 +442,7 @@ export default function UsersManagementPage() {
               checked={state.permissions.canViewDashboardList}
               onCheckedChange={(c) => handlePermChange(isEditing, "canViewDashboardList", !!c)}
             />
-            <Label htmlFor={`canViewList-${isEditing}`}>Pode acessar a listagem de dashboards das empresas</Label>
+            <Label htmlFor={`canViewList-${isEditing}`} className="font-body">Pode acessar a listagem de dashboards das empresas</Label>
           </div>
           {/* O checkbox de permissões avançadas só aparece se for Admin */}
           {state.role === "admin" && (
@@ -460,7 +460,7 @@ export default function UsersManagementPage() {
         {/* Só mostra este bloco se o canViewDashboardList for true */}
         {state.permissions.canViewDashboardList && (
         <div className="pt-4 border-t">
-          <Label className="mb-3 block font-semibold">Quais dashboards este usuário pode ver?</Label>
+          <Label className="mb-3 block font-heading font-semibold">Quais dashboards este usuário pode ver?</Label>
           <div className="max-h-60 overflow-y-auto space-y-3 border p-3 rounded-md bg-background">
             {companies.map(company => {
               const companyDashboards = dashboards.filter(d => d.companyId === company.id);
@@ -479,7 +479,7 @@ export default function UsersManagementPage() {
                       checked={hasAccess} 
                       onCheckedChange={(c) => handleAllowedDashboardsType(isEditing, company.id, c ? "all" : "none")} 
                     />
-                    <Label htmlFor={`comp-${company.id}-${isEditing}`} className="font-semibold">{company.name}</Label>
+                    <Label htmlFor={`comp-${company.id}-${isEditing}`} className="font-heading font-semibold">{company.name}</Label>
                   </div>
                   
                   {hasAccess && (
@@ -753,7 +753,7 @@ export default function UsersManagementPage() {
                       </TableCell>
                       <TableCell className="text-center">
                         <span
-                          className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          className={`inline-flex px-2 py-1 text-xs font-body font-semibold rounded-full ${
                             user.role === "master_admin"
                               ? "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
                               : user.role === "admin"
@@ -769,12 +769,12 @@ export default function UsersManagementPage() {
                       <TableCell className="text-center">
                         <div className="flex items-center justify-center">
                           {user.authorized ? (
-                            <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                            <span className="inline-flex items-center px-2 py-1 text-xs font-body font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
                               <Check className="w-3 h-3 mr-1" />
                               Autorizado
                             </span>
                           ) : (
-                            <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
+                            <span className="inline-flex items-center px-2 py-1 text-xs font-body font-semibold rounded-full bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
                               <X className="w-3 h-3 mr-1" />
                               Não Autorizado
                             </span>

@@ -33,12 +33,12 @@ export default function UnauthorizedPage() {
     <div className="min-h-screen bg-[#0d0f12] flex flex-col items-center justify-center p-4">
       <div className="text-center space-y-6 max-w-md">
         {/* Código de erro */}
-        <div className="text-8xl font-bold text-yellow-text opacity-50">403</div>
+        <div className="text-8xl font-heading font-bold text-yellow-text opacity-50">403</div>
         
         {/* Título e descrição */}
         <div className="space-y-2">
-          <h1 className="text-3xl font-bold text-white">Acesso Negado</h1>
-          <p className="text-gray-400">
+          <h1 className="text-3xl font-heading font-bold text-white">Acesso Negado</h1>
+          <p className="text-gray-400 font-body">
             Sua conta foi criada, mas ainda não foi autorizada pelo administrador.
           </p>
         </div>
@@ -53,12 +53,12 @@ export default function UnauthorizedPage() {
         {/* Informações da conta */}
         {userData && (
           <div className="bg-[#1a1a1a] border border-yellow-500/20 p-4 rounded-lg text-left">
-            <h3 className="font-semibold text-white mb-2">Sua Conta</h3>
-            <p className="text-sm text-gray-400">
+            <h3 className="font-heading font-semibold text-white mb-2">Sua Conta</h3>
+            <p className="text-sm text-gray-400 font-body">
               <strong className="text-gray-300">Email:</strong> {userData.email}
             </p>
             {userData.displayName && (
-              <p className="text-sm text-gray-400">
+              <p className="text-sm text-gray-400 font-body">
                 <strong className="text-gray-300">Nome:</strong> {userData.displayName}
               </p>
             )}
@@ -67,8 +67,8 @@ export default function UnauthorizedPage() {
         
         {/* Próximos passos */}
         <div className="bg-[#1a1a1a] border border-yellow-500/20 p-4 rounded-lg text-left">
-          <h3 className="font-semibold text-white mb-2">Próximos Passos</h3>
-          <ul className="text-sm text-gray-400 space-y-1">
+          <h3 className="font-heading font-semibold text-white mb-2">Próximos Passos</h3>
+          <ul className="text-sm text-gray-400 space-y-1 font-body">
             <li>• Entre em contato com o administrador do sistema</li>
             <li>• Solicite a autorização da sua conta</li>
             <li>• Aguarde a confirmação por email</li>
@@ -79,15 +79,15 @@ export default function UnauthorizedPage() {
         <Button 
           onClick={handleSignOut}
           variant="outline"
-          className="border-gray-700 text-gray-300 hover:border-yellow-text hover:text-yellow-text mt-4"
+          className="font-heading border-gray-700 text-gray-300 hover:border-yellow-text hover:text-yellow-text mt-4"
         >
           <LogOut className="w-4 h-4 mr-2" />
           Sair
         </Button>
 
         {/* Footer com branding */}
-        <div className="pt-8 text-sm text-gray-500">
-          <span className="text-white">DATA</span><span className="text-yellow-text">MAT</span> Portal
+        <div className="pt-8 text-sm text-gray-500 font-body">
+          <span className="text-white font-datamat">DATA</span><span className="text-yellow-text font-datamat">MAT</span> Portal
         </div>
       </div>
     </div>

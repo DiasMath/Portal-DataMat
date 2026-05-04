@@ -160,10 +160,10 @@ export default function AdminPage() {
             <CardHeader>
               <div className="flex justify-between items-center">
                 <div className="space-y-1">
-                  <CardTitle className="text-2xl text-white">
+                  <CardTitle className="text-2xl text-white font-heading">
                     Painel Administrativo
                   </CardTitle>
-                  <CardDescription className="text-gray-400">
+                  <CardDescription className="text-gray-400 font-body">
                     Bem-vindo, {userData?.displayName || userData?.email}
                   </CardDescription>
                 </div>
@@ -177,19 +177,19 @@ export default function AdminPage() {
             {/* Suas Informações */}
             <Card className="bg-[#1a1a1a] border border-yellow-500/20 shadow-lg shadow-yellow-500/5">
               <CardHeader>
-                <CardTitle className="text-white flex items-center gap-2">
+                <CardTitle className="text-white flex items-center gap-2 font-heading">
                   <span className="text-yellow-text">ℹ️</span> Suas Informações
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 gap-4">
                   <div>
-                    <p className="font-semibold text-white">Email:</p>
-                    <p className="text-gray-400">{userData?.email}</p>
+                    <p className="font-heading font-semibold text-white">Email:</p>
+                    <p className="text-gray-400 font-body">{userData?.email}</p>
                   </div>
                   <div>
-                    <p className="font-semibold text-white">Nível de Acesso:</p>
-                    <p className="text-gray-400">
+                    <p className="font-heading font-semibold text-white">Nível de Acesso:</p>
+                    <p className="text-gray-400 font-body">
                       {userData?.role === "master_admin" && "Master Administrador"}
                       {userData?.role === "admin" && "Administrador"}
                       {userData?.role === "user" && "Usuário"}
@@ -198,16 +198,16 @@ export default function AdminPage() {
                   </div>
                   {userData?.lastLogin && (
                     <div>
-                      <p className="font-semibold text-white">Último Acesso:</p>
-                      <p className="text-gray-400">
+                      <p className="font-heading font-semibold text-white">Último Acesso:</p>
+                      <p className="text-gray-400 font-body">
                         {new Date(userData.lastLogin.seconds * 1000).toLocaleString("pt-BR")}
                       </p>
                     </div>
                   )}
                   {userData?.companyId && (
                     <div>
-                      <p className="font-semibold text-white">Empresa:</p>
-                      <p className="text-gray-400">{companyName || "Carregando..."}</p>
+                      <p className="font-heading font-semibold text-white">Empresa:</p>
+                      <p className="text-gray-400 font-body">{companyName || "Carregando..."}</p>
                     </div>
                   )}
                 </div>
@@ -217,7 +217,7 @@ export default function AdminPage() {
             {/* Estatísticas */}
             <Card className="bg-[#1a1a1a] border border-yellow-500/20 shadow-lg shadow-yellow-500/5">
               <CardHeader>
-                <CardTitle className="text-white flex items-center gap-2">
+                <CardTitle className="text-white flex items-center gap-2 font-heading">
                   <span className="text-yellow-text">📊</span> Estatísticas
                 </CardTitle>
               </CardHeader>
@@ -230,26 +230,26 @@ export default function AdminPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="bg-[#2a2a2a] rounded-lg p-4 text-center">
                       <Users className="w-6 h-6 mx-auto mb-2 text-yellow-text" />
-                      <p className="text-2xl font-bold text-white">{stats.totalUsers}</p>
-                      <p className="text-sm text-gray-400">Usuários</p>
+                      <p className="text-2xl font-heading font-bold text-white">{stats.totalUsers}</p>
+                      <p className="text-sm text-gray-400 font-body">Usuários</p>
                     </div>
                     <div className="bg-[#2a2a2a] rounded-lg p-4 text-center">
                       <Building2 className="w-6 h-6 mx-auto mb-2 text-yellow-text" />
-                      <p className="text-2xl font-bold text-white">{stats.totalCompanies}</p>
-                      <p className="text-sm text-gray-400">Empresas</p>
+                      <p className="text-2xl font-heading font-bold text-white">{stats.totalCompanies}</p>
+                      <p className="text-sm text-gray-400 font-body">Empresas</p>
                     </div>
                     <div className="bg-[#2a2a2a] rounded-lg p-4 text-center">
                       <LayoutDashboard className="w-6 h-6 mx-auto mb-2 text-yellow-text" />
-                      <p className="text-2xl font-bold text-white">{stats.totalDashboards}</p>
-                      <p className="text-sm text-gray-400">Dashboards</p>
+                      <p className="text-2xl font-heading font-bold text-white">{stats.totalDashboards}</p>
+                      <p className="text-sm text-gray-400 font-body">Dashboards</p>
                     </div>
                     <div className="bg-[#2a2a2a] rounded-lg p-4 text-center">
                       <div className="flex justify-center gap-3 mb-1">
                         <span className="text-green-500 text-xl">✓</span>
                         <span className="text-red-500 text-xl">✗</span>
                       </div>
-                      <p className="text-xl font-bold text-white">{stats.activeDashboards} / {stats.totalDashboards}</p>
-                      <p className="text-sm text-gray-400">Dashboards Ativos</p>
+                      <p className="text-xl font-heading font-bold text-white">{stats.activeDashboards} / {stats.totalDashboards}</p>
+                      <p className="text-sm text-gray-400 font-body">Dashboards Ativos</p>
                     </div>
                   </div>
                 )}
@@ -257,41 +257,41 @@ export default function AdminPage() {
             </Card>
           </div>
 
-          {/* Ferramentas Administrativas */}
-          {isAdmin && (
+{/* Ferramentas Administrativas */}
+            {isAdmin && (
             <Card className="bg-[#1a1a1a] border border-yellow-500/20 shadow-lg shadow-yellow-500/5">
               <CardHeader>
-                <CardTitle className="text-white flex items-center gap-2">
+                <CardTitle className="text-white flex items-center gap-2 font-heading">
                   <span className="text-yellow-text">⚙️</span> Ferramentas de Administração
                 </CardTitle>
-                <CardDescription className="text-gray-400">
+                <CardDescription className="text-gray-400 font-body">
                   Gerenciamento de usuários, clientes e dashboards do portal
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex flex-wrap gap-3">
-                  <Button asChild variant="outline" className="justify-start min-w-[180px] border-gray-700 text-gray-300 hover:border-yellow-text hover:text-yellow-text hover:bg-yellow-text/10 transition-colors">
+                  <Button asChild variant="outline" className="font-heading font-semibold text-base justify-start min-w-[180px] border-gray-700 text-gray-300 hover:border-yellow-text hover:text-yellow-text hover:bg-yellow-text/10 transition-colors">
                     <Link href="/admin/users" className="inline-flex items-center">
                       <Users className="w-4 h-4 mr-2" />
                       Gerenciar Usuários
                     </Link>
                   </Button>
 
-                  <Button asChild variant="outline" className="justify-start min-w-[200px] border-gray-700 text-gray-300 hover:border-yellow-text hover:text-yellow-text hover:bg-yellow-text/10 transition-colors">
+                  <Button asChild variant="outline" className="font-heading font-semibold text-base justify-start min-w-[200px] border-gray-700 text-gray-300 hover:border-yellow-text hover:text-yellow-text hover:bg-yellow-text/10 transition-colors">
                     <Link href="/admin/companies" className="inline-flex items-center">
                       <Building2 className="w-4 h-4 mr-2" />
                       Gerenciar Empresas
                     </Link>
                   </Button>
 
-                  <Button asChild variant="outline" className="justify-start min-w-[200px] border-gray-700 text-gray-300 hover:border-yellow-text hover:text-yellow-text hover:bg-yellow-text/10 transition-colors">
+                  <Button asChild variant="outline" className="font-heading font-semibold text-base justify-start min-w-[200px] border-gray-700 text-gray-300 hover:border-yellow-text hover:text-yellow-text hover:bg-yellow-text/10 transition-colors">
                     <Link href="/admin/dashboards" className="inline-flex items-center">
                       <LayoutDashboard className="w-4 h-4 mr-2" />
                       Gerenciar Dashboards
                     </Link>
                   </Button>
                 </div>
-                <div className="text-sm text-gray-500 pt-2">
+                <div className="text-sm text-gray-500 pt-2 font-body">
                   {isMasterAdmin 
                     ? "Você tem acesso completo como Master Administrador." 
                     : "Você tem acesso de Administrador. Suas ações podem ser limitadas de acordo com as suas permissões."}
@@ -303,7 +303,7 @@ export default function AdminPage() {
           {/* Atividade Recente */}
           <Card className="bg-[#1a1a1a] border border-yellow-500/20 shadow-lg shadow-yellow-500/5">
             <CardHeader>
-              <CardTitle className="text-white flex items-center gap-2">
+              <CardTitle className="text-white flex items-center gap-2 font-heading">
                 <span className="text-yellow-text">📋</span> Atividade Recente
               </CardTitle>
             </CardHeader>
@@ -313,7 +313,7 @@ export default function AdminPage() {
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-text"></div>
                 </div>
               ) : recentActivity.length === 0 ? (
-                <p className="text-gray-400 text-center py-4">Nenhuma atividade registrada ainda.</p>
+                <p className="text-gray-400 text-center py-4 font-body">Nenhuma atividade registrada ainda.</p>
               ) : (
                 <div className="space-y-3">
                   {recentActivity.map((log) => (
@@ -325,17 +325,17 @@ export default function AdminPage() {
                         {log.action.includes("DELETE") && <Trash2 className="w-4 h-4 text-red-400" />}
                       </div>
                       <div className="flex-1">
-                        <p className="text-white text-sm">
+                        <p className="text-white text-sm font-body">
                           <span className="text-yellow-text font-medium">{log.actorName || 'Usuário'}</span>
                           {' '}{actionLabels[log.action] || log.action}
                           {log.targetName && <span className="text-gray-300"> → {log.targetName}</span>}
                         </p>
                         {(log.details?.email as string) && (
-                          <p className="text-gray-500 text-xs">{log.details?.email as string}</p>
+                          <p className="text-gray-500 text-xs font-body">{log.details?.email as string}</p>
                         )}
                       </div>
                       <div className="flex-shrink-0">
-                        <p className="text-gray-500 text-xs">{formatRelativeTime(log.createdAt)}</p>
+                        <p className="text-gray-500 text-xs font-body">{formatRelativeTime(log.createdAt)}</p>
                       </div>
                     </div>
                   ))}

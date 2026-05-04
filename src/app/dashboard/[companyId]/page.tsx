@@ -131,10 +131,10 @@ function CompanyDashboardsPage() {
       <div className="space-y-6">
         <header className="flex items-center justify-between">
           <div className="space-y-1">
-            <h1 className="text-2xl font-semibold">
+            <h1 className="text-2xl font-heading font-semibold">
               Dashboards – {company?.name ?? "Empresa"}
             </h1>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground font-body">
               Selecione um dashboard para visualizar o relatório do Power BI.
             </p>
           </div>
@@ -151,7 +151,7 @@ function CompanyDashboardsPage() {
         {dashboards.length === 0 ? (
           <Card className="shadow-md">
             <CardHeader>
-              <CardTitle>Nenhum dashboard cadastrado</CardTitle>
+              <CardTitle className="font-heading">Nenhum dashboard cadastrado</CardTitle>
             </CardHeader>
           </Card>
         ) : (
@@ -168,7 +168,7 @@ function CompanyDashboardsPage() {
                   <span className="rounded-full bg-primary/10 p-2">
                     <BarChart3 className="h-4 w-4 text-primary" />
                   </span>
-                  <CardTitle className="text-base">{dashboard.name}</CardTitle>
+                  <CardTitle className="text-base font-heading">{dashboard.name}</CardTitle>
                 </CardHeader>
               </Card>
             ))}

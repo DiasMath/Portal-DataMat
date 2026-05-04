@@ -72,8 +72,8 @@ export default function ForgotPassword() {
         <Card className="w-full max-w-md">
           <CardHeader className="items-center text-center justify-items-center">
             <CheckCircle2 className="h-12 w-12 text-green-500" />
-            <CardTitle className="text-2xl">Email Enviado!</CardTitle>
-            <CardDescription>
+            <CardTitle className="text-2xl font-heading">Email Enviado!</CardTitle>
+            <CardDescription className="font-body">
               Enviamos um link de redefinição de senha para <strong>{email}</strong>.
             </CardDescription>
           </CardHeader>
@@ -84,19 +84,19 @@ export default function ForgotPassword() {
                   <AlertTriangle className="h-5 w-5 text-yellow-500" />
                 </div>
                 <div className="ml-3">
-                  <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                  <p className="text-sm text-yellow-700 dark:text-yellow-300 font-body">
                     Verifique sua caixa de entrada e também a pasta de spam.
                   </p>
                 </div>
               </div>
             </div>
-            <Button onClick={() => router.push('/login')} className="w-full">
+            <Button onClick={() => router.push('/login')} className="font-heading w-full">
               Voltar para Login
             </Button>
             <Button
               onClick={() => setEmailSent(false)}
               variant="link"
-              className="w-full"
+              className="font-heading w-full"
             >
               Não recebeu? Enviar novamente
             </Button>
@@ -110,8 +110,8 @@ export default function ForgotPassword() {
     <main className="flex min-h-screen items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Esqueceu sua senha?</CardTitle>
-          <CardDescription>
+          <CardTitle className="text-2xl font-heading">Esqueceu sua senha?</CardTitle>
+          <CardDescription className="font-body">
             Sem problemas! Digite seu email e enviaremos um link para redefinir sua senha.
           </CardDescription>
         </CardHeader>

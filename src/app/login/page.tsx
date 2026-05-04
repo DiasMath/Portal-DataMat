@@ -119,14 +119,14 @@ export default function LoginPage() {
             <div className="w-20 md:w-24 h-1 bg-yellow-text mt-4 md:mt-6 mb-4 md:mb-6"></div>
             
             {/* Slogan */}
-            <p className="text-base md:text-xl text-gray-400">
-              <span className="text-white font-medium">Do dado à decisão.</span>
+            <p className="text-base md:text-2xl text-gray-400">
+              <span className="text-white font-heading font-semibold">Do Dado à Decisão.</span>
             </p>
           </div>
 
           {/* Footer */}
           <div className="relative z-10 mt-auto">
-            <p className="text-xs md:text-sm text-gray-500 max-w-[200px] md:max-w-xs">
+            <p className="text-xs md:text-sm text-gray-500 max-w-[200px] md:max-w-xs font-body">
               Transformamos dados em insights estratégicos para impulsionar o seu negócio.
             </p>
           </div>
@@ -137,14 +137,14 @@ export default function LoginPage() {
           <div className="max-w-md mx-auto w-full">
             {/* Título */}
             <div className="mb-6 md:mb-8">
-              <h2 className="text-2xl md:text-3xl font-datamat font-[600] text-white mb-2">Entrar</h2>
-              <p className="text-sm md:text-base text-gray-400">Acesse o portal de dados da sua empresa.</p>
+              <h2 className="text-2xl md:text-3xl font-heading font-[600] text-white mb-2">Entrar</h2>
+              <p className="text-sm md:text-base text-gray-400 font-body">Acesse o portal de dados da sua empresa.</p>
             </div>
 
             {/* Form */}
             <form onSubmit={handleEmailPasswordLogin} className="space-y-4 md:space-y-6">
               <div className="space-y-1 md:space-y-2">
-                <Label htmlFor="email" className="text-sm md:text-base text-gray-300">Email</Label>
+                <Label htmlFor="email" className="text-sm md:text-base text-gray-300 font-body">Email</Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 md:w-5 md:h-5 text-gray-500" />
                   <Input
@@ -161,7 +161,7 @@ export default function LoginPage() {
               </div>
               
               <div className="space-y-1 md:space-y-2">
-                <Label htmlFor="password" className="text-sm md:text-base text-gray-300">Senha</Label>
+                <Label htmlFor="password" className="text-sm md:text-base text-gray-300 font-body">Senha</Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 md:w-5 md:h-5 text-gray-500" />
                   <Input
@@ -191,7 +191,7 @@ export default function LoginPage() {
 
               <Button 
                 type="submit"
-                className="w-full bg-yellow-text text-black font-semibold py-2.5 md:py-3 text-sm md:text-lg hover:bg-yellow-text/90 transition-colors"
+                className="w-full bg-yellow-text text-black font-heading font-semibold py-2.5 md:py-3 text-sm md:text-lg hover:bg-yellow-text/90 transition-colors"
                 disabled={loading || !email || !password}
               >
                 {loading ? "Entrando..." : "Entrar"}

@@ -5,11 +5,11 @@ export default function NotFound() {
   return (
     <div className="min-h-screen bg-[#0d0f12] flex flex-col items-center justify-center p-4">
       <div className="text-center space-y-6 max-w-md">
-        <div className="text-8xl font-bold text-[#FFB03F] opacity-50">404</div>
+        <div className="text-8xl font-heading font-bold text-[#FFB03F] opacity-50">404</div>
         
         <div className="space-y-2">
-          <h1 className="text-3xl font-bold text-white">Página não encontrada</h1>
-          <p className="text-gray-400">
+          <h1 className="text-3xl font-heading font-bold text-white">Página não encontrada</h1>
+          <p className="text-gray-400 font-body">
             A página que você está procurando não existe ou foi movida.
           </p>
         </div>
@@ -23,15 +23,15 @@ export default function NotFound() {
         <div className="pt-4">
           <Link
             href="/"
-            className="inline-flex items-center justify-center gap-2 bg-[#FFB03F] text-black font-medium px-6 py-3 rounded-md hover:bg-[#FFB03F]/90 transition-colors"
+            className="inline-flex items-center justify-center gap-2 bg-[#FFB03F] text-black font-heading font-medium px-6 py-3 rounded-md hover:bg-[#FFB03F]/90 transition-colors"
           >
             <Home className="w-5 h-5" />
             Voltar ao Início
           </Link>
         </div>
 
-        <div className="pt-8 text-sm text-gray-500">
-          <span className="text-white">DATA</span><span className="text-[#FFB03F]">MAT</span>
+        <div className="pt-8 text-sm text-gray-500 font-body">
+          <span className="text-white font-datamat">DATA</span><span className="text-[#FFB03F] font-datamat">MAT</span>
         </div>
       </div>
     </div>
