@@ -1,25 +1,23 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { collection, getDocs, query, orderBy } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { useAuth } from "@/contexts/AuthContext";
-import { collection, getDocs, orderBy, query } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Building2 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-
-export const dynamic = "force-dynamic";
 
 interface Company {
   id: string;
   name: string;
-  description?: string;
   active?: boolean;
 }
 
-function MasterAdminCompaniesView() {
+function MasterAdminResourcesView() {
   const { isMasterAdmin, userData } = useAuth();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,13 +36,13 @@ function MasterAdminCompaniesView() {
           return {
             id: doc.id,
             name: d.name ?? doc.id,
-            description: d.description,
             active: d.active ?? true,
           };
         }).filter(c => c.active !== false);
 
-        if (!isMasterAdmin && userData?.permissions?.allowedDashboards) {
-          const allowedCompanies = Object.keys(userData.permissions.allowedDashboards);
+        // Filtrar empresas baseadas nas permissões do usuário (allowedResources)
+        if (!isMasterAdmin && userData?.permissions?.allowedResources) {
+          const allowedCompanies = Object.keys(userData.permissions.allowedResources);
           data = data.filter(company => allowedCompanies.includes(company.id));
         }
 
@@ -58,7 +56,7 @@ function MasterAdminCompaniesView() {
     }
 
     fetchCompanies();
-  }, [isMasterAdmin]);
+  }, []);
 
   if (loading) {
     return (
@@ -82,7 +80,7 @@ function MasterAdminCompaniesView() {
         {companies.length === 0 ? (
           <Card className="shadow-md">
             <CardHeader>
-              <CardTitle>Nenhuma empresa disponível</CardTitle>
+              <CardTitle>Nenhuma empresa cadastrada</CardTitle>
             </CardHeader>
           </Card>
         ) : (
@@ -90,7 +88,7 @@ function MasterAdminCompaniesView() {
             {companies.map((company) => (
               <Link
                 key={company.id}
-                href={`/dashboard/${company.id}`}
+                href={`/resources/${company.id}`}
                 className="block"
               >
                 <Card className="hover:shadow-lg hover:border-yellow-text cursor-pointer transition-all">
@@ -110,75 +108,50 @@ function MasterAdminCompaniesView() {
   );
 }
 
-function DashboardPage() {
-  const { userData, companyId, loading: authLoading } = useAuth();
+function ResourcesPage() {
+  const { isMasterAdmin, userData, companyId } = useAuth();
   const router = useRouter();
-  const [redirecting, setRedirecting] = useState(false);
 
-  const canViewList = userData?.permissions?.canViewDashboardList;
+  // canViewList = pode ver a lista de TODAS as empresas (acesso total)
+  const canViewList = isMasterAdmin || userData?.permissions?.canViewResourceList;
 
-  // Redirect no primeiro acesso (login) se tem defaultDashboardId
-  useEffect(() => {
-    if (authLoading || redirecting) return;
-
-    // Só redireciona uma vez por sessão
-    const hasRedirectedThisSession = sessionStorage.getItem('dashboardRedirected');
-    
-    const doRedirect = async () => {
-      // Só redireciona se não pode ver lista de empresas, tem companyId, defaultDashboardId,
-      // e se ainda não redirecionou nesta sessão
-      if (!canViewList && companyId && userData?.defaultDashboardId && !hasRedirectedThisSession) {
-        sessionStorage.setItem('dashboardRedirected', 'true');
-        setRedirecting(true);
-        router.replace(`/dashboard/${companyId}/${userData.defaultDashboardId}`);
-      }
-    };
-
-    doRedirect();
-  }, [userData, companyId, canViewList, router, redirecting, authLoading]);
-
-  // Se está a redirecionar ou a carregar, mostra spinner
-  if (redirecting || authLoading) {
-    return (
-      <main className="flex min-h-screen items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-yellow-text" />
-      </main>
-    );
-  }
-
+  // Se pode ver a lista, mostra a lista de empresas
   if (canViewList) {
-    return <MasterAdminCompaniesView />;
+    return <MasterAdminResourcesView />;
   }
 
-  if (userData?.permissions?.allowedDashboards) {
-    const allowedCompanies = Object.keys(userData.permissions.allowedDashboards);
+  // Se tem acesso específico a apenas 1 empresa, vai direto para ela
+  if (userData?.permissions?.allowedResources) {
+    const allowedCompanies = Object.keys(userData.permissions.allowedResources);
     if (allowedCompanies.length === 1) {
-      router.replace(`/dashboard/${allowedCompanies[0]}`);
+      router.replace(`/resources/${allowedCompanies[0]}`);
       return null;
     }
+    // Se tem acesso a múltiplas empresas específicas, mostra a lista filtrada
     if (allowedCompanies.length > 1) {
-      return <MasterAdminCompaniesView />;
+      return <MasterAdminResourcesView />;
     }
   }
 
+  // Se NÃO tem canViewList mas tem companyId, vai direto para os recursos dessa empresa
   if (companyId) {
-    router.push(`/dashboard/${companyId}`);
+    router.replace(`/resources/${companyId}`);
     return null;
   }
 
   return (
     <main className="flex min-h-screen items-center justify-center">
       <p className="text-sm text-muted-foreground">
-        Você não está associado a nenhuma empresa.
+        Você não tem permissão para visualizar esta página.
       </p>
     </main>
   );
 }
 
-export default function ProtectedDashboardPage() {
+export default function ProtectedResourcesPage() {
   return (
     <ProtectedRoute>
-      <DashboardPage />
+      <ResourcesPage />
     </ProtectedRoute>
   );
 }

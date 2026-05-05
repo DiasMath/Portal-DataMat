@@ -36,12 +36,23 @@ export async function POST(request: NextRequest) {
     });
 
     // HIGIENE DE DADOS: Força as regras de negócio no backend por segurança
+    // Lógica: canViewDashboardList + allowedDashboards vazio = acesso total
+    //        canViewDashboardList + allowedDashboards com empresas = acesso específico
+    //        canViewDashboardList false = sem acesso à lista (vai direto para empresa)
+    const hasFullDashboardAccess = permissions?.canViewDashboardList === true && 
+      (!permissions?.allowedDashboards || Object.keys(permissions.allowedDashboards).length === 0);
+    const hasFullResourceAccess = permissions?.canViewResourceList === true && 
+      (!permissions?.allowedResources || Object.keys(permissions.allowedResources).length === 0);
+
     const safePermissions = {
-      ...(permissions || {}), // Pega o que veio na requisição
-      // A Regra de Ouro: canEdit só pode ser true se o cargo for 'admin'. Se for 'user', o backend força false!
+      ...(permissions || {}),
       canEdit: role === 'admin' ? (permissions?.canEdit || false) : false,
-      canViewDashboardList: permissions?.canViewDashboardList ?? true,
-      allowedDashboards: companyId ? { [companyId]: "all" } : {}
+      // Se tem acesso total, garantir que allowed está vazio
+      canViewDashboardList: hasFullDashboardAccess ? true : (permissions?.canViewDashboardList ?? false),
+      canViewResourceList: hasFullResourceAccess ? true : (permissions?.canViewResourceList ?? false),
+      // Acesso total = allowed vazio, acesso específico = allowed com empresas
+      allowedDashboards: hasFullDashboardAccess ? {} : (permissions?.allowedDashboards || {}),
+      allowedResources: hasFullResourceAccess ? {} : (permissions?.allowedResources || {}),
     };
 
     // Criar documento no Firestore

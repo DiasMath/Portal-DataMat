@@ -17,6 +17,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import {
   collection,
   getDocs,
@@ -69,6 +70,7 @@ export default function DashboardsManagementPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmMode, setConfirmMode] = useState<"toggleActive" | "delete" | null>(null);
   const [targetDashboard, setTargetDashboard] = useState<Dashboard | null>(null);
+  const [confirmName, setConfirmName] = useState("");
 
   const [formData, setFormData] = useState({
     name: "",
@@ -286,7 +288,7 @@ export default function DashboardsManagementPage() {
 
   return (
     <ProtectedRoute>
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 pt-16 pb-8 md:px-8">
         <div className="max-w-6xl mx-auto space-y-6">
           <Card className="bg-[#1a1a1a] border border-gray-800">
             <CardHeader>
@@ -648,38 +650,31 @@ export default function DashboardsManagementPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog de confirmação para ativar/desativar/excluir */}
-      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent className="sm:max-w-[420px] bg-[#1a1a1a] border border-yellow-500/20">
-          <DialogHeader>
-            <DialogTitle>
-              {confirmMode === "delete"
-                ? "Confirmar exclusão"
-                : "Confirmar alteração de status"}
-            </DialogTitle>
-            <DialogDescription>
-              {confirmMode === "delete"
-                ? `Tem certeza que deseja excluir o dashboard "${
-                    targetDashboard?.name ?? ""
-                  }"? Esta ação é irreversível.`
-                : `Tem certeza que deseja ${
-                    targetDashboard?.active ? "desativar" : "ativar"
-                  } o dashboard "${targetDashboard?.name ?? ""}"?`}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setConfirmOpen(false)}>
-              Cancelar
-            </Button>
-            <Button
-              variant={confirmMode === "delete" ? "destructive" : "default"}
-              onClick={handleConfirmAction}
-            >
-              Confirmar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {confirmMode === "delete" && (
+        <ConfirmationDialog
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          title="Confirmar exclusão"
+          description="Esta ação é irreversível."
+          itemName={targetDashboard?.name || ""}
+          confirmLabel="Excluir"
+          onConfirm={() => handleConfirmAction()}
+        />
+      )}
+
+      {confirmMode !== "delete" && (
+        <ConfirmationDialog
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          title="Confirmar alteração de status"
+          description={`Tem certeza que deseja ${targetDashboard?.active ? "desativar" : "ativar"} o dashboard "${targetDashboard?.name}"?`}
+          itemName=""
+          confirmLabel="Confirmar"
+          onConfirm={handleConfirmAction}
+          requireTyping={false}
+          cancelLabel="Cancelar"
+        />
+      )}
     </ProtectedRoute>
   );
 }

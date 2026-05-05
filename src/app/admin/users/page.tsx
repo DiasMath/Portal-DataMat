@@ -32,6 +32,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import {
   collection,
   getDocs,
@@ -49,8 +50,10 @@ import { useAuth } from "@/contexts/AuthContext";
 
 interface UserPermissions {
   canViewDashboardList: boolean;
+  canViewResourceList: boolean;
   canEdit: boolean;
   allowedDashboards: Record<string, "all" | string[]>;
+  allowedResources: Record<string, "all" | string[]>;
 }
 
 interface User {
@@ -79,6 +82,12 @@ interface Dashboard {
   companyId: string;
 }
 
+interface Resource {
+  id: string;
+  name: string;
+  companyId: string;
+}
+
 export default function UsersManagementPage() {
   const { isMasterAdmin, isAdmin, userData } = useAuth(); 
   const router = useRouter();
@@ -87,6 +96,7 @@ export default function UsersManagementPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [dashboards, setDashboards] = useState<Dashboard[]>([]);
+  const [resources, setResources] = useState<Resource[]>([]);
 
   // State for the edit modal
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -95,11 +105,15 @@ export default function UsersManagementPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmMode, setConfirmMode] = useState<"delete" | "passwordReset" | null>(null);
   const [targetUser, setTargetUser] = useState<User | null>(null);
+  const [confirmName, setConfirmName] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const defaultPerms = {
-    canViewDashboardList: true,
+    canViewDashboardList: false,
+    canViewResourceList: false,
     canEdit: false,
     allowedDashboards: {} as Record<string, "all" | string[]>,
+    allowedResources: {} as Record<string, "all" | string[]>,
   };
 
   const [editFormData, setEditFormData] = useState({
@@ -142,6 +156,7 @@ export default function UsersManagementPage() {
     fetchUsers();
     fetchCompanies();
     fetchDashboards();
+    fetchResources();
 
     return () => unsubscribe();
   }, []);
@@ -200,9 +215,33 @@ export default function UsersManagementPage() {
     }
   };
 
+  const fetchResources = async () => {
+    try {
+      const snap = await getDocs(collection(db, "resources"));
+      const data = snap.docs.map((doc) => ({
+        id: doc.id,
+        name: doc.data().name,
+        companyId: doc.data().companyId,
+      })) as Resource[];
+      setResources(data);
+    } catch (error) {
+      console.error("Erro ao buscar recursos", error);
+    }
+  };
+
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    
+    // Validação: Dashboard padrão é obrigatório para usuários normais
+    if (formData.role !== "master_admin" && 
+        !formData.permissions.canViewDashboardList && 
+        formData.companyId && 
+        !formData.defaultDashboardId) {
+      toast.error("Selecione um Dashboard Padrão para este usuário.");
+      return;
+    }
+    
+    setSaving(true);
     try {
       const currentUser = auth.currentUser;
       if (!currentUser) {
@@ -252,6 +291,7 @@ export default function UsersManagementPage() {
       }
 
       setShowCreateModal(false);
+      setSaving(false);
       setFormData({
         email: "",
         displayName: "",
@@ -269,7 +309,7 @@ export default function UsersManagementPage() {
         error instanceof Error ? error.message : "Erro desconhecido";
       toast.error(`Erro ao criar usuário: ${errorMessage}`);
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
@@ -353,6 +393,16 @@ export default function UsersManagementPage() {
     e.preventDefault();
     if (!editingUser) return;
 
+    // Validação: Dashboard padrão é obrigatório para usuários normais
+    if (editFormData.role !== "master_admin" && 
+        !editFormData.permissions.canViewDashboardList && 
+        editFormData.companyId && 
+        !editFormData.defaultDashboardId) {
+      toast.error("Selecione um Dashboard Padrão para este usuário.");
+      return;
+    }
+
+    setSaving(true);
     const success = await handleUpdateUser(editingUser.id, {
       displayName: editFormData.displayName,
       companyId: editFormData.companyId || undefined,
@@ -371,6 +421,7 @@ export default function UsersManagementPage() {
     } else {
       toast.error("Falha ao atualizar usuário.");
     }
+    setSaving(false);
   };
 
   const openConfirm = (user: User, mode: "delete" | "passwordReset") => {
@@ -402,7 +453,7 @@ export default function UsersManagementPage() {
 
   const handleAllowedDashboardsType = (isEditing: boolean, companyId: string, type: "none" | "all" | "specific") => {
     const updateLogic = (prev: any) => {
-      const newAllowed = { ...prev.permissions.allowedDashboards };
+      const newAllowed = { ...(prev.permissions.allowedDashboards || {}) };
       if (type === "none") delete newAllowed[companyId];
       else if (type === "all") newAllowed[companyId] = "all";
       else newAllowed[companyId] = [];
@@ -415,7 +466,7 @@ export default function UsersManagementPage() {
 
   const handleToggleSpecificDash = (isEditing: boolean, companyId: string, dashId: string) => {
     const updateLogic = (prev: any) => {
-      const newAllowed = { ...prev.permissions.allowedDashboards };
+      const newAllowed = { ...(prev.permissions.allowedDashboards || {}) };
       const current = newAllowed[companyId];
       if (Array.isArray(current)) {
         newAllowed[companyId] = current.includes(dashId) ? current.filter((id: string) => id !== dashId) : [...current, dashId];
@@ -427,95 +478,236 @@ export default function UsersManagementPage() {
     else setFormData(updateLogic);
   };
 
-  const renderPermissionsBlock = (isEditing: boolean) => {
+  const handleAllowedResourcesType = (isEditing: boolean, companyId: string, type: "none" | "all" | "specific") => {
+    const updateLogic = (prev: any) => {
+      const newAllowed = { ...(prev.permissions.allowedResources || {}) };
+      if (type === "none") delete newAllowed[companyId];
+      else if (type === "all") newAllowed[companyId] = "all";
+      else newAllowed[companyId] = [];
+      return { ...prev, permissions: { ...prev.permissions, allowedResources: newAllowed } };
+    };
+
+    if (isEditing) setEditFormData(updateLogic);
+    else setFormData(updateLogic);
+  };
+
+  const handleToggleSpecificResource = (isEditing: boolean, companyId: string, resId: string) => {
+    const updateLogic = (prev: any) => {
+      const newAllowed = { ...(prev.permissions.allowedResources || {}) };
+      const current = newAllowed[companyId];
+      if (Array.isArray(current)) {
+        newAllowed[companyId] = current.includes(resId) ? current.filter((id: string) => id !== resId) : [...current, resId];
+      }
+      return { ...prev, permissions: { ...prev.permissions, allowedResources: newAllowed } };
+    };
+
+    if (isEditing) setEditFormData(updateLogic);
+    else setFormData(updateLogic);
+  };
+
+const renderPermissionsBlock = (isEditing: boolean) => {
     const state = isEditing ? editFormData : formData;
     if (state.role === "master_admin") return null;
 
+    // Verifica se tem acesso total
+    const hasFullDashboardAccess = state.permissions.canViewDashboardList && Object.keys(state.permissions.allowedDashboards || {}).length === 0;
+    const hasFullResourceAccess = state.permissions.canViewResourceList && Object.keys(state.permissions.allowedResources || {}).length === 0;
+
     return (
-      <div className="space-y-4 p-4 border rounded-md bg-muted/20">
-        <h4 className="font-heading font-semibold border-b pb-2">Regras e Permissões de Acesso</h4>
+      <div className="space-y-6 p-4 border rounded-md bg-muted/20">
+        <h4 className="font-heading font-semibold border-b pb-2">Permissões de Acesso</h4>
         
+        {/* SEÇÃO DASHBOARDS */}
         <div className="space-y-3">
+          <Label className="font-heading font-semibold text-yellow-text">Dashboards</Label>
+          
+          {/* Checkbox acesso total */}
           <div className="flex items-center space-x-2">
             <Checkbox 
-              id={`canViewList-${isEditing}`} 
-              checked={state.permissions.canViewDashboardList}
-              onCheckedChange={(c) => handlePermChange(isEditing, "canViewDashboardList", !!c)}
+              id={`dashFullAccess-${isEditing}`} 
+              checked={hasFullDashboardAccess}
+              onCheckedChange={(c) => {
+                if (c) {
+                  handlePermChange(isEditing, "canViewDashboardList", true);
+                  // Limpa allowedDashboards para dar acesso total
+                  const updateLogic = (prev: any) => ({
+                    ...prev,
+                    permissions: { ...prev.permissions, allowedDashboards: {} }
+                  });
+                  if (isEditing) setEditFormData(updateLogic);
+                  else setFormData(updateLogic);
+                } else {
+                  handlePermChange(isEditing, "canViewDashboardList", false);
+                }
+              }}
             />
-            <Label htmlFor={`canViewList-${isEditing}`} className="font-body">Pode acessar a listagem de dashboards das empresas</Label>
+            <Label htmlFor={`dashFullAccess-${isEditing}`} className="font-body">
+              Pode ver todos os dashboards de todas as empresas
+            </Label>
           </div>
-          {/* O checkbox de permissões avançadas só aparece se for Admin */}
-          {state.role === "admin" && (
-            <div className="flex items-center space-x-2 mt-2">
+
+          {/* Se NÃO tem acesso total, mostrar seleção de empresas específicos */}
+          {!hasFullDashboardAccess && (
+            <div className="pt-2 pl-6 space-y-3 border-l-2 border-yellow-500/30">
+              <Label className="text-sm text-gray-400">Selecione quais dashboards este usuário pode ver:</Label>
+              <div className="max-h-60 overflow-y-auto space-y-3 border p-3 rounded-md bg-background">
+                {companies.map(company => {
+                  const companyDashboards = dashboards.filter(d => d.companyId === company.id);
+                  if (companyDashboards.length === 0) return null;
+
+                  const access = state.permissions.allowedDashboards?.[company.id];
+                  const hasAccess = access !== undefined;
+                  const isAll = access === "all";
+                  const specificList = Array.isArray(access) ? access : [];
+
+                  return (
+                    <div key={company.id} className="border p-3 rounded-md space-y-3">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox 
+                          id={`dashcomp-${company.id}-${isEditing}`}
+                          checked={hasAccess} 
+                          onCheckedChange={(c) => handleAllowedDashboardsType(isEditing, company.id, c ? "all" : "none")} 
+                        />
+                        <Label htmlFor={`dashcomp-${company.id}-${isEditing}`} className="font-heading font-semibold">{company.name}</Label>
+                      </div>
+                      
+                      {hasAccess && (
+                        <div className="pl-6 space-y-3">
+                          <Select value={isAll ? "all" : "specific"} onValueChange={(v) => handleAllowedDashboardsType(isEditing, company.id, v as any)}>
+                            <SelectTrigger className="h-8 text-xs w-[220px]"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">Todos os Dashboards</SelectItem>
+                              <SelectItem value="specific">Apenas Específicos</SelectItem>
+                            </SelectContent>
+                          </Select>
+
+                          {!isAll && (
+                            <div className="space-y-2 mt-2 pl-3 border-l-2 border-primary/40">
+                              {companyDashboards.map(dash => (
+                                <div key={dash.id} className="flex items-center space-x-2">
+                                  <Checkbox 
+                                    id={`dash-${dash.id}-${isEditing}`}
+                                    checked={specificList.includes(dash.id)}
+                                    onCheckedChange={() => handleToggleSpecificDash(isEditing, company.id, dash.id)}
+                                  />
+                                  <Label htmlFor={`dash-${dash.id}-${isEditing}`} className="text-xs font-normal">{dash.name}</Label>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* SEÇÃO RECURSOS */}
+        <div className="space-y-3 pt-4 border-t">
+          <Label className="font-heading font-semibold text-green-400">Recursos</Label>
+          
+          {/* Checkbox acesso total */}
+          <div className="flex items-center space-x-2">
+            <Checkbox 
+              id={`resFullAccess-${isEditing}`} 
+              checked={hasFullResourceAccess}
+              onCheckedChange={(c) => {
+                if (c) {
+                  handlePermChange(isEditing, "canViewResourceList", true);
+                  const updateLogic = (prev: any) => ({
+                    ...prev,
+                    permissions: { ...prev.permissions, allowedResources: {} }
+                  });
+                  if (isEditing) setEditFormData(updateLogic);
+                  else setFormData(updateLogic);
+                } else {
+                  handlePermChange(isEditing, "canViewResourceList", false);
+                }
+              }}
+            />
+            <Label htmlFor={`resFullAccess-${isEditing}`} className="font-body">
+              Pode ver todos os recursos de todas as empresas
+            </Label>
+          </div>
+
+          {/* Se NÃO tem acesso total, mostrar seleção de empresas específicos */}
+          {!hasFullResourceAccess && (
+            <div className="pt-2 pl-6 space-y-3 border-l-2 border-green-500/30">
+              <Label className="text-sm text-gray-400">Selecione quais recursos este usuário pode ver:</Label>
+              <div className="max-h-60 overflow-y-auto space-y-3 border p-3 rounded-md bg-background">
+                {companies.map(company => {
+                  const companyResources = resources.filter(r => r.companyId === company.id);
+                  if (companyResources.length === 0) return null;
+
+                  const access = state.permissions.allowedResources?.[company.id];
+                  const hasAccess = access !== undefined;
+                  const isAll = access === "all";
+                  const specificList = Array.isArray(access) ? access : [];
+
+                  return (
+                    <div key={company.id} className="border p-3 rounded-md space-y-3">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox 
+                          id={`rescomp-${company.id}-${isEditing}`}
+                          checked={hasAccess} 
+                          onCheckedChange={(c) => handleAllowedResourcesType(isEditing, company.id, c ? "all" : "none")} 
+                        />
+                        <Label htmlFor={`rescomp-${company.id}-${isEditing}`} className="font-heading font-semibold">{company.name}</Label>
+                      </div>
+                      
+                      {hasAccess && (
+                        <div className="pl-6 space-y-3">
+                          <Select value={isAll ? "all" : "specific"} onValueChange={(v) => handleAllowedResourcesType(isEditing, company.id, v as any)}>
+                            <SelectTrigger className="h-8 text-xs w-[220px]"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">Todos os Recursos</SelectItem>
+                              <SelectItem value="specific">Apenas Específicos</SelectItem>
+                            </SelectContent>
+                          </Select>
+
+                          {!isAll && (
+                            <div className="space-y-2 mt-2 pl-3 border-l-2 border-green-500/40">
+                              {companyResources.map(res => (
+                                <div key={res.id} className="flex items-center space-x-2">
+                                  <Checkbox 
+                                    id={`res-${res.id}-${isEditing}`}
+                                    checked={specificList.includes(res.id)}
+                                    onCheckedChange={() => handleToggleSpecificResource(isEditing, company.id, res.id)}
+                                  />
+                                  <Label htmlFor={`res-${res.id}-${isEditing}`} className="text-xs font-normal">{res.name}</Label>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* PERMISSÃO DE EDIÇÃO - apenas para admins */}
+        {state.role === "admin" && (
+          <div className="space-y-2 pt-4 border-t">
+            <Label className="font-heading font-semibold">Permissões de Administração</Label>
+            <div className="flex items-center space-x-2">
               <Checkbox 
                 id={`canEdit-${isEditing}`} 
                 checked={state.permissions.canEdit}
                 onCheckedChange={(c) => handlePermChange(isEditing, "canEdit", !!c)}
               />
-              <Label htmlFor={`canEdit-${isEditing}`}>Pode Criar, Editar e Excluir Dashboards</Label>
-            </div>
-          )}
-        </div>
-
-        {/* Só mostra este bloco se o canViewDashboardList for true */}
-        {state.permissions.canViewDashboardList && (
-        <div className="pt-4 border-t">
-          <Label className="mb-3 block font-heading font-semibold">Quais dashboards este usuário pode ver?</Label>
-          <div className="max-h-60 overflow-y-auto space-y-3 border p-3 rounded-md bg-background">
-            {companies.map(company => {
-              const companyDashboards = dashboards.filter(d => d.companyId === company.id);
-              if (companyDashboards.length === 0) return null;
-
-              const access = state.permissions.allowedDashboards[company.id];
-              const hasAccess = access !== undefined;
-              const isAll = access === "all";
-              const specificList = Array.isArray(access) ? access : [];
-
-              return (
-                <div key={company.id} className="border p-3 rounded-md space-y-3">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox 
-                      id={`comp-${company.id}-${isEditing}`}
-                      checked={hasAccess} 
-                      onCheckedChange={(c) => handleAllowedDashboardsType(isEditing, company.id, c ? "all" : "none")} 
-                    />
-                    <Label htmlFor={`comp-${company.id}-${isEditing}`} className="font-heading font-semibold">{company.name}</Label>
-                  </div>
-                  
-                  {hasAccess && (
-                    <div className="pl-6 space-y-3">
-                      <Select value={isAll ? "all" : "specific"} onValueChange={(v) => handleAllowedDashboardsType(isEditing, company.id, v as any)}>
-                        <SelectTrigger className="h-8 text-xs w-[220px]"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Acessa Todos os Dashboards</SelectItem>
-                          <SelectItem value="specific">Apenas Dashboards Específicos</SelectItem>
-                        </SelectContent>
-                      </Select>
-
-                      {!isAll && (
-                        <div className="space-y-2 mt-2 pl-3 border-l-2 border-primary/40">
-                          {companyDashboards.map(dash => (
-                            <div key={dash.id} className="flex items-center space-x-2">
-                              <Checkbox 
-                                id={`dash-${dash.id}-${isEditing}`}
-                                checked={specificList.includes(dash.id)}
-                                onCheckedChange={() => handleToggleSpecificDash(isEditing, company.id, dash.id)}
-                              />
-                              <Label htmlFor={`dash-${dash.id}-${isEditing}`} className="text-xs font-normal">{dash.name}</Label>
-                            </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
+              <Label htmlFor={`canEdit-${isEditing}`}>Pode Criar, Editar e Excluir (Dashboards e Recursos)</Label>
             </div>
           </div>
         )}
       </div>
-    )
+    );
   };
   // --- FIM: Funções Auxiliares ---
 
@@ -534,7 +726,7 @@ export default function UsersManagementPage() {
 
   return (
     <ProtectedRoute>
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 pt-16 pb-8 md:px-8">
         <div className="max-w-7xl mx-auto space-y-6">
           {/* Header */}
           <Card className="bg-[#1a1a1a] border border-yellow-500/20 shadow-lg shadow-yellow-500/5">
@@ -654,27 +846,23 @@ export default function UsersManagementPage() {
                         </Label>
                       </div>
 
-                      {/* --- BLOCO DO DASHBOARD PADRÃO ADICIONADO AQUI --- */}
-                      {formData.role !== "master_admin" && !formData.permissions.canViewDashboardList && (
+                      {/* --- BLOCO DO DASHBOARD PADRÃO - AGORA OBRIGATÓRIO --- */}
+                      {formData.role !== "master_admin" && !formData.permissions.canViewDashboardList && formData.companyId && (
                         <div className="space-y-2 pt-2">
-                          <Label>Dashboard Padrão (Opcional)</Label>
+                          <Label>Dashboard Padrão *</Label>
                           <Select
                             value={formData.defaultDashboardId}
                             onValueChange={(value) =>
                               setFormData({
                                 ...formData,
-                                defaultDashboardId: value === "none" ? "" : value,
+                                defaultDashboardId: value,
                               })
                             }
-                            disabled={!formData.companyId}
                           >
                             <SelectTrigger>
-                              <SelectValue placeholder="Selecione um dashboard inicial" />
+                              <SelectValue placeholder="Selecione um dashboard padrão" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="none">
-                                Nenhum (usar padrão da empresa)
-                              </SelectItem>
                               {dashboards
                                 .filter((d) => d.companyId === formData.companyId)
                                 .map((dash) => (
@@ -685,7 +873,7 @@ export default function UsersManagementPage() {
                             </SelectContent>
                           </Select>
                           <p className="text-xs text-muted-foreground">
-                            O usuário será redirecionado para este painel ao logar.
+                            O usuário será redirecionado para este dashboard ao fazer login.
                           </p>
                         </div>
                       )}
@@ -696,12 +884,20 @@ export default function UsersManagementPage() {
                         <Button
                           type="button"
                           variant="outline"
-                          onClick={() => setShowCreateModal(false)}
+                          onClick={() => {
+                        setShowCreateModal(false);
+                        setSaving(false);
+                      }}
                         >
                           Cancelar
                         </Button>
-                        <Button type="submit" disabled={loading}>
-                          {loading ? "Criando..." : "Criar Usuário"}
+                        <Button type="submit" disabled={saving}>
+                          {saving ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2" />
+                              Criando...
+                            </>
+                          ) : "Criar Usuário"}
                         </Button>
                       </DialogFooter>
                     </form>
@@ -843,6 +1039,7 @@ export default function UsersManagementPage() {
                     })
                   }
                   placeholder="João Silva"
+                  disabled={editingUser?.role === "master_admin"}
                 />
               </div>
 
@@ -859,6 +1056,7 @@ export default function UsersManagementPage() {
                     })
                   }
                   placeholder="ID da empresa (companies)"
+                  disabled={editingUser?.role === "master_admin"}
                 />
                 <datalist id="companies-list-edit">
                   {companies.map((company) => (
@@ -868,22 +1066,20 @@ export default function UsersManagementPage() {
                   ))}
                 </datalist>
               </div>
-              {/* Oculta o Dashboard Padrão se for master_admin, pois ele tem acesso global */}
-              {editingUser?.role !== "master_admin" && !editFormData.permissions.canViewDashboardList && (
+              {/* Dashboard Padrão - Obrigatório para usuários normais */}
+              {editingUser?.role !== "master_admin" && !editFormData.permissions.canViewDashboardList && editFormData.companyId && (
                 <div className="space-y-2">
-                  <Label htmlFor="edit-defaultDashboardId">Dashboard Padrão (Opcional)</Label>
+                  <Label htmlFor="edit-defaultDashboardId">Dashboard Padrão *</Label>
                   <Select
                     value={editFormData.defaultDashboardId}
                     onValueChange={(value) =>
-                      setEditFormData({ ...editFormData, defaultDashboardId: value === "none" ? "" : value })
+                      setEditFormData({ ...editFormData, defaultDashboardId: value })
                     }
-                    disabled={!editFormData.companyId}
                   >
                     <SelectTrigger id="edit-defaultDashboardId">
                       <SelectValue placeholder="Selecione um dashboard padrão" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Usar padrão da empresa</SelectItem>
                       {dashboards
                         .filter((d) => d.companyId === editFormData.companyId)
                         .map((dash) => (
@@ -893,6 +1089,9 @@ export default function UsersManagementPage() {
                         ))}
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-muted-foreground">
+                    O usuário será redirecionado para este dashboard ao fazer login.
+                  </p>
                 </div>
               )}
 
@@ -926,24 +1125,26 @@ export default function UsersManagementPage() {
                 </div>
               )}
 
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="edit-authorized"
-                  checked={editFormData.authorized}
-                  onCheckedChange={(checked) =>
-                    setEditFormData({
-                      ...editFormData,
-                      authorized: !!checked,
-                    })
-                  }
-                />
-                <Label
-                  htmlFor="edit-authorized"
-                  className="cursor-pointer text-sm font-medium"
-                >
-                  Usuário autorizado
-                </Label>
-              </div>
+              {editingUser?.role !== "master_admin" && (
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="edit-authorized"
+                    checked={editFormData.authorized}
+                    onCheckedChange={(checked) =>
+                      setEditFormData({
+                        ...editFormData,
+                        authorized: !!checked,
+                      })
+                    }
+                  />
+                  <Label
+                    htmlFor="edit-authorized"
+                    className="cursor-pointer text-sm font-medium"
+                  >
+                    Usuário autorizado
+                  </Label>
+                </div>
+                )}
               {renderPermissionsBlock(true)}
               <div className="space-y-2 pt-2 border-t">
                 <Label className="flex items-center">
@@ -970,44 +1171,43 @@ export default function UsersManagementPage() {
               >
                 Fechar
               </Button>
-              <Button type="submit">Salvar alterações</Button>
+              <Button type="submit" disabled={saving}>
+                {saving ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2" />
+                    Salvando...
+                  </>
+                ) : "Salvar alterações"}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* Dialog de confirmação para exclusão e envio de email */}
-      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent className="sm:max-w-[420px]">
-          <DialogHeader>
-            <DialogTitle>
-              {confirmMode === "delete"
-                ? "Confirmar exclusão"
-                : "Confirmar envio de email"}
-            </DialogTitle>
-            <DialogDescription>
-              {confirmMode === "delete"
-                ? `Tem certeza que deseja excluir o usuário "${
-                    targetUser?.email ?? ""
-                  }"? Esta ação é irreversível e removerá o usuário da autenticação e do banco de dados.`
-                : `Tem certeza que deseja enviar um link de redefinição de senha para ${
-                    targetUser?.email ?? ""
-                  }?`}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setConfirmOpen(false)}>
-              Cancelar
-            </Button>
-            <Button
-              variant={confirmMode === "delete" ? "destructive" : "default"}
-              onClick={handleConfirmAction}
-            >
-              Confirmar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {confirmMode === "delete" && (
+        <ConfirmationDialog
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          title="Confirmar exclusão"
+          description="Esta ação é irreversível e removerá o usuário da autenticação e do banco de dados."
+          itemName={targetUser?.email || ""}
+          confirmLabel="Excluir"
+          onConfirm={() => handleConfirmAction()}
+        />
+      )}
+
+      {confirmMode === "passwordReset" && (
+        <ConfirmationDialog
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          title="Confirmar envio de email"
+          description={`Tem certeza que deseja enviar um link de redefinição de senha para ${targetUser?.email}?`}
+          itemName=""
+          confirmLabel="Confirmar"
+          onConfirm={handleConfirmAction}
+          requireTyping={false}
+        />
+      )}
     </ProtectedRoute>
   );
 }

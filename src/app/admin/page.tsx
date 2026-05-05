@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { UserNav } from "@/components/layout/UserNav";
-import { Users, Building2, LayoutDashboard, UserPlus, Building, Layout, Trash2 } from "lucide-react";
+import { Users, Building2, LayoutDashboard, UserPlus, Building, Layout, Trash2, FileText } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { doc, getDoc, getDocs, collection, getCountFromServer, query, orderBy, limit } from "firebase/firestore";
@@ -153,7 +153,7 @@ export default function AdminPage() {
 
   return (
     <ProtectedRoute>
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 pt-16 pb-8 md:px-8">
         <div className="max-w-6xl mx-auto space-y-6">
           {/* Header */}
           <Card className="bg-[#1a1a1a] border border-yellow-500/20 shadow-lg shadow-yellow-500/5">
@@ -288,6 +288,13 @@ export default function AdminPage() {
                     <Link href="/admin/dashboards" className="inline-flex items-center">
                       <LayoutDashboard className="w-4 h-4 mr-2" />
                       Gerenciar Dashboards
+                    </Link>
+                  </Button>
+
+                  <Button asChild variant="outline" className="font-heading font-semibold text-base justify-start min-w-[200px] border-gray-700 text-gray-300 hover:border-yellow-text hover:text-yellow-text hover:bg-yellow-text/10 transition-colors">
+                    <Link href="/admin/resources" className="inline-flex items-center">
+                      <FileText className="w-4 h-4 mr-2" />
+                      Gerenciar Recursos
                     </Link>
                   </Button>
                 </div>

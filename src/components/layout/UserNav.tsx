@@ -18,10 +18,12 @@ import {
 export function UserNav() {
   const { user, userData, signOut, isAdmin, isMasterAdmin } = useAuth();
   const hasAdminAccess = isAdmin || isMasterAdmin || userData?.permissions?.canEdit;
+  const hasCompanyAccess = !!userData?.companyId; // Usuário comum com empresa
   const router = useRouter();
 
   const handleLogout = async () => {
     try {
+      sessionStorage.clear();
       await signOut();
       router.push("/login");
     } catch (error) {
@@ -97,6 +99,11 @@ export function UserNav() {
           <DropdownMenuItem asChild>
             <Link href="/dashboard">Dashboard</Link>
           </DropdownMenuItem>
+          {hasCompanyAccess && (
+            <DropdownMenuItem asChild>
+              <Link href="/resources">Recursos</Link>
+            </DropdownMenuItem>
+          )}
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleLogout}>Sair</DropdownMenuItem>

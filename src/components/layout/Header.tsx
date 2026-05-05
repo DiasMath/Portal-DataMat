@@ -10,16 +10,14 @@ export function Header() {
   const { user } = useAuth();
   const pathname = usePathname();
 
-  const isDashboardRoute = pathname.startsWith("/dashboard");
+  const isDashboardOrResources = pathname.startsWith("/dashboard") || pathname.startsWith("/resources");
 
   const baseClasses =
     "flex items-center justify-between px-6 border-b border-navbar-accent/20 bg-navbar backdrop-blur supports-[backdrop-filter]:bg-navbar/95";
 
   return (
     <nav
-      className={`${baseClasses} ${
-        isDashboardRoute ? "absolute top-0 left-0 w-full h-[42px] z-50" : "h-[42px]"
-      }`}
+      className={`${baseClasses} absolute top-0 left-0 w-full h-[42px] z-50`}
     >
       <Link
         href="/"

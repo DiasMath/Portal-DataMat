@@ -8,41 +8,46 @@ import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { BarChart3, ArrowLeft } from "lucide-react";
+import { FileText, FileSpreadsheet, ArrowLeft } from "lucide-react";
 
 interface Company {
   id: string;
   name: string;
 }
 
-interface Dashboard {
+interface Resource {
   id: string;
   name: string;
   description?: string;
+  url: string;
+  type: string;
+  active: boolean;
 }
 
-function CompanyDashboardsPage() {
+function CompanyResourcesPage() {
   const { isMasterAdmin, userData, companyId } = useAuth();
   const params = useParams<{ companyId: string }>();
   
   // Master admin tem acesso total
-  // Se tem canViewDashboardList, pode ver todos os dashboards permitidos
-  // Se não tem canViewList mas tem companyId, pode ver dashboards da empresa dele por padrão
-  const canViewList = isMasterAdmin || userData?.permissions?.canViewDashboardList;
+  // Se tem canViewResourceList, pode ver todos os recursos permitidos
+  // Se não tem canView mas tem companyId, pode ver recursos da empresa dele por padrão
+  const canViewList = isMasterAdmin || userData?.permissions?.canViewResourceList;
   
   // Verifica se tem permissão para esta empresa específica
+  // Se não tem canViewList mas tem companyId, permite acesso por padrão (a menos que explicitamente negado)
   const userCompanyId = userData?.companyId;
   const isOwnCompany = userCompanyId === params?.companyId;
   const companyAccess = isMasterAdmin 
     ? "all" 
-    : userData?.permissions?.allowedDashboards?.[params?.companyId ?? ""];
+    : userData?.permissions?.allowedResources?.[params?.companyId ?? ""];
+  
   const router = useRouter();
 
   // Se não pode ver a lista E não é da empresa, verifica o acesso específico
   const hasAccess = canViewList || isOwnCompany || companyAccess === "all" || (companyAccess !== undefined && Array.isArray(companyAccess));
 
   const [company, setCompany] = useState<Company | null>(null);
-  const [dashboards, setDashboards] = useState<Dashboard[]>([]);
+  const [resources, setResources] = useState<Resource[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -70,30 +75,33 @@ function CompanyDashboardsPage() {
         });
 
         const q = query(
-          collection(db, "dashboards"),
-          where("companyId", "==", params.companyId)
+          collection(db, "resources"),
+          where("companyId", "==", params.companyId),
+          where("active", "==", true)
         );
-        const dashboardsSnap = await getDocs(q);
+        const resourcesSnap = await getDocs(q);
 
-        let dashboardsData: Dashboard[] = dashboardsSnap.docs.map((docSnap) => {
-          const d = docSnap.data() as Partial<Dashboard>;
+        let resourcesData: Resource[] = resourcesSnap.docs.map((docSnap) => {
+          const d = docSnap.data() as Partial<Resource>;
           return {
             id: docSnap.id,
             name: d.name ?? docSnap.id,
             description: d.description,
+            url: d.url ?? "",
+            type: d.type ?? "form",
+            active: d.active ?? true,
           };
         });
 
-        // Filtra os dashboards que o utilizador pode ver nesta empresa
-        if (!isMasterAdmin && companyAccess !== "all") {
-          const allowedList = Array.isArray(companyAccess) ? companyAccess : [];
-          dashboardsData = dashboardsData.filter(d => allowedList.includes(d.id));
+        // Filtrar recursos baseados nas permissões do usuário (similar ao dashboard)
+        if (!isMasterAdmin && companyAccess !== "all" && Array.isArray(companyAccess)) {
+          resourcesData = resourcesData.filter(r => companyAccess.includes(r.id));
         }
 
-        setDashboards(dashboardsData);
+        setResources(resourcesData);
       } catch (err) {
-        console.error("Erro ao carregar dashboards da empresa:", err);
-        setError("Não foi possível carregar os dashboards desta empresa.");
+        console.error("Erro ao carregar recursos da empresa:", err);
+        setError("Não foi possível carregar os recursos desta empresa.");
       } finally {
         setLoading(false);
       }
@@ -127,9 +135,9 @@ function CompanyDashboardsPage() {
       <main className="flex min-h-screen items-center justify-center">
         <div className="space-y-4 text-center">
           <p className="text-red-600">{error}</p>
-          <Button variant="outline" onClick={() => router.push("/dashboard")}>
+          <Button variant="outline" onClick={() => router.push("/resources")}>
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Voltar para clientes
+            Voltar
           </Button>
         </div>
       </main>
@@ -139,20 +147,20 @@ function CompanyDashboardsPage() {
   return (
     <main className="px-4 pt-12 pb-8 md:px-8 bg-background">
       <div className="space-y-6">
-        <header className="flex items-center justify-between">
+<header className="flex items-center justify-between">
           <div className="space-y-1">
             <h1 className="text-2xl font-heading font-semibold">
-              Dashboards – {company?.name ?? "Empresa"}
+              Recursos – {company?.name ?? "Empresa"}
             </h1>
             <p className="text-sm text-muted-foreground font-body">
-              Selecione um dashboard para visualizar o relatório do Power BI.
+              Selecione um recurso para visualizar.
             </p>
           </div>
           {canViewList && (
             <Button
               variant="outline"
               size="sm"
-              onClick={() => router.push("/dashboard")}
+              onClick={() => router.push("/resources")}
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Voltar
@@ -160,28 +168,37 @@ function CompanyDashboardsPage() {
           )}
         </header>
 
-        {dashboards.length === 0 ? (
+        {resources.length === 0 ? (
           <Card className="shadow-md">
             <CardHeader>
-              <CardTitle className="font-heading">Nenhum dashboard cadastrado</CardTitle>
+              <CardTitle className="font-heading">Nenhum recurso cadastrado</CardTitle>
             </CardHeader>
           </Card>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 max-w-3xl">
-            {dashboards.map((dashboard) => (
+            {resources.map((resource) => (
               <Card
-                key={dashboard.id}
+                key={resource.id}
                 className="hover:shadow-lg hover:border-yellow-text cursor-pointer transition-all"
-                onClick={() =>
-                  router.push(`/dashboard/${company!.id}/${dashboard.id}`)
-                }
+                onClick={() => window.open(resource.url, "_blank")}
               >
                 <CardHeader className="flex items-center gap-3">
                   <span className="rounded-full bg-primary/10 p-2">
-                    <BarChart3 className="h-4 w-4 text-primary" />
+                    {resource.type === "form" ? (
+                      <FileText className="h-4 w-4 text-primary" />
+                    ) : (
+                      <FileSpreadsheet className="h-4 w-4 text-green-500" />
+                    )}
                   </span>
-                  <CardTitle className="text-base font-heading">{dashboard.name}</CardTitle>
+                  <CardTitle className="text-base font-heading">{resource.name}</CardTitle>
                 </CardHeader>
+                {resource.description && (
+                  <div className="px-6 pb-4">
+                    <p className="text-sm text-gray-400 font-body line-clamp-2">
+                      {resource.description}
+                    </p>
+                  </div>
+                )}
               </Card>
             ))}
           </div>
@@ -191,11 +208,10 @@ function CompanyDashboardsPage() {
   );
 }
 
-export default function ProtectedCompanyDashboardsPage() {
+export default function ProtectedCompanyResourcesPage() {
   return (
     <ProtectedRoute>
-      <CompanyDashboardsPage />
+      <CompanyResourcesPage />
     </ProtectedRoute>
   );
 }
-

@@ -21,8 +21,12 @@ const isDev = process.env.NODE_ENV !== "production";
 
 export interface UserPermissions {
   canViewDashboardList: boolean;
+  canViewResourceList: boolean;
   canEdit: boolean;
   allowedDashboards: {
+    [companyId: string]: "all" | string[];
+  };
+  allowedResources: {
     [companyId: string]: "all" | string[];
   };
 }
