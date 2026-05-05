@@ -6,7 +6,7 @@ O painel administrativo (`/admin`) é utilizado para gerir utilizadores, empresa
 
 ## Acesso
 
-Apenas utilizadores com `role: "admin"` ou `role: "master_admin"` podem aceder ao painel.
+Apenas utilizadores com `role: "admin"` podem aceder ao painel.
 
 URL: `https://portal.datamat.com.br/admin`
 
@@ -38,7 +38,7 @@ Mostra:
 Tabela com colunas:
 - Utilizador (nome + email)
 - Empresa
-- Papel (Master Admin / Admin / User)
+- Papel (Admin / User)
 - Status (Autorizado / Não Autorizado)
 - Último Acesso
 - Ações (Editar / Excluir / Redefinir Senha)
@@ -52,7 +52,7 @@ Tabela com colunas:
 | Email | Sim | Email do utilizador |
 | Nome de Exibição | Não | NomeShown no sistema |
 | Empresa | Não | companyId do utilizador |
-| Papel | Sim | user / admin / master_admin |
+| Papel | Sim | user / admin|
 | Usuário Autorizado | Sim | Pode fazer login |
 
 **Dashboard Padrão (obrigatório):**
@@ -61,8 +61,6 @@ Tabela com colunas:
 |-------|------------|-----------|
 | Dashboard Padrão | Sim* | Dashboard inicial do utilizador |
 | Texto de ajuda | - | "O usuário será redirecionado para este dashboard ao fazer login" |
-
-*Obrigatório quando: papel ≠ master_admin E não tem acesso total a todas as empresas.
 
 **Permissões de Dashboards:**
 
@@ -88,17 +86,6 @@ Mesma lógica que dashboards, mas para recursos.
 ### Editar Utilizador
 
 Mesmo formulário que criar, mas com dados pré-preenchidos.
-
-**Restrições para Master Admin:**
-- Nome de exibição (displayName) - **desabilitado**
-- Empresa (companyId) - **desabilitado**
-- Checkbox "Usuário autorizado" - **não aparece**
-- Apenas ação disponível: **Enviar Link para Redefinir Senha**
-
-**Notas:**
-- Campo "Role" não editável para Master Admin
-- Não pode excluir a si mesmo
-- Alterações guardadas no Firestore
 
 ### Excluir Utilizador
 
@@ -191,14 +178,11 @@ Tabela com colunas:
 |-------|------------|-----------|
 | Nome | Sim | Nome do recurso |
 | Empresa | Sim | companyId |
-| Tipo | Sim | form / spreadsheet |
+| Tipo | Sim | Formulário / Planilha |
 | URL | Sim | URL do Google Form/Sheet |
 | Descrição | Não | Descrição opcional |
 | Ativo | Sim | Recurso ativo |
 
-**Tipos de Recursos:**
-- `form` - Google Forms
-- `spreadsheet` - Google Sheets
 
 ### Editar/Excluir Recurso
 
@@ -208,28 +192,19 @@ Mesma lógica de criação.
 
 ## Permissões de Administração
 
-| Ação | Master Admin | Admin (canEdit=true) | User |
-|-----|-------------|---------------------|------|
-| Ver painel | ✅ | ✅ | ❌ |
-| Criar utilizadores | ✅ | ❌ | ❌ |
-| Editar utilizadores | ✅ (limitado) | ❌ | ❌ |
-| Excluir utilizadores | ✅ | ❌ | ❌ |
-| Enviar redefinição de senha | ✅ | ✅ | ❌ |
-| Criar empresas | ✅ | ❌ | ❌ |
-| Editar empresas | ✅ | ❌ | ❌ |
-| Criar dashboards | ✅ | ✅ | ❌ |
-| Editar dashboards | ✅ | ✅ | ❌ |
-| Criar recursos | ✅ | ✅ | ❌ |
-| Editar recursos | ✅ | ✅ | ❌ |
-
-### Restrições ao Editar Master Admin
-
-Ao editar um usuário com papel "master_admin":
-- **Campos desabilitados**: Nome de exibição, Empresa
-- **Campo oculto**: Usuário autorizado
-- **Apenas ação disponível**: Enviar link para redefinir senha
-
-Esta restrição garante que master admins não podem ser bloqueados outer seus dados alteradospor outros admins.
+| Ação | Admin (canEdit=true)| User |
+|-----|-------------|---------------------|
+| Ver painel   | ✅ | ❌ 
+| Criar utilizadores   | ❌ | ❌ 
+| Editar utilizadores | ❌ | ❌ 
+| Excluir utilizadores   | ❌ | ❌ 
+| Enviar redefinição de senha  | ✅ | ❌ 
+| Criar empresas  | ❌ | ❌ 
+| Editar empresas  | ❌ | ❌ 
+| Criar dashboards | ✅ | ❌ 
+| Editar dashboards   | ✅ | ❌ 
+| Criar recursos  | ✅ | ❌ 
+| Editar recursos  | ✅ | ❌ 
 
 ---
 
