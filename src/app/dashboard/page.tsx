@@ -111,11 +111,11 @@ function MasterAdminCompaniesView() {
 }
 
 function DashboardPage() {
-  const { userData, companyId, loading: authLoading } = useAuth();
+  const { isMasterAdmin, userData, companyId, loading: authLoading } = useAuth();
   const router = useRouter();
   const [redirecting, setRedirecting] = useState(false);
 
-  const canViewList = userData?.permissions?.canViewDashboardList;
+  const canViewList =  isMasterAdmin || userData?.permissions?.canViewDashboardList;
 
   // Redirect no primeiro acesso (login) se tem defaultDashboardId
   useEffect(() => {
