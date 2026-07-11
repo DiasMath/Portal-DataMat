@@ -99,6 +99,11 @@ export function UserNav() {
           <DropdownMenuItem asChild>
             <Link href="/dashboard">Dashboard</Link>
           </DropdownMenuItem>
+          {isMasterAdmin && (
+            <DropdownMenuItem asChild>
+              <Link href="/sql-workbench">SQL Workbench</Link>
+            </DropdownMenuItem>
+          )}
           {hasCompanyAccess && (
             <DropdownMenuItem asChild>
               <Link href="/resources">Recursos</Link>

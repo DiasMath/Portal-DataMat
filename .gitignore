@@ -19,7 +19,7 @@
 
 # production
 /build
-
+firestore.rules
 # misc
 .DS_Store
 *.pem

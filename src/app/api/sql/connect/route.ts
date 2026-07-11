@@ -1,0 +1,47 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { createPool, testConnection } from '@/lib/sql/mysql-pool';
+import { validateMasterAdmin } from '@/lib/auth-helpers';
+
+export async function POST(request: NextRequest) {
+  try {
+    const currentUser = await validateMasterAdmin(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: 'Acesso negado' }, { status: 403 });
+    }
+
+    const { connectionId, host, port, user, password, database } = await request.json();
+
+    if (!connectionId || !host || !port || !user) {
+      return NextResponse.json(
+        { success: false, error: 'connectionId, host, port, and user are required' },
+        { status: 400 }
+      );
+    }
+
+    const numericPort = Number(port);
+    if (isNaN(numericPort)) {
+      return NextResponse.json(
+        { success: false, error: `Invalid port: ${port}` },
+        { status: 400 }
+      );
+    }
+
+    const testResult = await testConnection({ host, port: numericPort, user, password, database });
+
+    if (!testResult.success) {
+      return NextResponse.json(
+        { success: false, error: testResult.error },
+        { status: 400 }
+      );
+    }
+
+    await createPool(connectionId, { host, port: numericPort, user, password, database });
+
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    return NextResponse.json(
+      { success: false, error: err instanceof Error ? err.message : String(err) },
+      { status: 500 }
+    );
+  }
+}
