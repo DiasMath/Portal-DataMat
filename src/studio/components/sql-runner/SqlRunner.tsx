@@ -1,15 +1,22 @@
 'use client';
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { useStudio } from '../../store/StudioContext';
 import { buildSqlQuery } from '../../lib/sql-builder';
 import { MOCK_DATA_MODEL } from '../../lib/mock-data';
 import { QueryResultsGrid } from './QueryResultsGrid';
-import { Code, Play, Copy, Check, RotateCcw } from 'lucide-react';
+import { Code, Play, Copy, Check, RotateCcw, Wand2 } from 'lucide-react';
+import Editor from '@monaco-editor/react';
+import { format } from 'sql-formatter';
+import { registerSqlCompletionProvider } from '../../lib/sql-completion';
 
 export function SqlRunner() {
   const { state } = useStudio();
   const dataModel = state.dataModel || MOCK_DATA_MODEL;
+
+  useEffect(() => {
+    registerSqlCompletionProvider(() => state.dataModel || MOCK_DATA_MODEL);
+  }, [state.dataModel]);
 
   const selectedVisual = state.pages
     .find(p => p.id === state.activePageId)
@@ -52,6 +59,22 @@ export function SqlRunner() {
     setTimeout(() => setCopied(false), 2000);
   }, [currentSql]);
 
+  const handleFormat = useCallback(() => {
+    try {
+      const formatted = format(currentSql, { language: 'mysql' });
+      if (isManualMode) {
+        setManualSql(formatted);
+      }
+    } catch {
+      // ignore format errors
+    }
+  }, [currentSql, isManualMode]);
+
+  const handleEditorChange = useCallback((value: string | undefined) => {
+    setIsManualMode(true);
+    setManualSql(value || '');
+  }, []);
+
   return (
     <div className="flex-1 flex flex-col bg-neutral-900 overflow-hidden">
       <div className="h-10 flex items-center gap-2 px-3 border-b border-neutral-700 bg-neutral-900 shrink-0">
@@ -81,16 +104,33 @@ export function SqlRunner() {
       )}
 
       <div className="relative flex-1 min-h-[200px]">
-        <textarea
+        <Editor
+          language="sql"
+          theme="vs-dark"
           value={currentSql}
-          onChange={(e) => {
-            setIsManualMode(true);
-            setManualSql(e.target.value);
+          onChange={handleEditorChange}
+          options={{
+            minimap: { enabled: false },
+            fontSize: 12,
+            readOnly: !isManualMode,
+            scrollBeyondLastLine: false,
+            wordWrap: 'on',
+            padding: { top: 16 },
+            lineNumbers: 'on',
+            roundedSelection: true,
+            scrollbar: {
+              verticalScrollbarSize: 8,
+              horizontalScrollbarSize: 8,
+            },
+            overviewRulerLanes: 0,
+            hideCursorInOverviewRuler: true,
+            overviewRulerBorder: false,
           }}
-          readOnly={!isManualMode}
-          placeholder="-- Selecione um visual para ver a SQL gerada, ou escreva SQL manualmente"
-          className="w-full h-full bg-transparent text-green-400 font-mono text-xs p-4 resize-none outline-none placeholder:text-neutral-600"
-          spellCheck={false}
+          loading={
+            <div className="flex items-center justify-center h-full text-xs text-muted-foreground">
+              Carregando editor...
+            </div>
+          }
         />
       </div>
 
@@ -102,6 +142,16 @@ export function SqlRunner() {
         >
           <Play size={12} />
           {isRunning ? 'Executando...' : 'Executar'}
+        </button>
+
+        <button
+          onClick={handleFormat}
+          disabled={!isManualMode || !currentSql.trim()}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-neutral-800 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          title="Formatar SQL"
+        >
+          <Wand2 size={12} />
+          Formatar
         </button>
 
         <button

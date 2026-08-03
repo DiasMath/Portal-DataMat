@@ -3,6 +3,17 @@ import type { BucketField, FilterCondition, VisualType, VisualBuckets } from './
 
 export type StudioSnapshot = Pick<StudioState, 'pages' | 'activePageId' | 'globalFilters' | 'pageFilters' | 'visualFilters' | 'dashboardName' | 'dashboardDescription'>;
 
+export interface CrossFilter {
+  sourceVisualId: string;
+  fieldName: string;
+  value: unknown;
+}
+
+export interface DrillState {
+  level: number;
+  path: { fieldName: string; value: unknown }[];
+}
+
 export interface StudioState {
   dashboardId: string | null;
   dashboardName: string;
@@ -15,6 +26,7 @@ export interface StudioState {
 
   pages: DashboardPage[];
   activePageId: string | null;
+  focusedVisualId: string | null;
 
   dataModel: DataModel | null;
   dataModelLoading: boolean;
@@ -36,14 +48,21 @@ export interface StudioState {
   propertiesPanelVisible: boolean;
   filtersPanelVisible: boolean;
   selectionPaneVisible: boolean;
+  crossFilter: CrossFilter | null;
+  drillStates: Record<string, DrillState>;
+  groupCounter: number;
   dataPanelWidth: number;
   propertiesPanelWidth: number;
   filtersPanelWidth: number;
   canvasZoom: number;
   showGrid: boolean;
   isDirty: boolean;
+  isSaving: boolean;
   mode: 'editor' | 'viewer';
   clipboard: Visual | null;
+  pendingFilterDrop: { sectionId: string; tableName: string; columnName: string } | null;
+  measureEditorOpen: boolean;
+  editingMeasureId: string | null;
 
   undoStack: StudioSnapshot[];
   redoStack: StudioSnapshot[];
@@ -61,6 +80,7 @@ export const initialStudioState: StudioState = {
 
   pages: [],
   activePageId: null,
+  focusedVisualId: null,
 
   dataModel: null,
   dataModelLoading: false,
@@ -82,14 +102,21 @@ export const initialStudioState: StudioState = {
   propertiesPanelVisible: true,
   filtersPanelVisible: true,
   selectionPaneVisible: false,
+  crossFilter: null,
+  drillStates: {},
+  groupCounter: 0,
   dataPanelWidth: 260,
   propertiesPanelWidth: 300,
   filtersPanelWidth: 260,
   canvasZoom: 1,
   showGrid: true,
   isDirty: false,
+  isSaving: false,
   mode: 'editor',
   clipboard: null,
+  pendingFilterDrop: null,
+  measureEditorOpen: false,
+  editingMeasureId: null,
 
   undoStack: [],
   redoStack: [],
@@ -106,11 +133,13 @@ export type StudioAction =
   | { type: 'PUSH_SNAPSHOT' }
 
   | { type: 'ADD_PAGE'; payload?: { name?: string; pageWidth?: number; pageHeight?: number } }
+  | { type: 'DUPLICATE_PAGE'; payload: string }
   | { type: 'REMOVE_PAGE'; payload: string }
   | { type: 'RENAME_PAGE'; payload: { id: string; name: string } }
   | { type: 'SET_ACTIVE_PAGE'; payload: string }
   | { type: 'REORDER_PAGES'; payload: string[] }
   | { type: 'SET_PAGE_SIZE'; payload: { pageId: string; width: number; height: number; preset?: string } }
+  | { type: 'SET_PAGE_BACKGROUND'; payload: { pageId: string; background: string } }
 
   | { type: 'ADD_VISUAL'; payload: { type: VisualType; x: number; y: number } }
   | { type: 'REMOVE_VISUAL'; payload: string }
@@ -137,12 +166,19 @@ export type StudioAction =
   | { type: 'SET_CLIPBOARD'; payload: Visual | null }
   | { type: 'PASTE_VISUAL' }
   | { type: 'REORDER_VISUALS'; payload: { fromIndex: number; toIndex: number } }
+  | { type: 'SET_CROSS_FILTER'; payload: { sourceVisualId: string; fieldName: string; value: unknown } | null }
+  | { type: 'CLEAR_CROSS_FILTER' }
+  | { type: 'DRILL_DOWN'; payload: { visualId: string; fieldName: string; value: unknown } }
+  | { type: 'DRILL_UP'; payload: string }
+  | { type: 'GROUP_SELECTED_VISUALS' }
+  | { type: 'UNGROUP_SELECTED_VISUALS' }
 
   | { type: 'SET_BUCKET_FIELD'; payload: { visualId: string; bucket: keyof VisualBuckets; field: BucketField | null; index?: number } }
   | { type: 'REMOVE_BUCKET_FIELD'; payload: { visualId: string; bucket: keyof VisualBuckets; index: number } }
   | { type: 'REORDER_BUCKET_FIELDS'; payload: { visualId: string; bucket: keyof VisualBuckets; fromIndex: number; toIndex: number } }
 
   | { type: 'SET_DATA_MODEL'; payload: DataModel }
+  | { type: 'TOGGLE_RELATIONSHIP_ACTIVE'; payload: string }
   | { type: 'SET_DATA_MODEL_LOADING'; payload: boolean }
   | { type: 'SET_DATA_MODEL_ERROR'; payload: string | null }
 
@@ -167,4 +203,17 @@ export type StudioAction =
   | { type: 'SET_MODE'; payload: 'editor' | 'viewer' }
   | { type: 'SET_GLOBAL_FILTERS'; payload: FilterCondition[] }
   | { type: 'SET_PAGE_FILTERS'; payload: { pageId: string; filters: FilterCondition[] } }
-  | { type: 'SET_VISUAL_FILTERS'; payload: { visualId: string; filters: FilterCondition[] } };
+  | { type: 'SET_VISUAL_FILTERS'; payload: { visualId: string; filters: FilterCondition[] } }
+  | { type: 'SAVE_DASHBOARD' }
+  | { type: 'SET_SAVING'; payload: boolean }
+  | { type: 'FOCUS_VISUAL'; payload: string }
+  | { type: 'EXIT_FOCUS_MODE' }
+  | { type: 'SET_PENDING_FILTER_DROP'; payload: { sectionId: string; tableName: string; columnName: string } | null }
+  | { type: 'OPEN_MEASURE_EDITOR'; payload?: string | null }
+  | { type: 'CLOSE_MEASURE_EDITOR' }
+  | { type: 'ADD_MEASURE'; payload: { name: string; expression: string; format?: string; decimalPlaces?: number; folderId?: string } }
+  | { type: 'UPDATE_MEASURE'; payload: { id: string; name?: string; expression?: string; format?: string; decimalPlaces?: number; folderId?: string } }
+  | { type: 'REMOVE_MEASURE'; payload: string }
+  | { type: 'ADD_MEASURE_FOLDER'; payload: { name: string; parentId?: string } }
+  | { type: 'RENAME_MEASURE_FOLDER'; payload: { id: string; name: string } }
+  | { type: 'REMOVE_MEASURE_FOLDER'; payload: string };

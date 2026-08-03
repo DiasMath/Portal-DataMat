@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { DndContext, DragOverlay, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
-import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core';
+import { DndContext, DragOverlay, closestCenter, pointerWithin, getFirstCollision, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import type { DragEndEvent, DragStartEvent, CollisionDetection } from '@dnd-kit/core';
 import { useStudio } from '../../store/StudioContext';
 import { RibbonToolbar } from '../toolbar/RibbonToolbar';
+import { MeasureEditor } from '../toolbar/MeasureEditor';
 import { IconSidebar } from '../sidebar/IconSidebar';
 import { DataPanel } from '../data-panel/DataPanel';
 import { PropertiesPanel } from '../properties-panel/PropertiesPanel';
@@ -18,6 +19,7 @@ import { BottomBar } from '../shared/BottomBar';
 import { PanelResizer } from '../shared/PanelResizer';
 import { Database, BarChart3, Filter, Layers } from 'lucide-react';
 import type { BucketField, VisualBuckets } from '../../types/visuals';
+import { BUCKET_FIELD_RULES } from '../../types/visuals';
 
 interface CollapsedStripProps {
   icon: React.ReactNode;
@@ -55,6 +57,13 @@ export function StudioEditor({ dashboardId }: StudioEditorProps) {
       activationConstraint: { distance: 5 },
     })
   );
+
+  const collisionDetection: CollisionDetection = (args) => {
+    const pointerHits = pointerWithin(args);
+    const first = getFirstCollision(pointerHits);
+    if (first) return [first];
+    return closestCenter(args);
+  };
 
   const selectedIds = state.selectedVisualIds.length > 0
     ? state.selectedVisualIds
@@ -124,6 +133,46 @@ export function StudioEditor({ dashboardId }: StudioEditorProps) {
 
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
+        const dashboardData = {
+          title: state.dashboardName,
+          description: state.dashboardDescription,
+          pages: state.pages,
+          dataModel: state.dataModel,
+          globalFilters: state.globalFilters,
+        };
+        dispatch({ type: 'SAVE_DASHBOARD' });
+        fetch('/api/studio/dashboards', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dashboardId: state.dashboardId || `dashboard-${Date.now()}`, data: dashboardData }),
+        }).then(() => {
+          dispatch({ type: 'SET_SAVING', payload: false });
+          dispatch({ type: 'MARK_CLEAN' });
+        }).catch(() => {
+          dispatch({ type: 'SET_SAVING', payload: false });
+        });
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === 'g' && !e.shiftKey) {
+        e.preventDefault();
+        if (selectedIds.length >= 2) {
+          dispatch({ type: 'GROUP_SELECTED_VISUALS' });
+        }
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'G') {
+        e.preventDefault();
+        dispatch({ type: 'UNGROUP_SELECTED_VISUALS' });
+      }
+
+      if (e.key === 'Escape') {
+        dispatch({ type: 'CLEAR_CROSS_FILTER' });
+        if (state.selectedVisualId) {
+          const drillState = state.drillStates[state.selectedVisualId];
+          if (drillState && drillState.level > 0) {
+            dispatch({ type: 'DRILL_UP', payload: state.selectedVisualId });
+          }
+        }
       }
 
       if (selectedIds.length > 0) {
@@ -147,6 +196,43 @@ export function StudioEditor({ dashboardId }: StudioEditorProps) {
             break;
         }
       }
+
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const page = state.pages.find(p => p.id === state.activePageId);
+        if (!page || page.visuals.length === 0) return;
+        const sorted = [...page.visuals].sort((a, b) => a.zIndex - b.zIndex);
+        const currentIdx = state.selectedVisualId
+          ? sorted.findIndex(v => v.id === state.selectedVisualId)
+          : -1;
+        if (e.shiftKey) {
+          const prevIdx = currentIdx <= 0 ? sorted.length - 1 : currentIdx - 1;
+          dispatch({ type: 'SELECT_VISUAL', payload: sorted[prevIdx].id });
+        } else {
+          const nextIdx = currentIdx >= sorted.length - 1 ? 0 : currentIdx + 1;
+          dispatch({ type: 'SELECT_VISUAL', payload: sorted[nextIdx].id });
+        }
+      }
+
+      if (e.key === 'F2' && state.selectedVisualId) {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('studio:start-rename', { detail: { visualId: state.selectedVisualId } }));
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === '0') {
+        e.preventDefault();
+        const canvasContainer = document.querySelector('[data-canvas-fit]');
+        if (canvasContainer) {
+          const rect = canvasContainer.getBoundingClientRect();
+          const availW = rect.width;
+          const availH = rect.height;
+          const activePage = state.pages.find(p => p.id === state.activePageId);
+          const pageWidth = activePage?.pageWidth || 1920;
+          const pageHeight = activePage?.pageHeight || 1080;
+          const fitZoom = Math.min(availW / pageWidth, availH / pageHeight);
+          dispatch({ type: 'SET_CANVAS_ZOOM', payload: fitZoom });
+        }
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -154,6 +240,9 @@ export function StudioEditor({ dashboardId }: StudioEditorProps) {
   }, [state.mode, state.selectedVisualId, selectedIds, dispatch, state.pages, state.activePageId]);
 
   const handleDragStart = (event: DragStartEvent) => {
+    if (state.pendingFilterDrop) {
+      dispatch({ type: 'SET_PENDING_FILTER_DROP', payload: null });
+    }
     setActiveDragData(event.active.data.current as Record<string, unknown> | null);
   };
 
@@ -177,6 +266,22 @@ export function StudioEditor({ dashboardId }: StudioEditorProps) {
 
       if (activeData.sourceVisualId === overData.visualId && activeData.sourceBucket === overData.bucketKey) {
         return;
+      }
+
+      const page = state.pages.find(p => p.id === state.activePageId);
+      const targetVisual = page?.visuals.find(v => v.id === overData.visualId);
+      if (targetVisual) {
+        const rules = BUCKET_FIELD_RULES[targetVisual.type];
+        const acceptedType = rules?.[overData.bucketKey] || 'any';
+        if (acceptedType !== 'any') {
+          const fieldType = activeData.fieldType as 'string' | 'number' | 'date' | 'boolean' | undefined;
+          if (fieldType) {
+            const isValid = acceptedType === 'numeric'
+              ? fieldType === 'number'
+              : fieldType === 'string' || fieldType === 'date' || fieldType === 'boolean';
+            if (!isValid) return;
+          }
+        }
       }
 
       if (activeData.sourceVisualId && activeData.sourceBucket !== undefined) {
@@ -214,6 +319,45 @@ export function StudioEditor({ dashboardId }: StudioEditorProps) {
           visualId: overData.visualId,
           bucket: overData.bucketKey,
           field,
+        },
+      });
+    }
+
+    if (activeData.type === 'measure' && overData.type === 'bucket') {
+      const field: BucketField = {
+        tableName: '__measure__',
+        fieldName: activeData.measureId,
+        aggregation: 'NONE',
+      };
+
+      dispatch({
+        type: 'SET_BUCKET_FIELD',
+        payload: {
+          visualId: overData.visualId,
+          bucket: overData.bucketKey,
+          field,
+        },
+      });
+    }
+
+    if (activeData.type === 'field' && overData.type === 'filter-section') {
+      dispatch({
+        type: 'SET_PENDING_FILTER_DROP',
+        payload: {
+          sectionId: overData.sectionId,
+          tableName: activeData.tableName,
+          columnName: activeData.fieldName,
+        },
+      });
+    }
+
+    if (activeData.type === 'measure' && overData.type === 'filter-section') {
+      dispatch({
+        type: 'SET_PENDING_FILTER_DROP',
+        payload: {
+          sectionId: overData.sectionId,
+          tableName: '__measure__',
+          columnName: activeData.measureId,
         },
       });
     }
@@ -322,12 +466,15 @@ export function StudioEditor({ dashboardId }: StudioEditorProps) {
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCenter}
+      collisionDetection={collisionDetection}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex flex-col h-full overflow-hidden">
+      <div className="flex flex-col h-full overflow-hidden relative">
         <RibbonToolbar />
+        <div className="absolute left-0 right-0 top-full z-50">
+          <MeasureEditor />
+        </div>
 
         <div className="flex flex-1 min-h-0 overflow-hidden">
           <IconSidebar />

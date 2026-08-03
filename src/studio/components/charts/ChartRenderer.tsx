@@ -8,6 +8,11 @@ import { LineChart } from '../charts/LineChart';
 import { PieChart } from '../charts/PieChart';
 import { TableVisual } from '../charts/TableVisual';
 import { KpiCard } from '../charts/KpiCard';
+import { ScatterChart } from '../charts/ScatterChart';
+import { GaugeChart } from '../charts/GaugeChart';
+import { TreemapChart } from '../charts/TreemapChart';
+import { WaterfallChart } from '../charts/WaterfallChart';
+import { ComboChart } from '../charts/ComboChart';
 import { getMockDataForVisual } from '../../lib/mock-data';
 
 interface ChartRendererProps {
@@ -15,9 +20,13 @@ interface ChartRendererProps {
   queryState?: VisualQueryState;
   width: number;
   height: number;
+  crossFilterValue?: unknown;
+  onCrossFilter?: (fieldName: string, value: unknown) => void;
+  drillLevel?: number;
+  onDrillDown?: (fieldName: string, value: unknown) => void;
 }
 
-export function ChartRenderer({ visual, queryState, width, height }: ChartRendererProps) {
+export function ChartRenderer({ visual, queryState, width, height, crossFilterValue, onCrossFilter, drillLevel, onDrillDown }: ChartRendererProps) {
   const data = useMemo(() => {
     if (queryState?.result) {
       return queryState.result;
@@ -41,6 +50,10 @@ export function ChartRenderer({ visual, queryState, width, height }: ChartRender
     formatting: visual.formatting,
     width,
     height,
+    crossFilterValue,
+    onCrossFilter,
+    drillLevel,
+    onDrillDown,
   };
 
   switch (visual.type) {
@@ -53,10 +66,20 @@ export function ChartRenderer({ visual, queryState, width, height }: ChartRender
     case 'donut':
       return <PieChart {...commonProps} type={visual.type} />;
     case 'table':
-      return <TableVisual {...commonProps} />;
+      return <TableVisual data={data} formatting={visual.formatting} width={width} height={height} />;
     case 'kpi':
     case 'card':
-      return <KpiCard {...commonProps} />;
+      return <KpiCard data={data} formatting={visual.formatting} width={width} height={height} />;
+    case 'scatter':
+      return <ScatterChart {...commonProps} />;
+    case 'gauge':
+      return <GaugeChart data={data} formatting={visual.formatting} width={width} height={height} />;
+    case 'treemap':
+      return <TreemapChart {...commonProps} />;
+    case 'waterfall':
+      return <WaterfallChart data={data} formatting={visual.formatting} width={width} height={height} />;
+    case 'combo':
+      return <ComboChart {...commonProps} />;
     default:
       return <BarChart {...commonProps} />;
   }

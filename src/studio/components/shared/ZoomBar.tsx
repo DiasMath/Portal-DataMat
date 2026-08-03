@@ -24,13 +24,12 @@ export function ZoomBar() {
     const canvasContainer = document.querySelector('[data-canvas-fit]');
     if (!canvasContainer) return;
     const rect = canvasContainer.getBoundingClientRect();
-    const padding = 48;
-    const availW = rect.width - padding * 2;
-    const availH = rect.height - padding * 2;
+    const availW = rect.width;
+    const availH = rect.height;
     const activePage = state.pages.find(p => p.id === state.activePageId);
     const pageWidth = activePage?.pageWidth || CANVAS_DEFAULTS.DESIGN_WIDTH;
     const pageHeight = activePage?.pageHeight || CANVAS_DEFAULTS.DESIGN_HEIGHT;
-    const fitZoom = Math.min(availW / pageWidth, availH / pageHeight, 1);
+    const fitZoom = Math.min(availW / pageWidth, availH / pageHeight);
     dispatch({ type: 'SET_CANVAS_ZOOM', payload: fitZoom });
   }, [dispatch, state.pages, state.activePageId]);
 
@@ -102,6 +101,21 @@ export function ZoomBar() {
       <span className="text-[10px] text-muted-foreground w-9 text-center tabular-nums">
         {zoomPercent}%
       </span>
+
+      <select
+        value={zoomPercent}
+        onChange={(e) => dispatch({ type: 'SET_CANVAS_ZOOM', payload: Number(e.target.value) / 100 })}
+        className="text-[10px] bg-transparent text-muted-foreground border-none focus:outline-none cursor-pointer w-12 text-center"
+      >
+        <option value={25}>25%</option>
+        <option value={50}>50%</option>
+        <option value={75}>75%</option>
+        <option value={100}>100%</option>
+        <option value={125}>125%</option>
+        <option value={150}>150%</option>
+        <option value={200}>200%</option>
+        <option value={300}>300%</option>
+      </select>
 
       <button
         onClick={handleFitToScreen}

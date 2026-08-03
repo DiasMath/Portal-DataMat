@@ -50,6 +50,7 @@ export default async function RootLayout({
   return (
     <html lang="pt-BR" suppressHydrationWarning>
       <body
+        suppressHydrationWarning
         className={`${geistSans.variable} ${geistMono.variable} ${orbitron.variable} ${rajdhani.variable} ${inter.variable} antialiased min-h-screen flex flex-col`}
       >
         <AuthProvider>

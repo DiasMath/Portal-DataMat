@@ -5,7 +5,7 @@ import { useStudio } from '../../store/StudioContext';
 import { MOCK_DATA_MODEL } from '../../lib/mock-data';
 import { TableEntity } from './TableEntity';
 import { RelationshipLine } from './RelationshipLine';
-import { Link2, ZoomIn, ZoomOut, Maximize, Table, Hash, Type, Calendar, ToggleLeft, ChevronRight } from 'lucide-react';
+import { Link2, ZoomIn, ZoomOut, Maximize, Table, Hash, Type, Calendar, ToggleLeft, ChevronRight, ToggleRight } from 'lucide-react';
 import type { TableSchema } from '../../types/dashboard';
 
 interface TablePosition {
@@ -30,7 +30,7 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
 };
 
 export function ModelView() {
-  const { state } = useStudio();
+  const { state, dispatch } = useStudio();
   const dataModel = state.dataModel || MOCK_DATA_MODEL;
 
   const [tablePositions, setTablePositions] = useState<TablePosition[]>(DEFAULT_POSITIONS);
@@ -98,6 +98,7 @@ export function ModelView() {
   const relationshipEndpoints = useMemo(() => {
     return dataModel.relationships.map(rel => ({
       ...rel,
+      active: rel.active !== false,
       from: getFieldPosition(rel.fromTable, rel.fromField, 'right'),
       to: getFieldPosition(rel.toTable, rel.toField, 'left'),
     }));
@@ -156,6 +157,25 @@ export function ModelView() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="h-10 flex items-center gap-2 px-3 border-b border-neutral-700 bg-neutral-900 shrink-0">
           <div className="flex-1" />
+          {selectedRelationship && (
+            <button
+              onClick={() => dispatch({ type: 'TOGGLE_RELATIONSHIP_ACTIVE', payload: selectedRelationship })}
+              className="flex items-center gap-1.5 px-2 py-1 text-[10px] rounded hover:bg-neutral-800 text-muted-foreground transition-colors"
+              title="Ativar/Desativar relacionamento"
+            >
+              {relationshipEndpoints.find(r => r.id === selectedRelationship)?.active !== false ? (
+                <>
+                  <ToggleRight size={14} className="text-green-400" />
+                  <span>Ativo</span>
+                </>
+              ) : (
+                <>
+                  <ToggleLeft size={14} className="text-red-400" />
+                  <span>Inativo</span>
+                </>
+              )}
+            </button>
+          )}
           <button
             onClick={() => setZoom(z => Math.max(0.3, z - 0.1))}
             className="p-1 rounded hover:bg-neutral-800 text-muted-foreground"
@@ -194,6 +214,7 @@ export function ModelView() {
                   from={rel.from}
                   to={rel.to}
                   cardinality={rel.cardinality}
+                  active={rel.active}
                   isSelected={selectedRelationship === rel.id}
                   onClick={() => setSelectedRelationship(rel.id)}
                 />

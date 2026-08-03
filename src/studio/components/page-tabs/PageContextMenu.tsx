@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { useStudio } from '../../store/StudioContext';
+import { ChevronLeft, ChevronRight, Palette } from 'lucide-react';
 
 interface PageContextMenuProps {
   pageId: string;
@@ -14,6 +16,7 @@ interface PageContextMenuProps {
 }
 
 export function PageContextMenu({
+  pageId,
   x,
   y,
   canDelete,
@@ -23,6 +26,12 @@ export function PageContextMenu({
   onClose,
 }: PageContextMenuProps) {
   const ref = useRef<HTMLDivElement>(null);
+  const { state, dispatch } = useStudio();
+  const [bgColor, setBgColor] = useState('#ffffff');
+
+  const pageIndex = state.pages.findIndex(p => p.id === pageId);
+  const canMoveLeft = pageIndex > 0;
+  const canMoveRight = pageIndex < state.pages.length - 1;
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -41,10 +50,35 @@ export function PageContextMenu({
     };
   }, [onClose]);
 
+  const handleMoveLeft = () => {
+    if (!canMoveLeft) return;
+    const ids = state.pages.map(p => p.id);
+    const temp = ids[pageIndex];
+    ids[pageIndex] = ids[pageIndex - 1];
+    ids[pageIndex - 1] = temp;
+    dispatch({ type: 'REORDER_PAGES', payload: ids });
+    onClose();
+  };
+
+  const handleMoveRight = () => {
+    if (!canMoveRight) return;
+    const ids = state.pages.map(p => p.id);
+    const temp = ids[pageIndex];
+    ids[pageIndex] = ids[pageIndex + 1];
+    ids[pageIndex + 1] = temp;
+    dispatch({ type: 'REORDER_PAGES', payload: ids });
+    onClose();
+  };
+
+  const handleBackgroundChange = (color: string) => {
+    setBgColor(color);
+    dispatch({ type: 'SET_PAGE_BACKGROUND', payload: { pageId, background: color } });
+  };
+
   return (
     <div
       ref={ref}
-      className="fixed z-50 bg-white dark:bg-neutral-900 rounded-lg shadow-xl border border-neutral-200 dark:border-neutral-700 py-1 min-w-[160px]"
+      className="fixed z-50 bg-white dark:bg-neutral-900 rounded-lg shadow-xl border border-neutral-200 dark:border-neutral-700 py-1 min-w-[180px]"
       style={{ left: x, top: y }}
     >
       <button
@@ -59,6 +93,34 @@ export function PageContextMenu({
       >
         Duplicar
       </button>
+      <div className="my-1 border-t border-neutral-200 dark:border-neutral-700" />
+      <button
+        onClick={handleMoveLeft}
+        disabled={!canMoveLeft}
+        className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+      >
+        <ChevronLeft size={12} />
+        Mover para esquerda
+      </button>
+      <button
+        onClick={handleMoveRight}
+        disabled={!canMoveRight}
+        className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+      >
+        <ChevronRight size={12} />
+        Mover para direita
+      </button>
+      <div className="my-1 border-t border-neutral-200 dark:border-neutral-700" />
+      <div className="px-3 py-1.5 flex items-center gap-2">
+        <Palette size={12} className="text-muted-foreground" />
+        <span className="text-xs text-muted-foreground">Cor de fundo</span>
+        <input
+          type="color"
+          value={bgColor}
+          onChange={(e) => handleBackgroundChange(e.target.value)}
+          className="w-5 h-5 rounded border border-neutral-200 dark:border-neutral-700 cursor-pointer ml-auto"
+        />
+      </div>
       <div className="my-1 border-t border-neutral-200 dark:border-neutral-700" />
       <button
         onClick={onDelete}

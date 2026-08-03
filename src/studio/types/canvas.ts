@@ -54,6 +54,20 @@ export function clampSize(
   return max !== undefined ? Math.min(clamped, max) : clamped;
 }
 
+export function clampToCanvas(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  pageWidth: number,
+  pageHeight: number
+): { x: number; y: number } {
+  return {
+    x: Math.max(0, Math.min(x, pageWidth - width)),
+    y: Math.max(0, Math.min(y, pageHeight - height)),
+  };
+}
+
 export function getResizeCursor(direction: ResizeDirection): string {
   const cursors: Record<ResizeDirection, string> = {
     n: 'ns-resize',

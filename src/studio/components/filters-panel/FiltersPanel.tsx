@@ -1,29 +1,37 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useDroppable } from '@dnd-kit/core';
 import { useStudio } from '../../store/StudioContext';
-import { MOCK_DATA_MODEL } from '../../lib/mock-data';
 import { Filter, X, Plus, ChevronDown, ChevronRight, PanelRightClose } from 'lucide-react';
 import type { FilterCondition } from '../../types/visuals';
+import type { DataModel } from '../../types/dashboard';
 
 function FilterSection({
   title,
+  sectionId,
   defaultOpen = true,
   filters,
   onAdd,
   onRemove,
   canAdd = true,
+  dataModel,
+  pendingDrop,
+  onClearPendingDrop,
 }: {
   title: string;
+  sectionId: string;
   defaultOpen?: boolean;
   filters: FilterCondition[];
   onAdd: (filter: FilterCondition) => void;
   onRemove: (index: number) => void;
   canAdd?: boolean;
+  dataModel: DataModel | null;
+  pendingDrop: { sectionId: string; tableName: string; columnName: string } | null;
+  onClearPendingDrop: () => void;
 }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [isAdding, setIsAdding] = useState(false);
-  const dataModel = MOCK_DATA_MODEL;
   const [newFilter, setNewFilter] = useState({
     tableName: '',
     columnName: '',
@@ -31,7 +39,15 @@ function FilterSection({
     value: '',
   });
 
-  const selectedTable = dataModel.tables.find(t => t.name === newFilter.tableName);
+  const { isOver, setNodeRef } = useDroppable({
+    id: `filter-section-${sectionId}`,
+    data: {
+      type: 'filter-section',
+      sectionId,
+    },
+  });
+
+  const selectedTable = dataModel?.tables?.find(t => t.name === newFilter.tableName);
   const selectedColumns = selectedTable?.fields || [];
 
   const handleAdd = () => {
@@ -46,8 +62,20 @@ function FilterSection({
     setIsAdding(false);
   };
 
+  React.useEffect(() => {
+    if (pendingDrop) {
+      setNewFilter({ tableName: pendingDrop.tableName, columnName: pendingDrop.columnName, operator: '=', value: '' });
+      setIsAdding(true);
+      setIsOpen(true);
+      onClearPendingDrop();
+    }
+  }, [pendingDrop, onClearPendingDrop]);
+
   return (
-    <div className="border-b border-neutral-200 dark:border-neutral-700">
+    <div
+      ref={setNodeRef}
+      className={`border-b border-neutral-200 dark:border-neutral-700 transition-colors ${isOver ? 'bg-amber-50 dark:bg-amber-900/20' : ''}`}
+    >
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="w-full flex items-center gap-1.5 px-3 py-2 text-[10px] font-medium text-muted-foreground uppercase tracking-wider hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors"
@@ -74,7 +102,7 @@ function FilterSection({
                 className="w-full px-2 py-1 text-[10px] bg-white dark:bg-neutral-900 rounded border border-neutral-200 dark:border-neutral-700"
               >
                 <option value="">Tabela...</option>
-                {dataModel.tables.map(t => (
+                {dataModel?.tables?.map(t => (
                   <option key={t.name} value={t.name}>{t.label}</option>
                 ))}
               </select>
@@ -95,14 +123,19 @@ function FilterSection({
                 <select
                   value={newFilter.operator}
                   onChange={(e) => setNewFilter(f => ({ ...f, operator: e.target.value as FilterCondition['operator'] }))}
-                  className="w-16 px-1 py-1 text-[10px] bg-white dark:bg-neutral-900 rounded border border-neutral-200 dark:border-neutral-700"
+                  className="w-20 px-1 py-1 text-[10px] bg-white dark:bg-neutral-900 rounded border border-neutral-200 dark:border-neutral-700"
                 >
                   <option value="=">=</option>
                   <option value="!=">≠</option>
                   <option value=">">{'>'}</option>
+                  <option value=">=">{'≥'}</option>
                   <option value="<">{'<'}</option>
+                  <option value="<=">{'≤'}</option>
                   <option value="LIKE">Contém</option>
+                  <option value="IN">Em lista</option>
+                  <option value="NOT IN">Não está em</option>
                   <option value="IS NULL">É nulo</option>
+                  <option value="IS NOT NULL">Não é nulo</option>
                 </select>
                 <input
                   type="text"
@@ -132,8 +165,8 @@ function FilterSection({
           )}
 
           {filters.length === 0 && !isAdding && (
-            <div className="text-[10px] text-muted-foreground py-1">
-              Adicione campos de dados aqui
+            <div className={`text-[10px] py-1 ${isOver ? 'text-amber-600 dark:text-amber-400 font-medium' : 'text-muted-foreground'}`}>
+              {isOver ? 'Solte para adicionar filtro' : 'Arraste um campo ou clique +'}
             </div>
           )}
 
@@ -169,6 +202,7 @@ export function FiltersPanel() {
 
   const currentPageId = state.activePageId || '';
   const selectedVisualId = state.selectedVisualId || '';
+  const dataModel = state.dataModel;
 
   const globalFilters = state.globalFilters;
   const currentPageFilters = state.pageFilters[currentPageId] || [];
@@ -226,27 +260,39 @@ export function FiltersPanel() {
         {selectedVisualId && (
           <FilterSection
             title="Filtros neste visual"
+            sectionId={`visual-${selectedVisualId}`}
             defaultOpen={true}
             filters={currentVisualFilters}
             onAdd={handleAddVisual}
             onRemove={handleRemoveVisual}
+            dataModel={dataModel}
+            pendingDrop={state.pendingFilterDrop?.sectionId === `visual-${selectedVisualId}` ? state.pendingFilterDrop : null}
+            onClearPendingDrop={() => dispatch({ type: 'SET_PENDING_FILTER_DROP', payload: null })}
           />
         )}
 
         <FilterSection
           title="Filtros nesta página"
+          sectionId={`page-${currentPageId}`}
           defaultOpen={true}
           filters={currentPageFilters}
           onAdd={handleAddPage}
           onRemove={handleRemovePage}
+          dataModel={dataModel}
+          pendingDrop={state.pendingFilterDrop?.sectionId === `page-${currentPageId}` ? state.pendingFilterDrop : null}
+          onClearPendingDrop={() => dispatch({ type: 'SET_PENDING_FILTER_DROP', payload: null })}
         />
 
         <FilterSection
           title="Filtros em todas as páginas"
+          sectionId="global"
           defaultOpen={false}
           filters={globalFilters}
           onAdd={handleAddGlobal}
           onRemove={handleRemoveGlobal}
+          dataModel={dataModel}
+          pendingDrop={state.pendingFilterDrop?.sectionId === 'global' ? state.pendingFilterDrop : null}
+          onClearPendingDrop={() => dispatch({ type: 'SET_PENDING_FILTER_DROP', payload: null })}
         />
       </div>
     </div>

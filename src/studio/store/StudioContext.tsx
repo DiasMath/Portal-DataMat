@@ -3,9 +3,11 @@
 import React, { createContext, useContext, useReducer, useCallback, useRef } from 'react';
 import type { StudioState, StudioAction } from '../types/state';
 import type { VisualType } from '../types/visuals';
+import type { DashboardPage } from '../types/dashboard';
 import { initialStudioState } from '../types/state';
 import { createDefaultVisual, createDefaultPage } from '../types/dashboard';
 import { shouldPushSnapshot, pushUndo, performUndo, performRedo } from './undo-middleware';
+import { clampToCanvas, snapToGrid } from '../types/canvas';
 
 function getActivePage(state: StudioState) {
   return state.pages.find(p => p.id === state.activePageId) || null;
@@ -91,6 +93,28 @@ export function studioReducer(state: StudioState, action: StudioAction): StudioS
       };
     }
 
+    case 'DUPLICATE_PAGE': {
+      const sourcePage = state.pages.find(p => p.id === action.payload);
+      if (!sourcePage) return state;
+      const newPage: DashboardPage = {
+        ...structuredClone(sourcePage),
+        id: `page-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        name: `${sourcePage.name} (Cópia)`,
+        order: state.pages.length,
+        visuals: sourcePage.visuals.map(v => ({
+          ...structuredClone(v),
+          id: `visual-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        })),
+      };
+      const newPages = [...state.pages, newPage];
+      return {
+        ...pushUndo(state),
+        pages: newPages,
+        activePageId: newPage.id,
+        isDirty: true,
+      };
+    }
+
     case 'REMOVE_PAGE': {
       if (state.pages.length <= 1) return state;
       const filtered = state.pages.filter(p => p.id !== action.payload);
@@ -135,6 +159,17 @@ export function studioReducer(state: StudioState, action: StudioAction): StudioS
         pageWidth: action.payload.width,
         pageHeight: action.payload.height,
         pagePreset: action.payload.preset,
+      };
+      return { ...pushUndo(state), pages: newPages, isDirty: true };
+    }
+
+    case 'SET_PAGE_BACKGROUND': {
+      const pageIndex = state.pages.findIndex(p => p.id === action.payload.pageId);
+      if (pageIndex === -1) return state;
+      const newPages = [...state.pages];
+      newPages[pageIndex] = {
+        ...newPages[pageIndex],
+        background: action.payload.background,
       };
       return { ...pushUndo(state), pages: newPages, isDirty: true };
     }
@@ -190,10 +225,25 @@ export function studioReducer(state: StudioState, action: StudioAction): StudioS
       const ids = state.selectedVisualIds.length > 0 ? state.selectedVisualIds : (state.selectedVisualId ? [state.selectedVisualId] : []);
       if (ids.length === 0) return state;
 
+      const idsSet = new Set(ids);
+      const groupIds = new Set<string>();
+      page.visuals.forEach(v => {
+        if (idsSet.has(v.id) && v.groupId) groupIds.add(v.groupId);
+      });
+
+      const allIdsToDelete = new Set(ids);
+      if (groupIds.size > 0) {
+        page.visuals.forEach(v => {
+          if (v.groupId && groupIds.has(v.groupId)) {
+            allIdsToDelete.add(v.id);
+          }
+        });
+      }
+
       const newPages = [...state.pages];
       newPages[pageIndex] = {
         ...page,
-        visuals: page.visuals.filter(v => !ids.includes(v.id)),
+        visuals: page.visuals.filter(v => !allIdsToDelete.has(v.id)),
       };
 
       return {
@@ -400,10 +450,33 @@ export function studioReducer(state: StudioState, action: StudioAction): StudioS
       const dx = action.payload.x - draggedVisual.x;
       const dy = action.payload.y - draggedVisual.y;
 
+      const idsSet = new Set(ids);
+
+      const groupIds = new Set<string>();
+      page.visuals.forEach(v => {
+        if (idsSet.has(v.id) && v.groupId) groupIds.add(v.groupId);
+      });
+
+      const allAffectedIds = new Set(ids);
+      if (groupIds.size > 0) {
+        page.visuals.forEach(v => {
+          if (v.groupId && groupIds.has(v.groupId)) {
+            allAffectedIds.add(v.id);
+          }
+        });
+      }
+
+      const pageWidth = page.pageWidth || 1920;
+      const pageHeight = page.pageHeight || 1080;
+
       const newVisuals = page.visuals.map(v => {
-        if (!ids.includes(v.id)) return v;
-        if (v.id === action.payload.id) return { ...v, x: action.payload.x, y: action.payload.y };
-        return { ...v, x: v.x + dx, y: v.y + dy };
+        if (!allAffectedIds.has(v.id)) return v;
+        if (v.id === action.payload.id) {
+          const clamped = clampToCanvas(action.payload.x, action.payload.y, v.width, v.height, pageWidth, pageHeight);
+          return { ...v, x: clamped.x, y: clamped.y };
+        }
+        const clamped = clampToCanvas(v.x + dx, v.y + dy, v.width, v.height, pageWidth, pageHeight);
+        return { ...v, x: clamped.x, y: clamped.y };
       });
 
       const newPages = [...state.pages];
@@ -425,11 +498,24 @@ export function studioReducer(state: StudioState, action: StudioAction): StudioS
       }));
 
     case 'NUDGE_VISUAL': {
-      return updateVisualInState(state, action.payload.id, v => ({
-        ...v,
-        x: Math.max(0, v.x + action.payload.dx),
-        y: Math.max(0, v.y + action.payload.dy),
-      }));
+      const pageIndex = state.pages.findIndex(p => p.id === state.activePageId);
+      if (pageIndex === -1) return state;
+      const page = state.pages[pageIndex];
+      const pageWidth = page.pageWidth || 1920;
+      const pageHeight = page.pageHeight || 1080;
+      return updateVisualInState(pushUndo(state), action.payload.id, v => {
+        const clamped = clampToCanvas(
+          Math.max(0, v.x + action.payload.dx),
+          Math.max(0, v.y + action.payload.dy),
+          v.width,
+          v.height,
+          pageWidth,
+          pageHeight
+        );
+        const snappedX = state.showGrid ? snapToGrid(clamped.x) : clamped.x;
+        const snappedY = state.showGrid ? snapToGrid(clamped.y) : clamped.y;
+        return { ...v, x: snappedX, y: snappedY };
+      });
     }
 
     case 'BRING_TO_FRONT': {
@@ -553,6 +639,77 @@ export function studioReducer(state: StudioState, action: StudioAction): StudioS
       return pushUndo({ ...state, pages: newPages });
     }
 
+    case 'SET_CROSS_FILTER':
+      return { ...state, crossFilter: action.payload };
+
+    case 'CLEAR_CROSS_FILTER':
+      return { ...state, crossFilter: null };
+
+    case 'DRILL_DOWN': {
+      const { visualId, fieldName, value } = action.payload;
+      const current = state.drillStates[visualId] || { level: 0, path: [] };
+      return {
+        ...state,
+        drillStates: {
+          ...state.drillStates,
+          [visualId]: {
+            level: current.level + 1,
+            path: [...current.path, { fieldName, value }],
+          },
+        },
+      };
+    }
+
+    case 'DRILL_UP': {
+      const visualId = action.payload;
+      const current = state.drillStates[visualId];
+      if (!current || current.path.length === 0) return state;
+      const newPath = current.path.slice(0, -1);
+      return {
+        ...state,
+        drillStates: {
+          ...state.drillStates,
+          [visualId]: {
+            level: current.level - 1,
+            path: newPath,
+          },
+        },
+      };
+    }
+
+    case 'GROUP_SELECTED_VISUALS': {
+      const pageIndex = state.pages.findIndex(p => p.id === state.activePageId);
+      if (pageIndex === -1) return state;
+      const page = state.pages[pageIndex];
+      const ids = state.selectedVisualIds;
+      if (ids.length < 2) return state;
+
+      const newGroupId = `group-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      const newVisuals = page.visuals.map(v => ids.includes(v.id) ? { ...v, groupId: newGroupId } : v);
+      const newPages = [...state.pages];
+      newPages[pageIndex] = { ...page, visuals: newVisuals };
+      return pushUndo({ ...state, pages: newPages, groupCounter: state.groupCounter + 1 });
+    }
+
+    case 'UNGROUP_SELECTED_VISUALS': {
+      const pageIndex = state.pages.findIndex(p => p.id === state.activePageId);
+      if (pageIndex === -1) return state;
+      const page = state.pages[pageIndex];
+      const ids = state.selectedVisualIds;
+
+      const groupIds = new Set<string>();
+      page.visuals.forEach(v => {
+        if (ids.includes(v.id) && v.groupId) groupIds.add(v.groupId);
+      });
+
+      if (groupIds.size === 0) return state;
+
+      const newVisuals = page.visuals.map(v => (v.groupId && groupIds.has(v.groupId)) ? { ...v, groupId: undefined } : v);
+      const newPages = [...state.pages];
+      newPages[pageIndex] = { ...page, visuals: newVisuals };
+      return pushUndo({ ...state, pages: newPages });
+    }
+
     // ── Buckets ──
 
     case 'SET_BUCKET_FIELD': {
@@ -602,6 +759,16 @@ export function studioReducer(state: StudioState, action: StudioAction): StudioS
 
     case 'SET_DATA_MODEL':
       return { ...state, dataModel: action.payload, dataModelLoading: false, dataModelError: null };
+
+    case 'TOGGLE_RELATIONSHIP_ACTIVE': {
+      if (!state.dataModel) return state;
+      const newDataModel = structuredClone(state.dataModel);
+      const rel = newDataModel.relationships.find(r => r.id === action.payload);
+      if (rel) {
+        rel.active = rel.active === false ? true : false;
+      }
+      return { ...pushUndo(state), dataModel: newDataModel, isDirty: true };
+    }
 
     case 'SET_DATA_MODEL_LOADING':
       return { ...state, dataModelLoading: action.payload };
@@ -689,6 +856,80 @@ export function studioReducer(state: StudioState, action: StudioAction): StudioS
         visualFilters: { ...state.visualFilters, [action.payload.visualId]: action.payload.filters },
         isDirty: true,
       };
+
+    case 'SAVE_DASHBOARD':
+      return { ...state, isSaving: true };
+
+    case 'SET_SAVING':
+      return { ...state, isSaving: action.payload };
+
+    case 'FOCUS_VISUAL':
+      return { ...state, focusedVisualId: action.payload };
+
+    case 'EXIT_FOCUS_MODE':
+      return { ...state, focusedVisualId: null };
+
+    case 'SET_PENDING_FILTER_DROP':
+      return { ...state, pendingFilterDrop: action.payload };
+
+    case 'OPEN_MEASURE_EDITOR':
+      return { ...state, measureEditorOpen: true, editingMeasureId: action.payload ?? null };
+
+    case 'CLOSE_MEASURE_EDITOR':
+      return { ...state, measureEditorOpen: false, editingMeasureId: null };
+
+    case 'ADD_MEASURE': {
+      if (!state.dataModel) return state;
+      const newMeasure = {
+        id: `measure-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        name: action.payload.name,
+        expression: action.payload.expression,
+        format: action.payload.format,
+        decimalPlaces: action.payload.decimalPlaces,
+        folderId: action.payload.folderId,
+      };
+      const newDataModel = { ...state.dataModel, measures: [...(state.dataModel.measures || []), newMeasure] };
+      return { ...state, dataModel: newDataModel, isDirty: true };
+    }
+
+    case 'UPDATE_MEASURE': {
+      if (!state.dataModel) return state;
+      const measures = (state.dataModel.measures || []).map(m =>
+        m.id === action.payload.id ? { ...m, ...action.payload } : m
+      );
+      return { ...state, dataModel: { ...state.dataModel, measures }, isDirty: true };
+    }
+
+    case 'REMOVE_MEASURE': {
+      if (!state.dataModel) return state;
+      const measures = (state.dataModel.measures || []).filter(m => m.id !== action.payload);
+      return { ...state, dataModel: { ...state.dataModel, measures }, isDirty: true };
+    }
+
+    case 'ADD_MEASURE_FOLDER': {
+      if (!state.dataModel) return state;
+      const newFolder = {
+        id: `folder-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        name: action.payload.name,
+        parentId: action.payload.parentId,
+      };
+      const folders = [...(state.dataModel.measureFolders || []), newFolder];
+      return { ...state, dataModel: { ...state.dataModel, measureFolders: folders }, isDirty: true };
+    }
+
+    case 'RENAME_MEASURE_FOLDER': {
+      if (!state.dataModel) return state;
+      const folders = (state.dataModel.measureFolders || []).map(f =>
+        f.id === action.payload.id ? { ...f, name: action.payload.name } : f
+      );
+      return { ...state, dataModel: { ...state.dataModel, measureFolders: folders }, isDirty: true };
+    }
+
+    case 'REMOVE_MEASURE_FOLDER': {
+      if (!state.dataModel) return state;
+      const folders = (state.dataModel.measureFolders || []).filter(f => f.id !== action.payload);
+      return { ...state, dataModel: { ...state.dataModel, measureFolders: folders }, isDirty: true };
+    }
 
     default:
       return state;

@@ -44,11 +44,14 @@ export function BottomBar() {
   }, [state.pages.length, dispatch]);
 
   const handleDuplicate = useCallback((pageId: string) => {
-    const page = state.pages.find(p => p.id === pageId);
-    if (!page) return;
-    dispatch({ type: 'ADD_PAGE', payload: { name: `${page.name} (Cópia)` } });
+    dispatch({ type: 'DUPLICATE_PAGE', payload: pageId });
     setContextMenu(null);
-  }, [state.pages, dispatch]);
+  }, [dispatch]);
+
+  const activePage = state.pages.find(p => p.id === state.activePageId);
+  const pageWidth = activePage?.pageWidth || 1920;
+  const pageHeight = activePage?.pageHeight || 1080;
+  const visualCount = activePage?.visuals.length || 0;
 
   return (
     <>
@@ -109,6 +112,12 @@ export function BottomBar() {
         </div>
 
         <div className="h-4 w-px bg-neutral-200 dark:bg-neutral-700 mx-2" />
+
+        <div className="flex items-center gap-3 text-[10px] text-muted-foreground mr-2">
+          <span>{pageWidth} × {pageHeight}</span>
+          <span>{visualCount} visual{visualCount !== 1 ? 's' : ''}</span>
+          {state.isDirty && <span className="text-amber-500">●</span>}
+        </div>
 
         <ZoomBar />
       </div>

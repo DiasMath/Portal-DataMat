@@ -39,12 +39,13 @@ import {
   Layers,
 } from 'lucide-react';
 
-type RibbonTab = 'arquivo' | 'inicio' | 'inserir' | 'modelagem' | 'exibicao' | 'ajuda';
+type RibbonTab = 'arquivo' | 'inicio' | 'inserir' | 'medidas' | 'modelagem' | 'exibicao' | 'ajuda';
 
 const RIBBON_TABS: { key: RibbonTab; label: string }[] = [
   { key: 'arquivo', label: 'Arquivo' },
   { key: 'inicio', label: 'Início' },
   { key: 'inserir', label: 'Inserir' },
+  { key: 'medidas', label: 'Medidas' },
   { key: 'modelagem', label: 'Modelagem' },
   { key: 'exibicao', label: 'Exibição' },
   { key: 'ajuda', label: 'Ajuda' },
@@ -157,8 +158,8 @@ export function RibbonToolbar() {
             <RibbonDivider />
 
             <RibbonGroup label="Dados">
-              <RibbonButton icon={<Database size={16} />} label="Obter dados" />
-              <RibbonButton icon={<RefreshCw size={16} />} label="Atualizar" />
+              <RibbonButton icon={<Database size={16} />} label="Obter dados" soon />
+              <RibbonButton icon={<RefreshCw size={16} />} label="Atualizar" soon />
             </RibbonGroup>
 
             <RibbonDivider />
@@ -172,16 +173,16 @@ export function RibbonToolbar() {
                   dispatch({ type: 'ADD_VISUAL', payload: { type: 'bar', x: 50, y: 50 } });
                 }}
               />
-              <RibbonButton icon={<Type size={16} />} label="Caixa de texto" />
-              <RibbonButton icon={<Square size={16} />} label="Formas" />
-              <RibbonButton icon={<Image size={16} />} label="Imagem" />
+              <RibbonButton icon={<Type size={16} />} label="Caixa de texto" soon />
+              <RibbonButton icon={<Square size={16} />} label="Formas" soon />
+              <RibbonButton icon={<Image size={16} />} label="Imagem" soon />
             </RibbonGroup>
 
             <RibbonDivider />
 
             <RibbonGroup label="Cálculos">
-              <RibbonButton icon={<Filter size={16} />} label="Novo filtro" />
-              <RibbonButton icon={<Calculator size={16} />} label="Medida" />
+              <RibbonButton icon={<Filter size={16} />} label="Novo filtro" soon />
+              <RibbonButton icon={<Calculator size={16} />} label="Medida" soon />
             </RibbonGroup>
 
             <RibbonDivider />
@@ -272,9 +273,39 @@ export function RibbonToolbar() {
             <RibbonDivider />
 
             <RibbonGroup label="Elementos">
-              <RibbonButton icon={<Type size={16} />} label="Caixa de texto" />
-              <RibbonButton icon={<Square size={16} />} label="Formas" />
-              <RibbonButton icon={<Image size={16} />} label="Imagem" />
+              <RibbonButton icon={<Type size={16} />} label="Caixa de texto" soon />
+              <RibbonButton icon={<Square size={16} />} label="Formas" soon />
+              <RibbonButton icon={<Image size={16} />} label="Imagem" soon />
+            </RibbonGroup>
+          </>
+        )}
+
+        {activeTab === 'medidas' && (
+          <>
+            <RibbonGroup label="Medidas">
+              <RibbonButton
+                icon={<Calculator size={16} />}
+                label="Nova Medida"
+                accent
+                onClick={() => dispatch({ type: 'OPEN_MEASURE_EDITOR' })}
+              />
+              <RibbonButton
+                icon={<Plus size={16} />}
+                label="Nova Pasta"
+                onClick={() => {
+                  const name = prompt('Nome da pasta:');
+                  if (name) {
+                    dispatch({ type: 'ADD_MEASURE_FOLDER', payload: { name } });
+                  }
+                }}
+              />
+            </RibbonGroup>
+
+            <RibbonDivider />
+
+            <RibbonGroup label="Formato">
+              <RibbonButton icon={<Settings size={16} />} label="Formatar medida" onClick={() => dispatch({ type: 'OPEN_MEASURE_EDITOR' })} soon={false} />
+              <RibbonButton icon={<FileText size={16} />} label="Gerenciar" onClick={() => dispatch({ type: 'OPEN_MEASURE_EDITOR' })} soon={false} />
             </RibbonGroup>
           </>
         )}
@@ -282,8 +313,8 @@ export function RibbonToolbar() {
         {activeTab === 'modelagem' && (
           <>
             <RibbonGroup label="Cálculos">
-              <RibbonButton icon={<Calculator size={16} />} label="Nova Medida" />
-              <RibbonButton icon={<Calculator size={16} />} label="Nova Coluna" />
+              <RibbonButton icon={<Calculator size={16} />} label="Nova Medida" soon />
+              <RibbonButton icon={<Calculator size={16} />} label="Nova Coluna" soon />
             </RibbonGroup>
 
             <RibbonDivider />
@@ -334,9 +365,9 @@ export function RibbonToolbar() {
         {activeTab === 'arquivo' && (
           <>
             <RibbonGroup label="Arquivo">
-              <RibbonButton icon={<FileText size={16} />} label="Novo" />
-              <RibbonButton icon={<Save size={16} />} label="Salvar" />
-              <RibbonButton icon={<Database size={16} />} label="Importar" />
+              <RibbonButton icon={<FileText size={16} />} label="Novo" soon />
+              <RibbonButton icon={<Save size={16} />} label="Salvar" soon />
+              <RibbonButton icon={<Database size={16} />} label="Importar" soon />
             </RibbonGroup>
           </>
         )}
@@ -344,8 +375,8 @@ export function RibbonToolbar() {
         {activeTab === 'ajuda' && (
           <>
             <RibbonGroup label="Ajuda">
-              <RibbonButton icon={<HelpCircle size={16} />} label="Documentação" />
-              <RibbonButton icon={<Settings size={16} />} label="Configurações" />
+              <RibbonButton icon={<HelpCircle size={16} />} label="Documentação" soon />
+              <RibbonButton icon={<Settings size={16} />} label="Configurações" soon />
             </RibbonGroup>
           </>
         )}
@@ -371,6 +402,7 @@ function RibbonButton({
   accent,
   active,
   disabled,
+  soon,
   onClick,
 }: {
   icon: React.ReactNode;
@@ -378,19 +410,20 @@ function RibbonButton({
   accent?: boolean;
   active?: boolean;
   disabled?: boolean;
+  soon?: boolean;
   onClick?: () => void;
 }) {
   return (
     <button
       onClick={onClick}
-      disabled={disabled}
+      disabled={disabled || soon}
       className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded transition-colors min-w-[48px]
-        ${disabled ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'}
+        ${disabled || soon ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'}
         ${accent ? 'bg-amber-500 text-white hover:bg-amber-600' : ''}
         ${active && !accent ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600' : ''}
         ${!accent && !active ? 'text-muted-foreground hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-foreground' : ''}
       `}
-      title={label}
+      title={soon ? `${label} (em breve)` : label}
     >
       {icon}
       <span className="text-[9px] leading-none whitespace-nowrap">{label}</span>

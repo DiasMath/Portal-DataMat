@@ -22,6 +22,23 @@ export interface Relationship {
   toTable: string;
   toField: string;
   cardinality: '1:1' | '1:N' | 'N:1';
+  active?: boolean;
+}
+
+export interface Measure {
+  id: string;
+  name: string;
+  expression: string;
+  folderId?: string;
+  format?: string;
+  decimalPlaces?: number;
+  description?: string;
+}
+
+export interface MeasureFolder {
+  id: string;
+  name: string;
+  parentId?: string;
 }
 
 export interface DataModel {
@@ -29,6 +46,8 @@ export interface DataModel {
   name: string;
   tables: TableSchema[];
   relationships: Relationship[];
+  measures?: Measure[];
+  measureFolders?: MeasureFolder[];
 }
 
 export interface Visual {
@@ -44,6 +63,7 @@ export interface Visual {
   showTitle: boolean;
   locked?: boolean;
   hidden?: boolean;
+  groupId?: string;
   buckets: VisualBuckets;
   formatting: VisualFormatting;
   filters: FilterCondition[];
