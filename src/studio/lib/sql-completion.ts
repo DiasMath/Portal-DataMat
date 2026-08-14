@@ -1,5 +1,49 @@
 import type { DataModel } from '../types/dashboard';
 
+interface MonacoCompletionRange {
+  startLineNumber: number;
+  startColumn: number;
+  endLineNumber: number;
+  endColumn: number;
+}
+
+interface MonacoCompletionItem {
+  label: string;
+  kind: number;
+  insertText: string;
+  detail: string;
+  documentation?: string;
+  range: MonacoCompletionRange;
+}
+
+interface MonacoWordAtPosition {
+  word: string;
+  startColumn: number;
+  endColumn: number;
+}
+
+interface MonacoModel {
+  getWordUntilPosition(position: { lineNumber: number; column: number }): MonacoWordAtPosition;
+}
+
+interface MonacoPosition {
+  lineNumber: number;
+  column: number;
+}
+
+interface MonacoCompletionProvider {
+  triggerCharacters?: string[];
+  provideCompletionItems(model: MonacoModel, position: MonacoPosition): { suggestions: MonacoCompletionItem[] };
+}
+
+interface MonacoLanguages {
+  registerCompletionItemProvider(language: string, provider: MonacoCompletionProvider): void;
+}
+
+interface MonacoInstance {
+  languages: MonacoLanguages;
+}
+
 const SQL_KEYWORDS = [
   'SELECT', 'FROM', 'WHERE', 'GROUP', 'BY', 'ORDER', 'HAVING', 'AS',
   'AND', 'OR', 'NOT', 'IN', 'LIKE', 'BETWEEN', 'EXISTS', 'IS', 'NULL',
@@ -19,99 +63,103 @@ const SQL_FUNCTIONS = [
   'IF', 'NULLIF', 'GREATEST', 'LEAST',
 ];
 
-let isRegistered = false;
+export function registerSqlCompletionProvider(monaco: MonacoInstance, getDataModel: () => DataModel | null) {
+  monaco.languages.registerCompletionItemProvider('sql', {
+    triggerCharacters: ['.', ' ', '(', ','],
+    provideCompletionItems: (model: MonacoModel, position: MonacoPosition) => {
+      const word = model.getWordUntilPosition(position);
+      const range: MonacoCompletionRange = {
+        startLineNumber: position.lineNumber,
+        startColumn: word.startColumn,
+        endLineNumber: position.lineNumber,
+        endColumn: word.endColumn,
+      };
 
-export function registerSqlCompletionProvider(getDataModel: () => DataModel | null) {
-  if (isRegistered) return;
-  isRegistered = true;
+      const suggestions: MonacoCompletionItem[] = [];
 
-  import('monaco-editor').then((monaco) => {
-    monaco.languages.registerCompletionItemProvider('sql', {
-      triggerCharacters: ['.', ' ', '('],
-      provideCompletionItems: (model, position) => {
-        const word = model.getWordUntilPosition(position);
-        const range = {
-          startLineNumber: position.lineNumber,
-          startColumn: word.startColumn,
-          endLineNumber: position.lineNumber,
-          endColumn: word.endColumn,
-        };
+      SQL_KEYWORDS.forEach(keyword => {
+        suggestions.push({
+          label: keyword,
+          kind: 1, // CompletionItemKind.Keyword
+          insertText: keyword,
+          detail: 'Palavra-chave SQL',
+          range,
+        });
+      });
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const suggestions: any[] = [];
+      SQL_FUNCTIONS.forEach(func => {
+        suggestions.push({
+          label: func,
+          kind: 3,
+          insertText: func,
+          detail: 'Função SQL',
+          range,
+        });
+      });
 
-        SQL_KEYWORDS.forEach(keyword => {
+      const dataModel = getDataModel();
+      if (dataModel) {
+        dataModel.tables.forEach(table => {
           suggestions.push({
-            label: keyword,
-            kind: monaco.languages.CompletionItemKind.Keyword,
-            insertText: keyword,
-            detail: 'Palavra-chave SQL',
+            label: table.name,
+            kind: 14,
+            insertText: table.name,
+            detail: `Tabela (${table.type === 'fact' ? 'Fato' : 'Dimensão'})`,
+            documentation: `Tabela: ${table.label}`,
             range,
           });
-        });
 
-        SQL_FUNCTIONS.forEach(func => {
           suggestions.push({
-            label: func,
-            kind: monaco.languages.CompletionItemKind.Function,
-            insertText: func,
-            detail: 'Função SQL',
+            label: table.label,
+            kind: 14,
+            insertText: table.name,
+            detail: `Tabela: ${table.label}`,
             range,
           });
-        });
 
-        const dataModel = getDataModel();
-        if (dataModel) {
-          dataModel.tables.forEach(table => {
+          table.fields.forEach(field => {
             suggestions.push({
-              label: table.name,
-              kind: monaco.languages.CompletionItemKind.Struct,
-              insertText: table.name,
-              detail: `Tabela (${table.type === 'fact' ? 'Fato' : 'Dimensão'})`,
-              documentation: `Tabela: ${table.label}`,
+              label: field.name,
+              kind: 5,
+              insertText: field.name,
+              detail: `${table.label}.${field.label || field.name} (${field.type})`,
               range,
             });
 
             suggestions.push({
-              label: table.label,
-              kind: monaco.languages.CompletionItemKind.Struct,
-              insertText: table.name,
-              detail: `Tabela: ${table.label}`,
+              label: `${table.name}.${field.name}`,
+              kind: 5,
+              insertText: `${table.name}.${field.name}`,
+              detail: `Coluna: ${field.label || field.name} (${field.type})`,
               range,
             });
 
-            table.fields.forEach(field => {
+            if (field.label && field.label !== field.name) {
               suggestions.push({
-                label: field.name,
-                kind: monaco.languages.CompletionItemKind.Field,
+                label: field.label,
+                kind: 5,
                 insertText: field.name,
-                detail: `${table.label}.${field.label || field.name} (${field.type})`,
+                detail: `${table.label}.${field.name} (${field.type})`,
                 range,
               });
+            }
+          });
+        });
 
-              suggestions.push({
-                label: `${table.name}.${field.name}`,
-                kind: monaco.languages.CompletionItemKind.Field,
-                insertText: `${table.name}.${field.name}`,
-                detail: `Coluna: ${field.label || field.name} (${field.type})`,
-                range,
-              });
-
-              if (field.label && field.label !== field.name) {
-                suggestions.push({
-                  label: field.label,
-                  kind: monaco.languages.CompletionItemKind.Field,
-                  insertText: field.name,
-                  detail: `${table.label}.${field.name} (${field.type})`,
-                  range,
-                });
-              }
+        if (dataModel.measures) {
+          dataModel.measures.forEach(measure => {
+            suggestions.push({
+              label: measure.name,
+              kind: 6,
+              insertText: measure.name,
+              detail: `Medida: ${measure.expression}`,
+              range,
             });
           });
         }
+      }
 
-        return { suggestions };
-      },
-    });
+      return { suggestions };
+    },
   });
 }

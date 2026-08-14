@@ -1,77 +1,98 @@
 'use client';
 
-import React from 'react';
-import {
-  ComposedChart,
-  Bar,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Legend,
-  ResponsiveContainer,
-} from 'recharts';
-import type { QueryResultData, VisualFormatting } from '../../types/visuals';
-import { ChartTooltip, formatTooltipValue } from './ChartTooltip';
+import React, { useMemo, useCallback } from 'react';
+import type { VisualFormatting } from '../../types/visuals';
+import type { QueryResultData } from '../../types/visuals';
+import type { EChartsOption } from 'echarts';
+import { EChartWrapper } from './EChartWrapper';
+import { buildAxesOptions } from '../../lib/echarts/buildAxesOptions';
+import type { ThemeMode } from '../../lib/echarts/theme';
 
 interface ComboChartProps {
   data: QueryResultData;
   formatting: VisualFormatting;
-  width: number;
-  height: number;
+  width?: number;
+  height?: number;
   crossFilterValue?: unknown;
   onCrossFilter?: (fieldName: string, value: unknown) => void;
+  theme?: ThemeMode;
 }
 
-const DEFAULT_COLORS = ['#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#8b5cf6', '#ec4899'];
+export const ComboChart = React.memo(function ComboChart({ data, formatting, width, height, crossFilterValue, onCrossFilter, theme = 'transparent' }: ComboChartProps) {
+  const xAxisField = data.columns[0];
+  const valueFields = data.columns.slice(1);
 
-export function ComboChart({ data, formatting, width, height, crossFilterValue, onCrossFilter }: ComboChartProps) {
-  if (!data || data.columns.length < 2) {
-    return (
-      <div className="flex items-center justify-center h-full text-xs text-muted-foreground">
-        Arraste um campo para Eixo X e um ou mais para Valores
-      </div>
-    );
-  }
+  const option = useMemo(() => {
+    const categories = data.rows.map(row => String(row[xAxisField] ?? ''));
+    const { grid, xAxis, yAxis, legend } = buildAxesOptions(formatting, theme, categories);
 
-  const xKey = data.columns[0];
-  const valueKeys = data.columns.slice(1);
+    xAxis.data = categories;
 
-  return (
-    <ResponsiveContainer width="100%" height="100%">
-      <ComposedChart data={data.rows} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
-        {formatting.showGridLines !== false && (
-          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-        )}
-        <XAxis dataKey={xKey} tick={{ fontSize: 11 }} stroke="#9ca3af" />
-        <YAxis tick={{ fontSize: 11 }} stroke="#9ca3af" />
-        <ChartTooltip />
-        {formatting.showLegend !== false && valueKeys.length > 1 && <Legend />}
-        {valueKeys.map((key, index) => {
-          const color = (formatting.colorPalette || DEFAULT_COLORS)[index % DEFAULT_COLORS.length];
-          if (index === 0) {
-            return (
-              <Bar
-                key={key}
-                dataKey={key}
-                fill={color}
-                radius={[4, 4, 0, 0]}
-                opacity={0.8}
-              />
-            );
-          }
-          return (
-            <Line
-              key={key}
-              type="monotone"
-              dataKey={key}
-              stroke={color}
-              strokeWidth={2}
-              dot={{ r: 3 }}
-            />
-          );
-        })}
-      </ComposedChart>
-    </ResponsiveContainer>
-  );
-}
+    const series = valueFields.map((field, idx) => {
+      const isBar = idx === 0;
+
+      if (isBar) {
+        return {
+          name: field,
+          type: 'bar' as const,
+          yAxisIndex: 0,
+          data: data.rows.map(row => Number(row[field] ?? 0)),
+          barWidth: formatting.barWidth,
+          barGap: formatting.barGap,
+          barCategoryGap: formatting.barCategoryGap,
+          itemStyle: {
+            color: formatting.barColor,
+            borderRadius: formatting.barBorderRadius,
+          },
+          label: formatting.dataLabels ? {
+            show: true,
+            position: (formatting.dataLabelPosition === 'outside' ? 'top' : formatting.dataLabelPosition ?? 'top') as 'top' | 'bottom' | 'inside' | 'insideTop' | 'insideBottom' | 'left' | 'right',
+            fontSize: formatting.dataLabelFontSize,
+            color: formatting.dataLabelColor,
+            fontWeight: formatting.dataLabelFontWeight,
+            fontStyle: formatting.dataLabelFontStyle,
+          } : undefined,
+        };
+      }
+
+      return {
+        name: field,
+        type: 'line' as const,
+        yAxisIndex: 0,
+        data: data.rows.map(row => Number(row[field] ?? 0)),
+        lineStyle: {
+          color: formatting.lineColor,
+          width: formatting.lineWidth,
+          type: formatting.lineStyle,
+        },
+        smooth: formatting.smooth,
+        step: formatting.step,
+        areaStyle: formatting.areaOpacity != null || formatting.areaColor ? {
+          opacity: formatting.areaOpacity,
+          color: formatting.areaColor,
+        } : undefined,
+        symbol: formatting.showMarkers === false ? 'none' : formatting.markerShape,
+        symbolSize: formatting.markerSize,
+        label: formatting.dataLabels ? {
+          show: true,
+          position: formatting.dataLabelPosition,
+          fontSize: formatting.dataLabelFontSize,
+          color: formatting.dataLabelColor,
+          fontWeight: formatting.dataLabelFontWeight,
+          fontStyle: formatting.dataLabelFontStyle,
+        } : undefined,
+      };
+    });
+
+    return { grid, xAxis, yAxis, series, legend } as EChartsOption;
+  }, [data, formatting, xAxisField, valueFields, theme]);
+
+  const handleClick = useCallback((params: unknown) => {
+    if (onCrossFilter && xAxisField) {
+      const p = params as { dataIndex: number };
+      onCrossFilter(xAxisField, data.rows[p.dataIndex]?.[xAxisField]);
+    }
+  }, [onCrossFilter, xAxisField, data.rows]);
+
+  return <EChartWrapper option={option} width={width} height={height} theme={theme} onEvents={{ click: handleClick }} />;
+});

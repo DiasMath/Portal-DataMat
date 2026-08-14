@@ -66,7 +66,7 @@ export function VisualContextMenu({ visualId, x, y, onClose }: VisualContextMenu
 
   const menuItems = [
     { icon: <Edit3 size={12} />, label: 'Renomear', action: handleRename },
-    { icon: <Copy size={12} />, label: 'Duplicar', shortcut: 'Ctrl+D', action: () => dispatch({ type: 'DUPLICATE_VISUAL', payload: visualId }) },
+    { icon: <Copy size={12} />, label: 'Duplicar', shortcut: 'Ctrl+D', action: () => dispatch({ type: 'DUPLICATE_SELECTED_VISUALS' }) },
     { divider: true },
     { icon: <Copy size={12} />, label: 'Copiar', shortcut: 'Ctrl+C', action: () => dispatch({ type: 'SET_CLIPBOARD', payload: visual }) },
     { icon: <Scissors size={12} />, label: 'Recortar', shortcut: 'Ctrl+X', action: () => { dispatch({ type: 'SET_CLIPBOARD', payload: visual }); dispatch({ type: 'REMOVE_VISUAL', payload: visualId }); } },
@@ -103,7 +103,7 @@ export function VisualContextMenu({ visualId, x, y, onClose }: VisualContextMenu
     { divider: true },
     { icon: <Settings size={12} />, label: 'Formatar', action: () => dispatch({ type: 'TOGGLE_PROPERTIES_PANEL' }) },
     { divider: true },
-    { icon: <Trash2 size={12} />, label: 'Excluir', shortcut: 'Del', action: () => dispatch({ type: 'REMOVE_VISUAL', payload: visualId }), danger: true },
+    { icon: <Trash2 size={12} />, label: 'Excluir', shortcut: 'Del', action: () => dispatch({ type: 'REMOVE_SELECTED_VISUALS' }), danger: true },
   ];
 
   return (

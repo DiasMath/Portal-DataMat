@@ -1,70 +1,66 @@
 'use client';
 
-import React from 'react';
-import type { QueryResultData, VisualFormatting } from '../../types/visuals';
+import React, { useMemo } from 'react';
+import type { VisualFormatting } from '../../types/visuals';
+import type { QueryResultData } from '../../types/visuals';
+import { EChartWrapper } from './EChartWrapper';
+import type { ThemeMode } from '../../lib/echarts/theme';
 
 interface GaugeChartProps {
   data: QueryResultData;
   formatting: VisualFormatting;
-  width: number;
-  height: number;
+  width?: number;
+  height?: number;
+  theme?: ThemeMode;
+  animation?: boolean;
 }
 
-export function GaugeChart({ data, formatting, width, height }: GaugeChartProps) {
-  if (!data || data.columns.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-full text-xs text-muted-foreground">
-        Arraste um campo para Valores
-      </div>
-    );
-  }
+export const GaugeChart = React.memo(function GaugeChart({ data, formatting, width, height, theme = 'transparent', animation = false }: GaugeChartProps) {
+  const valueField = data.columns[0];
 
-  const valueKey = data.columns[data.columns.length - 1];
-  const rawValue = data.rows[0]?.[valueKey];
-  const value = typeof rawValue === 'number' ? rawValue : Number(rawValue) || 0;
-  const min = formatting.gaugeMin ?? 0;
-  const max = formatting.gaugeMax ?? 100;
-  const target = formatting.gaugeTarget;
-  const pct = Math.min(1, Math.max(0, (value - min) / (max - min)));
-  const angle = -90 + pct * 180;
-  const color = formatting.gaugeColor || '#f59e0b';
+  const option = useMemo(() => {
+    const value = data.rows[0] ? Number(data.rows[0][valueField] ?? 0) : 0;
 
-  const r = Math.min(width, height) * 0.35;
-  const cx = width / 2;
-  const cy = height * 0.65;
+    return {
+      series: [{
+        type: 'gauge' as const,
+        startAngle: formatting.gaugeStartAngle ?? 225,
+        endAngle: formatting.gaugeEndAngle ?? -45,
+        min: formatting.gaugeMin ?? 0,
+        max: formatting.gaugeMax ?? 100,
+        splitNumber: formatting.gaugeSplitNumber ?? 10,
+        progress: { show: true, width: formatting.gaugeProgressWidth ?? formatting.gaugeAxisLineWidth ?? 15 },
+        axisLine: {
+          lineStyle: {
+            width: formatting.gaugeAxisLineWidth ?? 15,
+            color: formatting.gaugeAxisLineColors ?? [[0.3,'#ee6666'],[0.7,'#fac858'],[1,'#91cc75']]
+          }
+        },
+        axisTick: { show: formatting.gaugeShowAxisTick ?? false },
+        splitLine: { length: formatting.gaugeSplitLineLength ?? 10, lineStyle: { width: 2 } },
+        pointer: {
+          length: formatting.gaugePointerLength ?? '80%',
+          width: formatting.gaugePointerWidth ?? 8,
+          offsetCenter: formatting.gaugePointerOffsetCenter ?? [0, '70%'],
+          itemStyle: { color: formatting.gaugeColor || '#f59e0b' }
+        },
+        anchor: { show: formatting.gaugeAnchorShow ?? true, size: formatting.gaugeAnchorSize ?? 10 },
+        title: {
+          show: false,
+          offsetCenter: formatting.gaugeTitleOffsetCenter ?? [0, '70%'],
+          fontSize: formatting.gaugeTitleFontSize ?? 14,
+          color: formatting.gaugeTitleColor ?? '#333'
+        },
+        detail: {
+          valueAnimation: true,
+          offsetCenter: formatting.gaugeDetailOffsetCenter ?? [0, '40%'],
+          fontSize: formatting.gaugeDetailFontSize ?? 35,
+          formatter: formatting.gaugeDetailFormatter ?? '{value}%',
+        },
+        data: [{ value, name: '' }],
+      }],
+    };
+  }, [data, formatting, valueField]);
 
-  return (
-    <div className="relative w-full h-full flex flex-col items-center justify-end pb-2">
-      <svg width={width} height={height * 0.7} viewBox={`0 0 ${width} ${height * 0.7}`}>
-        <path
-          d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`}
-          fill="none"
-          stroke="#374151"
-          strokeWidth={12}
-          strokeLinecap="round"
-        />
-        <path
-          d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`}
-          fill="none"
-          stroke={color}
-          strokeWidth={12}
-          strokeLinecap="round"
-          strokeDasharray={`${pct * Math.PI * r} ${Math.PI * r}`}
-        />
-        {target !== undefined && (() => {
-          const targetPct = Math.min(1, Math.max(0, (target - min) / (max - min)));
-          const targetAngle = -90 + targetPct * 180;
-          const rad = (targetAngle * Math.PI) / 180;
-          const tx = cx + (r - 10) * Math.cos(rad);
-          const ty = cy + (r - 10) * Math.sin(rad);
-          return <circle cx={tx} cy={ty} r={4} fill="#ef4444" />;
-        })()}
-        <text x={cx} y={cy - 10} textAnchor="middle" fill="white" fontSize={24} fontWeight="bold">
-          {value.toLocaleString()}
-        </text>
-        <text x={cx - r} y={cy + 18} textAnchor="middle" fill="#9ca3af" fontSize={10}>{min}</text>
-        <text x={cx + r} y={cy + 18} textAnchor="middle" fill="#9ca3af" fontSize={10}>{max}</text>
-      </svg>
-    </div>
-  );
-}
+  return <EChartWrapper option={option} width={width} height={height} theme={theme} animation={animation} />;
+});

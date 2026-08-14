@@ -1,0 +1,272 @@
+{
+  "__tests__/studio-reducer.test.ts": {
+    "mtime": 1785554886.2685473,
+    "ast_hash": "f30d22624ec6730563ddcfc3fc8329af",
+    "semantic_hash": "f30d22624ec6730563ddcfc3fc8329af"
+  },
+  "components/canvas/Canvas.tsx": {
+    "mtime": 1785719601.873699,
+    "ast_hash": "de7f455f4a949331b9340ef032eded56",
+    "semantic_hash": "de7f455f4a949331b9340ef032eded56"
+  },
+  "components/canvas/CanvasItem.tsx": {
+    "mtime": 1785642579.9917047,
+    "ast_hash": "aaeaa48d2c0683057c99515dc9fced81",
+    "semantic_hash": "aaeaa48d2c0683057c99515dc9fced81"
+  },
+  "components/canvas/CanvasRuler.tsx": {
+    "mtime": 1785635830.2223408,
+    "ast_hash": "5ce12f9a9bccd96711d16bbb1e455154",
+    "semantic_hash": "5ce12f9a9bccd96711d16bbb1e455154"
+  },
+  "components/canvas/VisualContextMenu.tsx": {
+    "mtime": 1785633153.3801441,
+    "ast_hash": "7aaa755328f049a18a66d32d36383d87",
+    "semantic_hash": "7aaa755328f049a18a66d32d36383d87"
+  },
+  "components/charts/BarChart.tsx": {
+    "mtime": 1785636449.0450535,
+    "ast_hash": "9dfd7b034cf32cd6a49b5c114dddafa1",
+    "semantic_hash": "9dfd7b034cf32cd6a49b5c114dddafa1"
+  },
+  "components/charts/ChartRenderer.tsx": {
+    "mtime": 1785635518.795254,
+    "ast_hash": "718ca17c14169f852d68892561b2d7f2",
+    "semantic_hash": "718ca17c14169f852d68892561b2d7f2"
+  },
+  "components/charts/ChartTooltip.tsx": {
+    "mtime": 1785629463.9495585,
+    "ast_hash": "6f992fb2b895c171976da1f63d425f2a",
+    "semantic_hash": "6f992fb2b895c171976da1f63d425f2a"
+  },
+  "components/charts/ComboChart.tsx": {
+    "mtime": 1785635493.3692565,
+    "ast_hash": "775b5b7c0dad33a46a6177e5706d7ad4",
+    "semantic_hash": "775b5b7c0dad33a46a6177e5706d7ad4"
+  },
+  "components/charts/GaugeChart.tsx": {
+    "mtime": 1785635458.6215587,
+    "ast_hash": "f3229371d0199ae6edcea5c1c0074a0f",
+    "semantic_hash": "f3229371d0199ae6edcea5c1c0074a0f"
+  },
+  "components/charts/KpiCard.tsx": {
+    "mtime": 1785555200.5855684,
+    "ast_hash": "85199ce0b7145e1b71830d7fcff4be7b",
+    "semantic_hash": "85199ce0b7145e1b71830d7fcff4be7b"
+  },
+  "components/charts/LineChart.tsx": {
+    "mtime": 1785635392.8490279,
+    "ast_hash": "dd983ab1ece1fecfee143c8feace6751",
+    "semantic_hash": "dd983ab1ece1fecfee143c8feace6751"
+  },
+  "components/charts/PieChart.tsx": {
+    "mtime": 1785642711.2097213,
+    "ast_hash": "579622fa0bd171a9efd82595b7be6f99",
+    "semantic_hash": "579622fa0bd171a9efd82595b7be6f99"
+  },
+  "components/charts/ScatterChart.tsx": {
+    "mtime": 1785636426.476885,
+    "ast_hash": "3311f6fc4c4a4124041ea2ac9c52517b",
+    "semantic_hash": "3311f6fc4c4a4124041ea2ac9c52517b"
+  },
+  "components/charts/TableVisual.tsx": {
+    "mtime": 1785555199.82016,
+    "ast_hash": "2f93ffd013305e383e9be105717643e3",
+    "semantic_hash": "2f93ffd013305e383e9be105717643e3"
+  },
+  "components/charts/TreemapChart.tsx": {
+    "mtime": 1785642811.5330334,
+    "ast_hash": "1ab53804ab63bf71cc5b9e46d623d699",
+    "semantic_hash": "1ab53804ab63bf71cc5b9e46d623d699"
+  },
+  "components/charts/WaterfallChart.tsx": {
+    "mtime": 1785635481.0671413,
+    "ast_hash": "dd9d77e9cced77e9b73d6bfdc739b305",
+    "semantic_hash": "dd9d77e9cced77e9b73d6bfdc739b305"
+  },
+  "components/data-panel/DataPanel.tsx": {
+    "mtime": 1785720151.9106493,
+    "ast_hash": "c413249ce75ad9f505780ba25dfedaf7",
+    "semantic_hash": "c413249ce75ad9f505780ba25dfedaf7"
+  },
+  "components/data-panel/FieldNode.tsx": {
+    "mtime": 1785633296.800258,
+    "ast_hash": "2b75fe05104d3faa1be4b1dcb8ea4994",
+    "semantic_hash": "2b75fe05104d3faa1be4b1dcb8ea4994"
+  },
+  "components/data-panel/MeasureNode.tsx": {
+    "mtime": 1785720069.179384,
+    "ast_hash": "f05ba900c2f4daed7f9f236f9eba6980",
+    "semantic_hash": "f05ba900c2f4daed7f9f236f9eba6980"
+  },
+  "components/data-panel/TableNode.tsx": {
+    "mtime": 1785562638.4558005,
+    "ast_hash": "895ba358f1cb56a9d90fecdb8f9f5254",
+    "semantic_hash": "895ba358f1cb56a9d90fecdb8f9f5254"
+  },
+  "components/data-view/DataView.tsx": {
+    "mtime": 1785560828.4651124,
+    "ast_hash": "bf54d9034cea430998b4f5e729c30411",
+    "semantic_hash": "bf54d9034cea430998b4f5e729c30411"
+  },
+  "components/editor/StudioEditor.tsx": {
+    "mtime": 1785721765.0766973,
+    "ast_hash": "a93f28e53613ee3c62b757d135e31110",
+    "semantic_hash": "a93f28e53613ee3c62b757d135e31110"
+  },
+  "components/filters-panel/FiltersPanel.tsx": {
+    "mtime": 1785716204.4247046,
+    "ast_hash": "4ed23aad7bcf6b844d6c2203ffbf217a",
+    "semantic_hash": "4ed23aad7bcf6b844d6c2203ffbf217a"
+  },
+  "components/model-view/ModelView.tsx": {
+    "mtime": 1785633761.25057,
+    "ast_hash": "dff3bd0626b078b97c15e4a8e59231c6",
+    "semantic_hash": "dff3bd0626b078b97c15e4a8e59231c6"
+  },
+  "components/model-view/RelationshipLine.tsx": {
+    "mtime": 1785633657.2722642,
+    "ast_hash": "e5271d832238cea682e6169a0fd24549",
+    "semantic_hash": "e5271d832238cea682e6169a0fd24549"
+  },
+  "components/model-view/TableEntity.tsx": {
+    "mtime": 1785560729.0483968,
+    "ast_hash": "04296c3fe96694590f800f9cf1720417",
+    "semantic_hash": "04296c3fe96694590f800f9cf1720417"
+  },
+  "components/page-tabs/PageContextMenu.tsx": {
+    "mtime": 1785633228.6301613,
+    "ast_hash": "457ca26546f7d36edb7a8eef71690497",
+    "semantic_hash": "457ca26546f7d36edb7a8eef71690497"
+  },
+  "components/page-tabs/PageTabs.tsx": {
+    "mtime": 1785560666.9572177,
+    "ast_hash": "1997354701a7fb4cff534bba0626453e",
+    "semantic_hash": "1997354701a7fb4cff534bba0626453e"
+  },
+  "components/properties-panel/BucketSlot.tsx": {
+    "mtime": 1785642879.4232907,
+    "ast_hash": "655134c13a322a1be19337de9706ba37",
+    "semantic_hash": "655134c13a322a1be19337de9706ba37"
+  },
+  "components/properties-panel/FormattingTab.tsx": {
+    "mtime": 1785643047.38455,
+    "ast_hash": "63a94bf57f5acfc66bf6e84494e735be",
+    "semantic_hash": "63a94bf57f5acfc66bf6e84494e735be"
+  },
+  "components/properties-panel/PageSettings.tsx": {
+    "mtime": 1785564758.2973938,
+    "ast_hash": "c94f2e851df4080147144cca6a131ca0",
+    "semantic_hash": "c94f2e851df4080147144cca6a131ca0"
+  },
+  "components/properties-panel/PropertiesPanel.tsx": {
+    "mtime": 1785566128.2255375,
+    "ast_hash": "bfcf53c5cfe79fe5282e56b9c214603d",
+    "semantic_hash": "bfcf53c5cfe79fe5282e56b9c214603d"
+  },
+  "components/selection-pane/SelectionPane.tsx": {
+    "mtime": 1785633067.7681687,
+    "ast_hash": "f8175c443ae4a8bf8111ef4d3a1e224c",
+    "semantic_hash": "f8175c443ae4a8bf8111ef4d3a1e224c"
+  },
+  "components/shared/BottomBar.tsx": {
+    "mtime": 1785636149.7053869,
+    "ast_hash": "b570e2462b2dc467555d65a104c00979",
+    "semantic_hash": "b570e2462b2dc467555d65a104c00979"
+  },
+  "components/shared/PanelResizer.tsx": {
+    "mtime": 1785560764.4592767,
+    "ast_hash": "7b55e0daf6766f12c80da77358c3cfc7",
+    "semantic_hash": "7b55e0daf6766f12c80da77358c3cfc7"
+  },
+  "components/shared/ZoomBar.tsx": {
+    "mtime": 1785721735.812184,
+    "ast_hash": "b59880703903fcf7e63257a941b8e7fb",
+    "semantic_hash": "b59880703903fcf7e63257a941b8e7fb"
+  },
+  "components/sidebar/IconSidebar.tsx": {
+    "mtime": 1785566097.093162,
+    "ast_hash": "73c75518b7d6d702540fc123965cb6d3",
+    "semantic_hash": "73c75518b7d6d702540fc123965cb6d3"
+  },
+  "components/sql-runner/QueryResultsGrid.tsx": {
+    "mtime": 1785557669.3722968,
+    "ast_hash": "0846f99a9b67e59442aad6afbee99873",
+    "semantic_hash": "0846f99a9b67e59442aad6afbee99873"
+  },
+  "components/sql-runner/SqlRunner.tsx": {
+    "mtime": 1785633482.3989081,
+    "ast_hash": "5bdb8f2beed910a2d174169e557f416a",
+    "semantic_hash": "5bdb8f2beed910a2d174169e557f416a"
+  },
+  "components/toolbar/ChartTypePicker.tsx": {
+    "mtime": 1785555087.6692197,
+    "ast_hash": "373dc976252b7a353b73bdcaf3e6c9d7",
+    "semantic_hash": "373dc976252b7a353b73bdcaf3e6c9d7"
+  },
+  "components/toolbar/EditorToolbar.tsx": {
+    "mtime": 1785560685.8746653,
+    "ast_hash": "d6f30632f5127a24622f91f6ef550b8d",
+    "semantic_hash": "d6f30632f5127a24622f91f6ef550b8d"
+  },
+  "components/toolbar/MeasureEditor.tsx": {
+    "mtime": 1785725885.618483,
+    "ast_hash": "ad79c3ca69994e3045d919a3593ff069",
+    "semantic_hash": "ad79c3ca69994e3045d919a3593ff069"
+  },
+  "components/toolbar/RibbonToolbar.tsx": {
+    "mtime": 1785720029.3544154,
+    "ast_hash": "05628a11a2bbdcc87253043176d5104c",
+    "semantic_hash": "05628a11a2bbdcc87253043176d5104c"
+  },
+  "components/viewer/StudioViewer.tsx": {
+    "mtime": 1785633937.2766287,
+    "ast_hash": "748aed83932274b8d6b1f5f21a27bd24",
+    "semantic_hash": "748aed83932274b8d6b1f5f21a27bd24"
+  },
+  "lib/mock-data.ts": {
+    "mtime": 1785554869.138717,
+    "ast_hash": "6eb658940da66ac7d37daf135d0ca268",
+    "semantic_hash": "6eb658940da66ac7d37daf135d0ca268"
+  },
+  "lib/sql-builder.ts": {
+    "mtime": 1785555230.395226,
+    "ast_hash": "554d4b9569253410c9341a36020a4763",
+    "semantic_hash": "554d4b9569253410c9341a36020a4763"
+  },
+  "lib/sql-completion.ts": {
+    "mtime": 1785633585.9097388,
+    "ast_hash": "f090106ee96905618c6ce0f9ce71a3f4",
+    "semantic_hash": "f090106ee96905618c6ce0f9ce71a3f4"
+  },
+  "store/StudioContext.tsx": {
+    "mtime": 1785719948.5198972,
+    "ast_hash": "13c0a78cecf3901cd2e16920faa20f97",
+    "semantic_hash": "13c0a78cecf3901cd2e16920faa20f97"
+  },
+  "store/undo-middleware.ts": {
+    "mtime": 1785643137.1331284,
+    "ast_hash": "26470dacf20419b4013dca6489c2b291",
+    "semantic_hash": "26470dacf20419b4013dca6489c2b291"
+  },
+  "types/canvas.ts": {
+    "mtime": 1785632765.410956,
+    "ast_hash": "4e9803782dea76e7f0a5b42285054cf8",
+    "semantic_hash": "4e9803782dea76e7f0a5b42285054cf8"
+  },
+  "types/dashboard.ts": {
+    "mtime": 1785719902.4785526,
+    "ast_hash": "1d1026976dfac28f0d5b745f8d9d5ff2",
+    "semantic_hash": "1d1026976dfac28f0d5b745f8d9d5ff2"
+  },
+  "types/state.ts": {
+    "mtime": 1785719895.021984,
+    "ast_hash": "ead594f6bf8dc8ed6ad4c823abccc910",
+    "semantic_hash": "ead594f6bf8dc8ed6ad4c823abccc910"
+  },
+  "types/visuals.ts": {
+    "mtime": 1785643017.9025512,
+    "ast_hash": "43465735383b66cd4a95764bd771ae5f",
+    "semantic_hash": "43465735383b66cd4a95764bd771ae5f"
+  }
+}

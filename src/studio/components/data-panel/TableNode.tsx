@@ -1,24 +1,22 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import type { TableSchema } from '../../types/dashboard';
 import { FieldNode } from './FieldNode';
-import { ChevronRight, Table, Hash, Type, Calendar, ToggleLeft } from 'lucide-react';
+import { ChevronRight, Table } from 'lucide-react';
+import { getTypeIcon } from '../shared/type-icons';
 
 interface TableNodeProps {
   table: TableSchema;
   searchTerm?: string;
 }
 
-const TYPE_ICONS: Record<string, React.ReactNode> = {
-  number: <Hash size={8} className="text-amber-500" />,
-  string: <Type size={8} className="text-green-500" />,
-  date: <Calendar size={8} className="text-purple-500" />,
-  boolean: <ToggleLeft size={8} className="text-orange-500" />,
-};
-
 export function TableNode({ table, searchTerm }: TableNodeProps) {
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  React.useEffect(() => {
+    if (searchTerm) setIsExpanded(true);
+  }, [searchTerm]);
 
   const filteredFields = searchTerm
     ? table.fields.filter(f =>
@@ -27,11 +25,25 @@ export function TableNode({ table, searchTerm }: TableNodeProps) {
       )
     : table.fields;
 
+  const handleToggle = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsExpanded(prev => !prev);
+  }, []);
+
   return (
     <div className="mb-0.5">
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full flex items-center gap-1 px-2 py-1 text-[10px] rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={handleToggle}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setIsExpanded(prev => !prev);
+          }
+        }}
+        className="w-full flex items-center gap-1 px-2 py-1 text-[10px] rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer select-none"
       >
         <ChevronRight
           size={10}
@@ -44,19 +56,22 @@ export function TableNode({ table, searchTerm }: TableNodeProps) {
         <span className="ml-auto text-[8px] text-muted-foreground">
           {table.fields.length}
         </span>
-      </button>
+      </div>
 
       {isExpanded && (
-        <div className="ml-2">
+        <div className="ml-3 border-l border-neutral-200 dark:border-neutral-700 pl-1">
           {filteredFields.map(field => (
             <FieldNode
               key={field.name}
               tableName={table.name}
               tableLabel={table.label}
               field={field}
-              icon={TYPE_ICONS[field.type]}
+              icon={getTypeIcon(field.type, 8)}
             />
           ))}
+          {filteredFields.length === 0 && (
+            <div className="px-2 py-1 text-[9px] text-muted-foreground">Nenhum campo</div>
+          )}
         </div>
       )}
     </div>

@@ -1,107 +1,88 @@
 'use client';
 
-import React, { useCallback } from 'react';
-import {
-  BarChart as RechartsBarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Legend,
-  ResponsiveContainer,
-  Cell,
-  LabelList,
-} from 'recharts';
-import type { QueryResultData, VisualFormatting } from '../../types/visuals';
-import { ChartTooltip, formatTooltipValue } from './ChartTooltip';
+import React, { useMemo, useCallback } from 'react';
+import type { VisualFormatting } from '../../types/visuals';
+import type { QueryResultData } from '../../types/visuals';
+import { EChartWrapper } from './EChartWrapper';
+import { getEChartsTheme } from '../../lib/echarts/theme';
+import { buildAxesOptions } from '../../lib/echarts/buildAxesOptions';
+import type { ThemeMode } from '../../lib/echarts/theme';
 
 interface BarChartProps {
   data: QueryResultData;
   formatting: VisualFormatting;
-  width: number;
-  height: number;
+  width?: number;
+  height?: number;
   crossFilterValue?: unknown;
   onCrossFilter?: (fieldName: string, value: unknown) => void;
-  drillLevel?: number;
-  onDrillDown?: (fieldName: string, value: unknown) => void;
+  theme?: ThemeMode;
+  animation?: boolean;
 }
 
-const DEFAULT_COLORS = ['#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#8b5cf6', '#ec4899'];
-const FILTERED_COLOR = '#d1d5db';
+export const BarChart = React.memo(function BarChart({ data, formatting, width, height, crossFilterValue, onCrossFilter, theme = 'transparent', animation = false }: BarChartProps) {
+  const xAxisField = data.columns[0];
+  const valueField = data.columns[1];
 
-export function BarChart({ data, formatting, width, height, crossFilterValue, onCrossFilter, drillLevel = 0, onDrillDown }: BarChartProps) {
-  if (!data || data.columns.length < 2) {
-    return (
-      <div className="flex items-center justify-center h-full text-xs text-muted-foreground">
-        Arraste um campo para Eixo X e um para Valores
-      </div>
-    );
-  }
+  const option = useMemo(() => {
+    const categories = data.rows.map(row => String(row[xAxisField] ?? ''));
+    const values = data.rows.map(row => Number(row[valueField] ?? 0));
 
-  const xKey = data.columns[0];
-  const valueKeys = data.columns.slice(1);
+    const crossFilterSet = crossFilterValue instanceof Set ? crossFilterValue : undefined;
+    const itemStyles = data.rows.map((row) => {
+      if (!crossFilterSet || crossFilterSet.size === 0) return { opacity: 1 };
+      return { opacity: crossFilterSet.has(row[xAxisField]) ? 1 : 0.3 };
+    });
 
-  const handleClick = useCallback((data: { payload?: Record<string, unknown> }) => {
-    if (data.payload && onCrossFilter) {
-      onCrossFilter(xKey, data.payload[xKey]);
+    const th = getEChartsTheme(theme);
+    const { grid, xAxis, yAxis, legend } = buildAxesOptions(formatting, theme, categories);
+
+    xAxis.data = categories;
+
+    const seriesItem: Record<string, unknown> = {
+      type: 'bar' as const,
+      data: values.map((v, i) => ({ value: v, itemStyle: itemStyles[i] })),
+      barWidth: formatting.barWidth ? `${formatting.barWidth}%` : 'auto',
+      itemStyle: {
+        color: formatting.barColor ?? th.color[0],
+        borderRadius: formatting.barBorderRadius,
+      },
+      label: {
+        show: !!formatting.dataLabels,
+        position: (formatting.dataLabelPosition ?? 'top') as string,
+        formatter: formatting.dataLabelFormat === 'percent' ? '{c}%' : '{c}',
+        fontSize: formatting.dataLabelFontSize ?? 10,
+        color: formatting.dataLabelColor,
+        fontWeight: formatting.dataLabelFontWeight,
+        fontStyle: formatting.dataLabelFontStyle,
+      },
+    };
+    if (formatting.barGap) seriesItem.barGap = formatting.barGap;
+    if (formatting.barCategoryGap) seriesItem.barCategoryGap = formatting.barCategoryGap;
+
+    return {
+      grid,
+      xAxis,
+      yAxis,
+      series: [seriesItem],
+      legend,
+    };
+  }, [data, formatting, crossFilterValue, xAxisField, valueField, theme]);
+
+  const handleClick = useCallback((params: unknown) => {
+    if (onCrossFilter && xAxisField) {
+      const p = params as { dataIndex: number };
+      onCrossFilter(xAxisField, data.rows[p.dataIndex]?.[xAxisField]);
     }
-    if (data.payload && onDrillDown) {
-      onDrillDown(xKey, data.payload[xKey]);
-    }
-  }, [onCrossFilter, onDrillDown, xKey]);
+  }, [onCrossFilter, xAxisField, data.rows]);
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
-      <RechartsBarChart data={data.rows} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
-        {formatting.showGridLines !== false && (
-          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-        )}
-        <XAxis
-          dataKey={xKey}
-          tick={{ fontSize: 11 }}
-          stroke="#9ca3af"
-          label={formatting.xAxisLabel ? { value: formatting.xAxisLabel, position: 'insideBottom', offset: -5, fontSize: 11 } : undefined}
-        />
-        <YAxis
-          tick={{ fontSize: 11 }}
-          stroke="#9ca3af"
-          label={formatting.yAxisLabel ? { value: formatting.yAxisLabel, angle: -90, position: 'insideLeft', fontSize: 11 } : undefined}
-        />
-        <ChartTooltipWrapper />
-        {formatting.showLegend !== false && valueKeys.length > 1 && <Legend />}
-        {valueKeys.map((key, index) => (
-          <Bar
-            key={key}
-            dataKey={key}
-            radius={[4, 4, 0, 0]}
-            cursor="pointer"
-            onClick={(data) => handleClick(data as { payload?: Record<string, unknown> })}
-          >
-            {formatting.dataLabels && (
-              <LabelList
-                dataKey={key}
-                position="top"
-                style={{ fontSize: formatting.dataLabelFontSize || 11, fill: formatting.dataLabelColor || '#374151' }}
-              />
-            )}
-            {data.rows.map((row, rowIndex) => {
-              const isFiltered = crossFilterValue !== undefined && row[xKey] !== crossFilterValue;
-              const color = (formatting.colorPalette || DEFAULT_COLORS)[index % DEFAULT_COLORS.length];
-              return (
-                <Cell
-                  key={`cell-${rowIndex}`}
-                  fill={isFiltered ? FILTERED_COLOR : color}
-                  opacity={crossFilterValue !== undefined ? (isFiltered ? 0.4 : 1) : 1}
-                />
-              );
-            })}
-          </Bar>
-        ))}
-      </RechartsBarChart>
-    </ResponsiveContainer>
+    <EChartWrapper
+      option={option}
+      width={width}
+      height={height}
+      theme={theme}
+      animation={animation}
+      onEvents={{ click: handleClick }}
+    />
   );
-}
-
-function ChartTooltipWrapper(props: Record<string, unknown>) {
-  return <ChartTooltip {...(props as { active?: boolean; payload?: Array<{ name: string; value: unknown; color?: string }>; label?: string })} formatter={formatTooltipValue} />;
-}
+});

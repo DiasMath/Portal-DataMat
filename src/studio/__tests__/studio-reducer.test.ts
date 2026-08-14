@@ -1,8 +1,8 @@
-import { studioReducer, getInitialState } from './StudioContext';
+import { studioReducer, getInitialState } from '../store/reducer';
 import type { StudioState, StudioAction } from '../types/state';
 import type { DataModel } from '../types/dashboard';
 import type { BucketField, VisualBuckets } from '../types/visuals';
-import { MOCK_DATA_MODEL } from '../lib/mock-data';
+import { MOCK_DATA_MODEL } from '../lib/mocks/mock-data';
 
 describe('studioReducer', () => {
   let state: StudioState;
@@ -142,6 +142,106 @@ describe('studioReducer', () => {
       const result = studioReducer(state, { type: 'SET_DATA_MODEL', payload: MOCK_DATA_MODEL });
       expect(result.dataModel).toBe(MOCK_DATA_MODEL);
       expect(result.dataModelLoading).toBe(false);
+    });
+  });
+
+  describe('TextBox actions', () => {
+    it('ADD_TEXT_BOX adds textBox with zIndex', () => {
+      const result = studioReducer(state, { type: 'ADD_TEXT_BOX', payload: { x: 50, y: 50 } });
+      expect(result.textBoxes).toHaveLength(1);
+      expect(result.textBoxes[0].x).toBe(50);
+      expect(result.textBoxes[0].zIndex).toBe(1000);
+      expect(result.selectedTextBoxId).toBe(result.textBoxes[0].id);
+    });
+
+    it('REMOVE_TEXT_BOX removes textBox', () => {
+      state.textBoxes = [{ id: 'tb1', x: 0, y: 0, width: 200, height: 40, zIndex: 1000, text: 'Test', formatting: { fontSize: 14, fontWeight: 'normal', fontStyle: 'normal', textDecoration: 'none', textAlign: 'left', color: '#fff' } }];
+      state.selectedTextBoxId = 'tb1';
+      const result = studioReducer(state, { type: 'REMOVE_TEXT_BOX', payload: 'tb1' });
+      expect(result.textBoxes).toHaveLength(0);
+      expect(result.selectedTextBoxId).toBeNull();
+    });
+
+    it('UPDATE_TEXT_BOX updates textBox properties', () => {
+      state.textBoxes = [{ id: 'tb1', x: 0, y: 0, width: 200, height: 40, zIndex: 1000, text: 'Test', formatting: { fontSize: 14, fontWeight: 'normal', fontStyle: 'normal', textDecoration: 'none', textAlign: 'left', color: '#fff' } }];
+      const result = studioReducer(state, { type: 'UPDATE_TEXT_BOX', payload: { id: 'tb1', updates: { text: 'Updated' } } });
+      expect(result.textBoxes[0].text).toBe('Updated');
+    });
+
+    it('BRING_TEXT_BOX_TO_FRONT sets max zIndex', () => {
+      state.textBoxes = [
+        { id: 'tb1', x: 0, y: 0, width: 200, height: 40, zIndex: 1000, text: 'A', formatting: { fontSize: 14, fontWeight: 'normal', fontStyle: 'normal', textDecoration: 'none', textAlign: 'left', color: '#fff' } },
+        { id: 'tb2', x: 0, y: 0, width: 200, height: 40, zIndex: 1002, text: 'B', formatting: { fontSize: 14, fontWeight: 'normal', fontStyle: 'normal', textDecoration: 'none', textAlign: 'left', color: '#fff' } },
+      ];
+      const result = studioReducer(state, { type: 'BRING_TEXT_BOX_TO_FRONT', payload: 'tb1' });
+      expect(result.textBoxes.find(tb => tb.id === 'tb1')?.zIndex).toBe(1003);
+    });
+
+    it('SEND_TEXT_BOX_TO_BACK sets min zIndex', () => {
+      state.textBoxes = [
+        { id: 'tb1', x: 0, y: 0, width: 200, height: 40, zIndex: 1005, text: 'A', formatting: { fontSize: 14, fontWeight: 'normal', fontStyle: 'normal', textDecoration: 'none', textAlign: 'left', color: '#fff' } },
+        { id: 'tb2', x: 0, y: 0, width: 200, height: 40, zIndex: 1002, text: 'B', formatting: { fontSize: 14, fontWeight: 'normal', fontStyle: 'normal', textDecoration: 'none', textAlign: 'left', color: '#fff' } },
+      ];
+      const result = studioReducer(state, { type: 'SEND_TEXT_BOX_TO_BACK', payload: 'tb1' });
+      expect(result.textBoxes.find(tb => tb.id === 'tb1')?.zIndex).toBe(1001);
+    });
+  });
+
+  describe('Visual z-order actions', () => {
+    beforeEach(() => {
+      state.pages = [{ id: 'p1', name: 'P1', order: 0, visuals: [] }];
+      state.activePageId = 'p1';
+    });
+
+    it('BRING_VISUAL_TO_FRONT sets max zIndex', () => {
+      state.pages[0].visuals = [
+        { id: 'v1', type: 'bar', x: 0, y: 0, width: 400, height: 300, zIndex: 1, title: 'A', showTitle: true, buckets: {}, formatting: {}, filters: [] },
+        { id: 'v2', type: 'bar', x: 0, y: 0, width: 400, height: 300, zIndex: 5, title: 'B', showTitle: true, buckets: {}, formatting: {}, filters: [] },
+      ];
+      const result = studioReducer(state, { type: 'BRING_VISUAL_TO_FRONT', payload: 'v1' });
+      expect(result.pages[0].visuals.find(v => v.id === 'v1')?.zIndex).toBe(6);
+    });
+
+    it('SEND_VISUAL_TO_BACK sets min zIndex', () => {
+      state.pages[0].visuals = [
+        { id: 'v1', type: 'bar', x: 0, y: 0, width: 400, height: 300, zIndex: 10, title: 'A', showTitle: true, buckets: {}, formatting: {}, filters: [] },
+        { id: 'v2', type: 'bar', x: 0, y: 0, width: 400, height: 300, zIndex: 5, title: 'B', showTitle: true, buckets: {}, formatting: {}, filters: [] },
+      ];
+      const result = studioReducer(state, { type: 'SEND_VISUAL_TO_BACK', payload: 'v1' });
+      expect(result.pages[0].visuals.find(v => v.id === 'v1')?.zIndex).toBe(4);
+    });
+  });
+
+  describe('Measure actions', () => {
+    it('ADD_MEASURE adds measure to dataModel', () => {
+      state.dataModel = { ...MOCK_DATA_MODEL, measures: [] };
+      const result = studioReducer(state, {
+        type: 'ADD_MEASURE',
+        payload: { name: 'Receita Total', expression: 'SUM(vendas[valor])', format: 'currency', decimalPlaces: 2 },
+      });
+      expect(result.dataModel?.measures).toHaveLength(1);
+      expect(result.dataModel?.measures?.[0].name).toBe('Receita Total');
+    });
+
+    it('UPDATE_MEASURE updates measure properties', () => {
+      state.dataModel = {
+        ...MOCK_DATA_MODEL,
+        measures: [{ id: 'm1', name: 'Old Name', expression: 'SUM(x)' }],
+      };
+      const result = studioReducer(state, {
+        type: 'UPDATE_MEASURE',
+        payload: { id: 'm1', name: 'New Name' },
+      });
+      expect(result.dataModel?.measures?.[0].name).toBe('New Name');
+    });
+
+    it('REMOVE_MEASURE removes measure', () => {
+      state.dataModel = {
+        ...MOCK_DATA_MODEL,
+        measures: [{ id: 'm1', name: 'Test', expression: 'SUM(x)' }],
+      };
+      const result = studioReducer(state, { type: 'REMOVE_MEASURE', payload: 'm1' });
+      expect(result.dataModel?.measures).toHaveLength(0);
     });
   });
 

@@ -1,13 +1,15 @@
 'use client';
 
-import React from 'react';
+import React, { useRef, useCallback } from 'react';
 import { useStudio } from '../../store/StudioContext';
 import { PAGE_PRESETS } from '../../types/canvas';
-import { ChevronDown, Image } from 'lucide-react';
+import { Image, X } from 'lucide-react';
+import { FormattingSection } from '../shared/FormattingSection';
 
 export function PageSettings() {
   const { state, dispatch } = useStudio();
   const activePage = state.pages.find(p => p.id === state.activePageId);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!activePage) return null;
 
@@ -42,6 +44,28 @@ export function PageSettings() {
       },
     });
   };
+
+  const handleImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const dataUrl = ev.target?.result as string;
+      dispatch({
+        type: 'SET_PAGE_BACKGROUND_IMAGE',
+        payload: { pageId: activePage.id, backgroundImage: dataUrl },
+      });
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  }, [activePage.id, dispatch]);
+
+  const handleRemoveImage = useCallback(() => {
+    dispatch({
+      type: 'SET_PAGE_BACKGROUND_IMAGE',
+      payload: { pageId: activePage.id, backgroundImage: undefined },
+    });
+  }, [activePage.id, dispatch]);
 
   return (
     <div className="space-y-0">
@@ -96,49 +120,58 @@ export function PageSettings() {
         </div>
       </FormattingSection>
 
-      <FormattingSection title="Aparência" icon={<Image size={12} />}>
+      <FormattingSection title="Imagem de Fundo" icon={<Image size={12} />} defaultOpen={true}>
         <div>
-          <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Cor de Fundo</label>
-          <div className="flex items-center gap-2 mt-1">
-            <input
-              type="color"
-              value={activePage.background || '#ffffff'}
+          <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Imagem de Fundo</label>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleImageUpload}
+            className="hidden"
+          />
+          {activePage.backgroundImage ? (
+            <div className="mt-1 relative group">
+              <div
+                className="w-full h-16 rounded border border-neutral-200 dark:border-neutral-700 bg-cover bg-center bg-no-repeat"
+                style={{ backgroundImage: `url(${activePage.backgroundImage})` }}
+              />
+              <button
+                onClick={handleRemoveImage}
+                className="absolute top-1 right-1 p-0.5 bg-neutral-900/80 rounded text-white opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <X size={10} />
+              </button>
+            </div>
+          ) : (
+            <div className="mt-1 flex items-center gap-2">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10px] text-muted-foreground bg-neutral-100 dark:bg-neutral-800 rounded border border-dashed border-neutral-300 dark:border-neutral-600 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
+              >
+                <Image size={12} />
+                Carregar imagem
+              </button>
+            </div>
+          )}
+          <div className="mt-1">
+            <label className="text-[9px] text-muted-foreground">Posição</label>
+            <select
+              value={activePage.backgroundImagePosition || 'cover'}
               onChange={(e) => {
                 dispatch({
-                  type: 'SET_PAGE_SIZE',
+                  type: 'SET_PAGE_BACKGROUND_IMAGE',
                   payload: {
                     pageId: activePage.id,
-                    width: pageWidth,
-                    height: pageHeight,
-                    preset: activePage.pagePreset,
+                    backgroundImagePosition: e.target.value as 'cover' | 'contain' | 'stretch' | 'center',
                   },
                 });
               }}
-              className="w-8 h-8 rounded border border-neutral-200 dark:border-neutral-700 cursor-pointer"
-            />
-            <input
-              type="text"
-              value={activePage.background || '#ffffff'}
-              onChange={(e) => {}}
-              placeholder="#ffffff"
-              className="flex-1 px-2 py-1.5 text-xs bg-neutral-100 dark:bg-neutral-800 rounded border border-neutral-200 dark:border-neutral-700 focus:outline-none focus:ring-1 focus:ring-amber-500"
-            />
-          </div>
-        </div>
-        <div>
-          <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Imagem de Fundo</label>
-          <div className="mt-1 flex items-center gap-2">
-            <button className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10px] text-muted-foreground bg-neutral-100 dark:bg-neutral-800 rounded border border-dashed border-neutral-300 dark:border-neutral-600 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors">
-              <Image size={12} />
-              Carregar imagem
-            </button>
-          </div>
-          <div className="mt-1">
-            <label className="text-[9px] text-muted-foreground">Posição</label>
-            <select className="w-full mt-0.5 px-2 py-1.5 text-xs bg-neutral-100 dark:bg-neutral-800 rounded border border-neutral-200 dark:border-neutral-700">
+              className="w-full mt-0.5 px-2 py-1.5 text-xs bg-neutral-100 dark:bg-neutral-800 rounded border border-neutral-200 dark:border-neutral-700"
+            >
               <option value="cover">Preencher</option>
               <option value="contain">Ajustar</option>
-              <option value="repeat">Repetir</option>
+              <option value="stretch">Esticar</option>
               <option value="center">Centralizar</option>
             </select>
           </div>
@@ -150,41 +183,6 @@ export function PageSettings() {
           Página: {pageWidth} × {pageHeight}px
         </div>
       </div>
-    </div>
-  );
-}
-
-function FormattingSection({
-  title,
-  icon,
-  defaultOpen = false,
-  children,
-}: {
-  title: string;
-  icon: React.ReactNode;
-  defaultOpen?: boolean;
-  children: React.ReactNode;
-}) {
-  const [isOpen, setIsOpen] = React.useState(defaultOpen);
-
-  return (
-    <div className="border-b border-neutral-200 dark:border-neutral-700">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors"
-      >
-        {icon}
-        <span className="flex-1 text-left">{title}</span>
-        <ChevronDown
-          size={12}
-          className={`text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`}
-        />
-      </button>
-      {isOpen && (
-        <div className="px-3 pb-3 space-y-2">
-          {children}
-        </div>
-      )}
     </div>
   );
 }

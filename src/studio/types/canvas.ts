@@ -17,7 +17,8 @@ export const CANVAS_DEFAULTS = {
   DESIGN_WIDTH: 1920,
   DESIGN_HEIGHT: 1080,
   GRID_COLOR: 'rgba(128, 128, 128, 0.15)',
-  SELECTION_COLOR: '#FFB03F',
+  BACKGROUND: '#171717',
+  SELECTION_COLOR: '#f59e0b',
   SELECTION_BORDER: 2,
   RESIZE_HANDLE_SIZE: 8,
 } as const;
@@ -30,13 +31,8 @@ export interface PagePreset {
 }
 
 export const PAGE_PRESETS: PagePreset[] = [
-  { name: 'widescreen', label: 'Widescreen (16:9)', width: 1920, height: 1080 },
-  { name: 'fullscreen', label: 'Tela Cheia (4:3)', width: 1440, height: 1080 },
-  { name: 'portrait', label: 'Retrato (9:16)', width: 1080, height: 1920 },
-  { name: 'square', label: 'Quadrado (1:1)', width: 1080, height: 1080 },
-  { name: 'mobile', label: 'Mobile (9:19.5)', width: 393, height: 852 },
-  { name: 'a4landscape', label: 'A4 Paisagem', width: 1123, height: 794 },
-  { name: 'a4portrait', label: 'A4 Retrato', width: 794, height: 1123 },
+  { name: 'auto', label: 'Auto (Padrão)', width: 1920, height: 1080 },
+  { name: 'fhd', label: 'Full HD (1920×1080)', width: 1920, height: 1080 },
 ];
 
 export type ResizeDirection = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';

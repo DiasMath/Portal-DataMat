@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useCallback, useState, useRef, useEffect } from 'react';
+import React, { useCallback, useState, useRef, useEffect, useMemo } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { useStudio } from '../../store/StudioContext';
 import type { FieldSchema } from '../../types/dashboard';
 import type { BucketField, VisualBuckets } from '../../types/visuals';
 import { AGGREGATION_OPTIONS } from '../../types/visuals';
-import { Settings, Trash2, FolderTree } from 'lucide-react';
+import { Settings, Trash2, FolderTree, Info } from 'lucide-react';
 
 interface FieldNodeProps {
   tableName: string;
@@ -15,16 +15,46 @@ interface FieldNodeProps {
   icon?: React.ReactNode;
 }
 
+const FIELD_TYPE_LABELS: Record<string, string> = {
+  string: 'Texto',
+  number: 'Número',
+  date: 'Data',
+  boolean: 'Booleano',
+};
+
+const FIELD_TYPE_COLORS: Record<string, string> = {
+  string: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+  number: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+  date: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+  boolean: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+};
+
 export function FieldNode({ tableName, tableLabel, field, icon }: FieldNodeProps) {
   const { state, dispatch } = useStudio();
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [showTooltip, setShowTooltip] = useState(false);
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const menuRef = useRef<HTMLDivElement>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
 
   const selectedVisual = state.pages
     .find(p => p.id === state.activePageId)
     ?.visuals.find(v => v.id === state.selectedVisualId);
 
   const isChecked = selectedVisual ? isFieldInAnyBucket(selectedVisual.buckets as Record<string, BucketField[] | undefined>, tableName, field.name) : false;
+
+  const sampleValues = useMemo(() => {
+    const queryResult = state.queryResults[state.selectedVisualId || ''];
+    if (!queryResult?.result?.rows) return [];
+    const rows = queryResult.result.rows;
+    const values = new Set<unknown>();
+    for (const row of rows) {
+      if (values.size >= 5) break;
+      const val = row[field.name];
+      if (val !== null && val !== undefined) values.add(val);
+    }
+    return Array.from(values).slice(0, 5);
+  }, [state.queryResults, state.selectedVisualId, field.name]);
 
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `${tableName}.${field.name}`,
@@ -55,6 +85,16 @@ export function FieldNode({ tableName, tableLabel, field, icon }: FieldNodeProps
     e.preventDefault();
     e.stopPropagation();
     setContextMenu({ x: e.clientX, y: e.clientY });
+  }, []);
+
+  const handleMouseEnter = useCallback((e: React.MouseEvent) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setTooltipPos({ x: rect.right + 8, y: rect.top });
+    setShowTooltip(true);
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    setShowTooltip(false);
   }, []);
 
   const handleCheckboxChange = useCallback(() => {
@@ -144,7 +184,9 @@ export function FieldNode({ tableName, tableLabel, field, icon }: FieldNodeProps
       {...listeners}
       {...attributes}
       onContextMenu={handleContextMenu}
-      className={`flex items-center gap-1.5 px-2 py-1 text-xs rounded cursor-grab active:cursor-grabbing transition-colors
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      className={`relative flex items-center gap-1.5 px-2 py-1 text-xs rounded cursor-grab active:cursor-grabbing transition-colors
         ${isDragging ? 'opacity-50 bg-amber-100 dark:bg-amber-900/30' : 'hover:bg-neutral-100 dark:hover:bg-neutral-800'}
       `}
     >
@@ -159,8 +201,51 @@ export function FieldNode({ tableName, tableLabel, field, icon }: FieldNodeProps
       <span className="text-neutral-600 dark:text-neutral-400 truncate flex-1">
         {field.label || field.name}
       </span>
+      <span className={`text-[8px] px-1 py-0.5 rounded shrink-0 ${FIELD_TYPE_COLORS[field.type] || 'bg-neutral-100 text-neutral-500'}`}>
+        {FIELD_TYPE_LABELS[field.type] || field.type}
+      </span>
       {field.isAggregatable && (
         <span className="text-[8px] text-muted-foreground shrink-0">Σ</span>
+      )}
+
+      {showTooltip && (
+        <div
+          ref={tooltipRef}
+          className="fixed z-50 w-56 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-lg shadow-xl p-3 pointer-events-none"
+          style={{ left: tooltipPos.x, top: tooltipPos.y }}
+        >
+          <div className="text-xs font-medium text-foreground mb-1">{field.label || field.name}</div>
+          <div className="text-[10px] text-muted-foreground mb-2">{tableName}</div>
+          
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <Info size={10} className="text-muted-foreground" />
+              <span className="text-[10px] text-muted-foreground">Tipo:</span>
+              <span className={`text-[10px] px-1 py-0.5 rounded ${FIELD_TYPE_COLORS[field.type] || 'bg-neutral-100 text-neutral-500'}`}>
+                {FIELD_TYPE_LABELS[field.type] || field.type}
+              </span>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Info size={10} className="text-muted-foreground" />
+              <span className="text-[10px] text-muted-foreground">Agregável:</span>
+              <span className="text-[10px] text-foreground">{field.isAggregatable ? 'Sim' : 'Não'}</span>
+            </div>
+
+            {sampleValues.length > 0 && (
+              <div className="mt-2 pt-2 border-t border-neutral-200 dark:border-neutral-700">
+                <div className="text-[10px] text-muted-foreground mb-1">Valores de exemplo:</div>
+                <div className="flex flex-wrap gap-1">
+                  {sampleValues.map((val, i) => (
+                    <span key={i} className="text-[9px] px-1 py-0.5 bg-neutral-100 dark:bg-neutral-800 rounded text-neutral-600 dark:text-neutral-400">
+                      {String(val).slice(0, 20)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {contextMenu && (
@@ -174,6 +259,8 @@ export function FieldNode({ tableName, tableLabel, field, icon }: FieldNodeProps
               <button
                 onClick={handleRemoveFromVisual}
                 className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                title="Remover do visual"
+                aria-label="Remover do visual"
               >
                 <Trash2 size={12} />
                 Remover do visual
@@ -197,6 +284,8 @@ export function FieldNode({ tableName, tableLabel, field, icon }: FieldNodeProps
           <button
             onClick={() => setContextMenu(null)}
             className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-muted-foreground hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+            title="Criar hierarquia"
+            aria-label="Criar hierarquia"
           >
             <FolderTree size={12} />
             Criar hierarquia (em breve)

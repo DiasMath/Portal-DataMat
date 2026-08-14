@@ -71,6 +71,7 @@ export function ZoomBar() {
         onClick={handleZoomOut}
         className="p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors text-muted-foreground"
         title="Zoom out"
+        aria-label="Zoom out"
       >
         <Minus size={12} />
       </button>
@@ -94,6 +95,7 @@ export function ZoomBar() {
         onClick={handleZoomIn}
         className="p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors text-muted-foreground"
         title="Zoom in"
+        aria-label="Zoom in"
       >
         <Plus size={12} />
       </button>
@@ -109,6 +111,7 @@ export function ZoomBar() {
       >
         <option value={25}>25%</option>
         <option value={50}>50%</option>
+        <option value={70}>70%</option>
         <option value={75}>75%</option>
         <option value={100}>100%</option>
         <option value={125}>125%</option>
@@ -120,7 +123,8 @@ export function ZoomBar() {
       <button
         onClick={handleFitToScreen}
         className="p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors text-muted-foreground"
-        title="Ajustar à tela"
+        title="Ajustar à página"
+        aria-label="Ajustar à página"
       >
         <Maximize size={12} />
       </button>

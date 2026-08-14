@@ -1,15 +1,29 @@
 'use client';
 
-import React, { useRef, useCallback, useState, useEffect, useMemo } from 'react';
+import React, { useRef, useCallback, useState, useEffect, useLayoutEffect, useMemo } from 'react';
 import { useStudio } from '../../store/StudioContext';
 import { CanvasItem } from './CanvasItem';
-import { CanvasRuler } from './CanvasRuler';
+import { CanvasTextBox as CanvasTextBoxComponent } from './CanvasTextBox';
 import { VisualContextMenu } from './VisualContextMenu';
 import { CANVAS_DEFAULTS } from '../../types/canvas';
+import { useVisualQuery } from '../../hooks/useVisualQuery';
+import { TextBoxResizeHandles } from './TextBoxResizeHandles';
+import type { Visual, DataModel } from '../../types/dashboard';
 
 interface SmartGuide {
   type: 'vertical' | 'horizontal';
   position: number;
+}
+
+function QuerySync({ visual, dataModel, dispatch }: { visual: Visual; dataModel: DataModel | null; dispatch: React.Dispatch<any> }) {
+  const { result, loading, error } = useVisualQuery(visual, dataModel);
+  useEffect(() => {
+    dispatch({
+      type: 'SET_QUERY_RESULT',
+      payload: { visualId: visual.id, result: { result, loading, error } },
+    });
+  }, [visual.id, result, loading, error, dispatch]);
+  return null;
 }
 
 export function Canvas() {
@@ -20,6 +34,7 @@ export function Canvas() {
   const [isPanning, setIsPanning] = useState(false);
   const panStart = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
   const spaceHeld = useRef(false);
+  const marqueeJustSelected = useRef(false);
   const [marquee, setMarquee] = useState<{ startX: number; startY: number; endX: number; endY: number } | null>(null);
   const [smartGuides, setSmartGuides] = useState<SmartGuide[]>([]);
   const [draggingVisualId, setDraggingVisualId] = useState<string | null>(null);
@@ -28,6 +43,51 @@ export function Canvas() {
   const visuals = activePage?.visuals || [];
   const pageWidth = activePage?.pageWidth || CANVAS_DEFAULTS.DESIGN_WIDTH;
   const pageHeight = activePage?.pageHeight || CANVAS_DEFAULTS.DESIGN_HEIGHT;
+
+  const dataModel = state.dataModel;
+
+  const [initialFitDone, setInitialFitDone] = useState(false);
+
+  useLayoutEffect(() => {
+    if (initialFitDone) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    const fitZoom = Math.min(rect.width / pageWidth, rect.height / pageHeight);
+    dispatch({ type: 'SET_CANVAS_ZOOM', payload: fitZoom });
+    setInitialFitDone(true);
+  }, [dispatch, pageWidth, pageHeight, initialFitDone]);
+
+  // Scroll to selected visual when selection changes
+  useEffect(() => {
+    if (!state.selectedVisualId || !scrollRef.current) return;
+    const page = state.pages.find(p => p.id === state.activePageId);
+    if (!page) return;
+    const visual = page.visuals.find(v => v.id === state.selectedVisualId);
+    if (!visual) return;
+
+    const el = scrollRef.current;
+    const rect = el.getBoundingClientRect();
+    const zoom = state.canvasZoom;
+
+    // Visual center in canvas coordinates
+    const visualCenterX = (visual.x + visual.width / 2) * zoom;
+    const visualCenterY = (visual.y + visual.height / 2) * zoom;
+
+    // Viewport center
+    const viewportCenterX = el.scrollLeft + rect.width / 2;
+    const viewportCenterY = el.scrollTop + rect.height / 2;
+
+    // Calculate scroll offset
+    const deltaX = visualCenterX - viewportCenterX;
+    const deltaY = visualCenterY - viewportCenterY;
+
+    // Only scroll if visual is outside viewport
+    if (Math.abs(deltaX) > rect.width / 4 || Math.abs(deltaY) > rect.height / 4) {
+      el.scrollBy({ left: deltaX, top: deltaY, behavior: 'smooth' });
+    }
+  }, [state.selectedVisualId, state.pages, state.activePageId, state.canvasZoom]);
 
   const SNAP_THRESHOLD = 5;
 
@@ -82,8 +142,13 @@ export function Canvas() {
 
   const handleCanvasClick = useCallback((e: React.MouseEvent) => {
     if (spaceHeld.current) return;
+    if (marqueeJustSelected.current) {
+      marqueeJustSelected.current = false;
+      return;
+    }
     if (e.target === canvasRef.current || (e.target as HTMLElement).dataset.canvas === 'true') {
       dispatch({ type: 'SELECT_VISUAL', payload: null });
+      dispatch({ type: 'SELECT_TEXT_BOX', payload: null });
     }
   }, [dispatch]);
 
@@ -92,6 +157,8 @@ export function Canvas() {
     if (e.button !== 0) return;
     if (!(e.target === canvasRef.current || (e.target as HTMLElement).dataset.canvas === 'true')) return;
     if (e.ctrlKey || e.metaKey) return;
+
+    marqueeJustSelected.current = false;
 
     const rect = scrollRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -130,6 +197,7 @@ export function Canvas() {
           return v.x < maxX && vRight > minX && v.y < maxY && vBottom > minY;
         });
         if (selected.length > 0) {
+          marqueeJustSelected.current = true;
           dispatch({ type: 'SELECT_VISUAL', payload: selected[0].id });
           for (let i = 1; i < selected.length; i++) {
             dispatch({ type: 'SELECT_VISUAL_MULTI', payload: selected[i].id });
@@ -183,9 +251,17 @@ export function Canvas() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code === 'Space' && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
+      if (state.measureEditorOpen || e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      if (e.code === 'Space') {
         e.preventDefault();
         spaceHeld.current = true;
+      }
+
+      // Delete selected TextBox
+      if ((e.code === 'Delete' || e.code === 'Backspace') && state.selectedTextBoxId) {
+        e.preventDefault();
+        dispatch({ type: 'REMOVE_TEXT_BOX', payload: state.selectedTextBoxId });
       }
     };
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -199,9 +275,29 @@ export function Canvas() {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, []);
+  }, [state.measureEditorOpen, state.selectedTextBoxId, dispatch]);
 
   const hasAnyLocked = visuals.some(v => v.locked);
+
+  const handleDragOverCanvas = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  }, []);
+
+  const handleDropOnCanvas = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    const visualType = e.dataTransfer.getData('studio/visual-type');
+    if (!visualType) return;
+
+    const el = scrollRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const zoom = state.canvasZoom;
+    const x = (e.clientX - rect.left + el.scrollLeft) / zoom;
+    const y = (e.clientY - rect.top + el.scrollTop) / zoom;
+
+    dispatch({ type: 'ADD_VISUAL', payload: { type: visualType as any, x, y } });
+  }, [state.canvasZoom, dispatch]);
 
   return (
     <div
@@ -213,17 +309,15 @@ export function Canvas() {
       onMouseUp={() => { handleMouseUp(); handleMarqueeEnd(); }}
       onMouseLeave={() => { handleMouseUp(); handleMarqueeEnd(); }}
       onContextMenu={(e) => e.preventDefault()}
+      onDragOver={handleDragOverCanvas}
+      onDrop={handleDropOnCanvas}
     >
-      <div className="flex h-full">
-        <CanvasRuler zoom={state.canvasZoom} scrollRef={scrollRef} orientation="vertical" />
-        <div className="flex-1 flex flex-col">
-          <CanvasRuler zoom={state.canvasZoom} scrollRef={scrollRef} orientation="horizontal" />
-          <div
-            ref={scrollRef}
-            data-canvas-fit
-            className="flex-1 overflow-auto studio-scrollbar"
-            style={{ cursor: isPanning ? 'grabbing' : spaceHeld.current ? 'grab' : undefined }}
-          >
+      <div
+        ref={scrollRef}
+        data-canvas-fit
+        className="w-full h-full overflow-auto studio-scrollbar"
+        style={{ cursor: isPanning ? 'grabbing' : spaceHeld.current ? 'grab' : undefined }}
+      >
             <div className="flex items-start justify-start" style={{ minHeight: '100%', minWidth: '100%' }}>
               <div
                 data-canvas="true"
@@ -231,14 +325,38 @@ export function Canvas() {
                 style={{
                   width: `${pageWidth * state.canvasZoom}px`,
                   height: `${pageHeight * state.canvasZoom}px`,
-                  background: state.showGrid
-                    ? `linear-gradient(to right, ${CANVAS_DEFAULTS.GRID_COLOR} 1px, transparent 1px), linear-gradient(to bottom, ${CANVAS_DEFAULTS.GRID_COLOR} 1px, transparent 1px)`
-                    : activePage?.background || '#ffffff',
-                  backgroundSize: state.showGrid
-                    ? `${CANVAS_DEFAULTS.SNAP_SIZE * state.canvasZoom}px ${CANVAS_DEFAULTS.SNAP_SIZE * state.canvasZoom}px`
-                    : 'auto',
+                  background: activePage?.background || CANVAS_DEFAULTS.BACKGROUND,
+                  backgroundSize: 'auto',
                 }}
               >
+                {state.showGrid && (
+                  <div
+                    className="absolute inset-0 pointer-events-none"
+                    style={{
+                      backgroundImage: `linear-gradient(to right, ${CANVAS_DEFAULTS.GRID_COLOR} 1px, transparent 1px), linear-gradient(to bottom, ${CANVAS_DEFAULTS.GRID_COLOR} 1px, transparent 1px)`,
+                      backgroundSize: `${CANVAS_DEFAULTS.SNAP_SIZE * state.canvasZoom}px ${CANVAS_DEFAULTS.SNAP_SIZE * state.canvasZoom}px`,
+                    }}
+                  />
+                )}
+                {activePage?.backgroundImage && (
+                  <div
+                    className="absolute inset-0 pointer-events-none"
+                    style={{
+                      backgroundImage: `url(${activePage.backgroundImage})`,
+                      backgroundSize: activePage.backgroundImagePosition || 'cover',
+                      backgroundPosition: 'center',
+                      backgroundRepeat: activePage.backgroundImagePosition === 'stretch' ? 'no-repeat' : undefined,
+                      opacity: 0.15,
+                    }}
+                  />
+                )}
+                {visuals.filter(v => {
+                  const b = v.buckets;
+                  return ((b.xAxis?.length || 0) + (b.legend?.length || 0) + (b.values?.length || 0) + (b.yAxis?.length || 0) + (b.details?.length || 0)) > 0;
+                }).map(visual => (
+                  <QuerySync key={`qs-${visual.id}`} visual={visual} dataModel={dataModel} dispatch={dispatch} />
+                ))}
+
                 {visuals.map(visual => {
                   if (state.focusedVisualId && state.focusedVisualId !== visual.id) return null;
 
@@ -278,7 +396,10 @@ export function Canvas() {
                       onResize={(width, height) => dispatch({ type: 'RESIZE_VISUAL', payload: { id: visual.id, width, height } })}
                       onContextMenu={(e) => {
                         e.preventDefault();
-                        dispatch({ type: 'SELECT_VISUAL', payload: visual.id });
+                        const isPartOfSelection = state.selectedVisualIds.includes(visual.id) || state.selectedVisualId === visual.id;
+                        if (!isPartOfSelection) {
+                          dispatch({ type: 'SELECT_VISUAL', payload: visual.id });
+                        }
                         setContextMenu({ visualId: visual.id, x: e.clientX, y: e.clientY });
                       }}
                       onDragStart={() => { setDraggingVisualId(visual.id); }}
@@ -299,6 +420,71 @@ export function Canvas() {
                   );
                 })}
 
+                {/* Render TextBoxes */}
+                {state.textBoxes.map(textBox => {
+                  const isSelected = state.selectedTextBoxId === textBox.id;
+                  return (
+                    <div
+                      key={textBox.id}
+                      className="absolute group"
+                      style={{
+                        left: textBox.x,
+                        top: textBox.y,
+                        width: textBox.width,
+                        height: textBox.height,
+                        zIndex: textBox.zIndex,
+                      }}
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        dispatch({ type: 'SELECT_TEXT_BOX', payload: textBox.id });
+
+                        // Start drag
+                        const startX = e.clientX;
+                        const startY = e.clientY;
+                        const startPosX = textBox.x;
+                        const startPosY = textBox.y;
+                        let hasMoved = false;
+
+                        const handleMouseMove = (moveEvent: MouseEvent) => {
+                          const dx = (moveEvent.clientX - startX) / state.canvasZoom;
+                          const dy = (moveEvent.clientY - startY) / state.canvasZoom;
+                          if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
+                            hasMoved = true;
+                            dispatch({
+                              type: 'MOVE_TEXT_BOX',
+                              payload: {
+                                id: textBox.id,
+                                x: Math.round(startPosX + dx),
+                                y: Math.round(startPosY + dy),
+                              },
+                            });
+                          }
+                        };
+
+                        const handleMouseUp = () => {
+                          document.removeEventListener('mousemove', handleMouseMove);
+                          document.removeEventListener('mouseup', handleMouseUp);
+                        };
+
+                        document.addEventListener('mousemove', handleMouseMove);
+                        document.addEventListener('mouseup', handleMouseUp);
+                      }}
+                    >
+                      <CanvasTextBoxComponent
+                        textBox={textBox}
+                        isSelected={isSelected}
+                        onSelect={() => dispatch({ type: 'SELECT_TEXT_BOX', payload: textBox.id })}
+                        onUpdate={(updates) => dispatch({ type: 'UPDATE_TEXT_BOX', payload: { id: textBox.id, updates } })}
+                      />
+
+                      {/* Resize handles */}
+                      {isSelected && state.mode === 'editor' && (
+                        <TextBoxResizeHandles textBox={textBox} canvasZoom={state.canvasZoom} dispatch={dispatch} />
+                      )}
+                    </div>
+                  );
+                })}
+
                 {visuals.length === 0 && state.mode === 'editor' && (
                   <div
                     data-canvas="true"
@@ -313,8 +499,6 @@ export function Canvas() {
               </div>
             </div>
           </div>
-        </div>
-      </div>
 
       {state.focusedVisualId && (
         <button
@@ -349,13 +533,13 @@ export function Canvas() {
             top: 0,
             width: '1px',
             height: '100%',
-            borderLeft: '1px dashed #f59e0b',
+            borderLeft: `1px dashed ${CANVAS_DEFAULTS.SELECTION_COLOR}`,
           } : {
             left: 0,
             top: `${guide.position * state.canvasZoom}px`,
             width: '100%',
             height: '1px',
-            borderTop: '1px dashed #f59e0b',
+            borderTop: `1px dashed ${CANVAS_DEFAULTS.SELECTION_COLOR}`,
           }}
         />
       ))}

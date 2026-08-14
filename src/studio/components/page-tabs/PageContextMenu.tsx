@@ -79,7 +79,7 @@ export function PageContextMenu({
     <div
       ref={ref}
       className="fixed z-50 bg-white dark:bg-neutral-900 rounded-lg shadow-xl border border-neutral-200 dark:border-neutral-700 py-1 min-w-[180px]"
-      style={{ left: x, top: y }}
+      style={{ left: x, bottom: 40 }}
     >
       <button
         onClick={onRename}

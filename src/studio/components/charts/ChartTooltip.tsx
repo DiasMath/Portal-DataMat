@@ -1,6 +1,9 @@
 'use client';
 
 import React from 'react';
+import { formatTooltipValue, type MeasureFormat } from '../../lib/format';
+
+export { formatTooltipValue };
 
 interface ChartTooltipProps {
   active?: boolean;
@@ -8,9 +11,10 @@ interface ChartTooltipProps {
     name: string;
     value: unknown;
     color?: string;
+    measureFormat?: MeasureFormat;
   }>;
   label?: string;
-  formatter?: (value: unknown, name: string) => [string, string];
+  formatter?: (value: unknown, name: string, measureFormat?: MeasureFormat) => [string, string];
 }
 
 export function ChartTooltip({ active, payload, label, formatter }: ChartTooltipProps) {
@@ -26,8 +30,8 @@ export function ChartTooltip({ active, payload, label, formatter }: ChartTooltip
       <div className="space-y-0.5">
         {payload.map((entry, index) => {
           const [displayValue, displayName] = formatter
-            ? formatter(entry.value, entry.name)
-            : [typeof entry.value === 'number' ? entry.value.toLocaleString('pt-BR') : String(entry.value), entry.name];
+            ? formatter(entry.value, entry.name, entry.measureFormat)
+            : formatTooltipValue(entry.value, entry.name, entry.measureFormat);
           return (
             <div key={index} className="flex items-center gap-2 text-[11px]">
               {entry.color && (
@@ -44,16 +48,4 @@ export function ChartTooltip({ active, payload, label, formatter }: ChartTooltip
       </div>
     </div>
   );
-}
-
-export function formatTooltipValue(value: unknown, name: string): [string, string] {
-  const numValue = typeof value === 'number' ? value : Number(value);
-  const formatted = !isNaN(numValue) ? numValue.toLocaleString('pt-BR') : String(value);
-
-  let displayName = name;
-  if (name.startsWith('soma_')) displayName = name.replace('soma_', '');
-  else if (name.startsWith('media_')) displayName = name.replace('media_', '');
-  else if (name.startsWith('contagem_')) displayName = name.replace('contagem_', '');
-
-  return [formatted, displayName];
 }

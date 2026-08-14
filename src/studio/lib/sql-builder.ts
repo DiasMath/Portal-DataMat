@@ -11,7 +11,6 @@ export function buildSqlQuery(
   buckets: VisualBuckets,
   filters: FilterCondition[],
   dataModel: DataModel,
-  tableName?: string
 ): SqlBuildResult {
   const referencedTables = new Set<string>();
   const allFields: BucketField[] = [
@@ -34,20 +33,21 @@ export function buildSqlQuery(
   const isScalarVisual = !buckets.xAxis && !buckets.legend && (buckets.values?.length === 1 || buckets.yAxis?.length === 1);
 
   if (isScalarVisual) {
-    return buildScalarQuery(buckets, filters, referencedTables);
+    return buildScalarQuery(buckets, filters, referencedTables, dataModel);
   }
 
   if (isTableVisual) {
-    return buildTableQuery(buckets, filters, referencedTables);
+    return buildTableQuery(buckets, filters, referencedTables, dataModel);
   }
 
-  return buildAggregateQuery(buckets, filters, referencedTables);
+  return buildAggregateQuery(buckets, filters, referencedTables, dataModel);
 }
 
 function buildAggregateQuery(
   buckets: VisualBuckets,
   filters: FilterCondition[],
-  referencedTables: Set<string>
+  referencedTables: Set<string>,
+  dataModel: DataModel,
 ): SqlBuildResult {
   const selectColumns: string[] = [];
   const groupByColumns: string[] = [];
@@ -74,10 +74,10 @@ function buildAggregateQuery(
     }
   }
 
-  const primaryTable = findPrimaryTable(referencedTables);
+  const primaryTable = findPrimaryTable(referencedTables, dataModel);
   let fromClause = `"${primaryTable}"`;
 
-  const joinClauses = buildJoinClauses(referencedTables, primaryTable);
+  const joinClauses = buildJoinClauses(referencedTables, primaryTable, dataModel);
   for (const join of joinClauses) {
     fromClause += `\n  ${join}`;
   }
@@ -118,7 +118,8 @@ function buildAggregateQuery(
 function buildTableQuery(
   buckets: VisualBuckets,
   filters: FilterCondition[],
-  referencedTables: Set<string>
+  referencedTables: Set<string>,
+  dataModel: DataModel,
 ): SqlBuildResult {
   const fields = buckets.details || [];
   if (fields.length === 0) {
@@ -129,10 +130,10 @@ function buildTableQuery(
     `"${f.tableName}"."${f.fieldName}" AS "${f.alias || f.fieldName}"`
   );
 
-  const primaryTable = findPrimaryTable(referencedTables);
+  const primaryTable = findPrimaryTable(referencedTables, dataModel);
   let fromClause = `"${primaryTable}"`;
 
-  const joinClauses = buildJoinClauses(referencedTables, primaryTable);
+  const joinClauses = buildJoinClauses(referencedTables, primaryTable, dataModel);
   for (const join of joinClauses) {
     fromClause += `\n  ${join}`;
   }
@@ -165,7 +166,8 @@ function buildTableQuery(
 function buildScalarQuery(
   buckets: VisualBuckets,
   filters: FilterCondition[],
-  referencedTables: Set<string>
+  referencedTables: Set<string>,
+  dataModel: DataModel,
 ): SqlBuildResult {
   const field = buckets.values?.[0] || buckets.yAxis?.[0];
   if (!field) {
@@ -193,12 +195,12 @@ function buildScalarQuery(
   };
 }
 
-function buildJoinClauses(referencedTables: Set<string>, primaryTable: string): string[] {
+function buildJoinClauses(referencedTables: Set<string>, primaryTable: string, dataModel: DataModel): string[] {
   const joins: string[] = [];
   const joined = new Set<string>([primaryTable]);
   const queue = [primaryTable];
 
-  const relationships = getDefaultRelationships();
+  const relationships = (dataModel.relationships || []).filter(r => r.active !== false);
 
   while (queue.length > 0) {
     const current = queue.shift()!;
@@ -226,11 +228,28 @@ function buildJoinClauses(referencedTables: Set<string>, primaryTable: string): 
   return joins;
 }
 
-function findPrimaryTable(referencedTables: Set<string>): string {
-  const factTables = ['fato_vendas', 'fato_movimentacao', 'fato_lancamentos', 'fato_ponto'];
-  for (const fact of factTables) {
-    if (referencedTables.has(fact)) return fact;
+function findPrimaryTable(referencedTables: Set<string>, dataModel: DataModel): string {
+  const relationships = (dataModel.relationships || []).filter(r => r.active !== false);
+
+  const tableN1Count = new Map<string, number>();
+  for (const rel of relationships) {
+    if (rel.cardinality === '1:N' && referencedTables.has(rel.fromTable)) {
+      tableN1Count.set(rel.fromTable, (tableN1Count.get(rel.fromTable) || 0) + 1);
+    }
   }
+
+  if (tableN1Count.size > 0) {
+    let best = '';
+    let bestCount = 0;
+    for (const [table, count] of tableN1Count) {
+      if (referencedTables.has(table) && count > bestCount) {
+        best = table;
+        bestCount = count;
+      }
+    }
+    if (best) return best;
+  }
+
   return referencedTables.values().next().value || '';
 }
 
@@ -264,12 +283,4 @@ function formatValue(value: unknown): string {
   if (typeof value === 'string') return `'${value.replace(/'/g, "''")}'`;
   if (value instanceof Date) return `'${value.toISOString()}'`;
   return `'${String(value).replace(/'/g, "''")}'`;
-}
-
-function getDefaultRelationships() {
-  return [
-    { fromTable: 'fato_vendas', fromField: 'id_cliente', toTable: 'dim_cliente', toField: 'id_cliente', cardinality: 'N:1' as const },
-    { fromTable: 'fato_vendas', fromField: 'id_produto', toTable: 'dim_produto', toField: 'id_produto', cardinality: 'N:1' as const },
-    { fromTable: 'fato_vendas', fromField: 'data_venda', toTable: 'dim_calendario', toField: 'data', cardinality: 'N:1' as const },
-  ];
 }

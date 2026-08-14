@@ -1,11 +1,13 @@
 'use client';
 
-import React, { useRef, useCallback, useState, useEffect } from 'react';
+import React, { useRef, useCallback, useState, useEffect, useMemo } from 'react';
 import type { Visual, VisualQueryState } from '../../types/dashboard';
 import { CANVAS_DEFAULTS, clampSize, clampToCanvas, snapToGrid, type ResizeDirection } from '../../types/canvas';
 import { VISUAL_TYPE_ICONS } from '../../types/visuals';
 import { ChartRenderer } from '../charts/ChartRenderer';
+import { VisualShell, buildShellStyle } from './VisualShell';
 import { useStudio } from '../../store/StudioContext';
+import { buildMeasureFormatMap } from '../../lib/format';
 
 interface CanvasItemProps {
   visual: Visual;
@@ -53,19 +55,33 @@ export function CanvasItem({
   onDragEnd,
 }: CanvasItemProps) {
   const itemRef = useRef<HTMLDivElement>(null);
-  const titleInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [activeResizeDir, setActiveResizeDir] = useState<ResizeDirection | null>(null);
   const [resizeDimensions, setResizeDimensions] = useState<{ width: number; height: number } | null>(null);
-  const [isEditingTitle, setIsEditingTitle] = useState(false);
-  const [editTitleValue, setEditTitleValue] = useState('');
-  const { dispatch } = useStudio();
+  const { dispatch, state } = useStudio();
+
+  const measureFormats = useMemo(
+    () => buildMeasureFormatMap(state.dataModel?.measures),
+    [state.dataModel]
+  );
+
+  const getChartTheme = (visual: Visual): 'dark' | 'light' | 'transparent' => {
+    const chartTheme = visual.formatting?.chartTheme;
+    if (chartTheme === 'dark' || chartTheme === 'light' || chartTheme === 'transparent') {
+      return chartTheme;
+    }
+    return 'transparent';
+  };
+
+  const chartTheme = getChartTheme(visual);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (mode === 'viewer' || visual.locked) return;
     e.stopPropagation();
-    onSelect(e);
+    if (!isSelected && !isMultiSelected) {
+      onSelect(e);
+    }
 
     const startX = e.clientX;
     const startY = e.clientY;
@@ -99,7 +115,7 @@ export function CanvasItem({
 
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-  }, [mode, visual.locked, onSelect, onMove, visual.x, visual.y, zoom, visual.width, visual.height, pageWidth, pageHeight, showGrid]);
+  }, [mode, visual.locked, isSelected, isMultiSelected, onSelect, onMove, visual.x, visual.y, zoom, visual.width, visual.height, pageWidth, pageHeight, showGrid]);
 
   const handleResizeStart = useCallback((e: React.MouseEvent, direction: ResizeDirection) => {
     if (mode === 'viewer' || visual.locked) return;
@@ -168,91 +184,39 @@ export function CanvasItem({
     document.addEventListener('mouseup', handleMouseUp);
   }, [mode, visual.locked, onMove, onResize, visual, zoom, pageWidth, pageHeight, showGrid]);
 
-  useEffect(() => {
-    const handleStartRename = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail?.visualId === visual.id) {
-        setEditTitleValue(visual.title);
-        setIsEditingTitle(true);
-      }
-    };
-    window.addEventListener('studio:start-rename', handleStartRename);
-    return () => window.removeEventListener('studio:start-rename', handleStartRename);
-  }, [visual.id, visual.title]);
-
   if (visual.hidden) return null;
 
-  const handleTitleDoubleClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setEditTitleValue(visual.title);
-    setIsEditingTitle(true);
-  };
+  const cp = visual.canvasProperties || {};
+  const showShell = cp.showShell !== false;
 
-  const handleTitleSubmit = () => {
-    if (editTitleValue.trim()) {
-      dispatch({ type: 'UPDATE_VISUAL', payload: { id: visual.id, updates: { title: editTitleValue.trim() } } });
-    }
-    setIsEditingTitle(false);
-  };
-
-  const handleTitleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') handleTitleSubmit();
-    if (e.key === 'Escape') setIsEditingTitle(false);
+  const shellStyle: React.CSSProperties = {
+    ...buildShellStyle(cp, visual, zoom),
   };
 
   return (
     <div
       ref={itemRef}
-      className={`absolute bg-white dark:bg-neutral-800 rounded-lg shadow-md border-2
-        ${isSelected ? 'border-amber-500 shadow-amber-500/20' : isMultiSelected ? 'border-blue-400 shadow-blue-400/20' : 'border-transparent hover:border-neutral-300 dark:hover:border-neutral-600'}
-        ${isDragging ? 'opacity-80 cursor-grabbing' : visual.locked ? 'cursor-default' : 'cursor-grab'}
-        ${isResizing ? 'opacity-90' : ''}
-      `}
+      className={`absolute ${isDragging ? 'opacity-80 cursor-grabbing' : visual.locked ? 'cursor-default' : 'cursor-grab'} ${isResizing ? 'opacity-90' : ''}`}
       style={{
-        left: `${visual.x * zoom}px`,
-        top: `${visual.y * zoom}px`,
-        width: `${visual.width * zoom}px`,
-        height: `${visual.height * zoom}px`,
-        zIndex: visual.zIndex,
+        ...shellStyle,
+        outline: isSelected ? `2px solid ${CANVAS_DEFAULTS.SELECTION_COLOR}` : isMultiSelected ? '2px solid #60a5fa' : 'none',
+        outlineOffset: '2px',
       }}
       onMouseDown={handleMouseDown}
       onContextMenu={onContextMenu}
     >
-      {visual.showTitle && (
-        <div className="px-3 py-1.5 border-b border-neutral-200 dark:border-neutral-700 text-xs font-medium text-neutral-700 dark:text-neutral-300 truncate">
-          {isEditingTitle ? (
-            <input
-              ref={titleInputRef}
-              type="text"
-              value={editTitleValue}
-              onChange={(e) => setEditTitleValue(e.target.value)}
-              onBlur={handleTitleSubmit}
-              onKeyDown={handleTitleKeyDown}
-              onClick={(e) => e.stopPropagation()}
-              onDoubleClick={(e) => e.stopPropagation()}
-              className="w-full bg-transparent outline-none border-b border-amber-500 text-xs"
-              autoFocus
-            />
-          ) : (
-            <span onDoubleClick={handleTitleDoubleClick} className="cursor-text">
-              {visual.title}
-            </span>
-          )}
-        </div>
-      )}
-
-      <div className="flex-1 overflow-hidden p-2" style={{ height: visual.showTitle ? 'calc(100% - 32px)' : '100%' }}>
+      <VisualShell visual={visual}>
         <ChartRenderer
           visual={visual}
           queryState={queryState}
-          width={visual.width - 20}
-          height={visual.height - (visual.showTitle ? 52 : 20)}
           crossFilterValue={crossFilterValue}
           onCrossFilter={onCrossFilter}
           drillLevel={drillLevel}
           onDrillDown={onDrillDown}
+          measureFormats={measureFormats}
+          theme={chartTheme}
         />
-      </div>
+      </VisualShell>
 
       {isSelected && mode === 'editor' && !visual.locked && (
         <>

@@ -103,10 +103,10 @@ export function PageTabs() {
 
         <button
           onClick={() => dispatch({ type: 'ADD_PAGE' })}
-          className="w-6 h-6 flex items-center justify-center rounded text-neutral-500 hover:text-white hover:bg-neutral-800 transition-colors ml-1"
+          className="w-8 h-8 flex items-center justify-center rounded text-neutral-500 hover:text-white hover:bg-neutral-800 transition-colors ml-1"
           title="Adicionar página"
         >
-          <Plus size={14} />
+          <Plus size={16} />
         </button>
       </div>
 

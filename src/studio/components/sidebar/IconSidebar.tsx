@@ -41,6 +41,7 @@ export function IconSidebar() {
               }
             `}
             title={label}
+            aria-label={label}
           >
             {isActive && (
               <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 bg-amber-500 rounded-r" />
@@ -55,6 +56,7 @@ export function IconSidebar() {
       <button
         className="w-8 h-8 flex items-center justify-center rounded-lg text-neutral-500 hover:text-neutral-300 hover:bg-neutral-800 transition-all"
         title="Configurações"
+        aria-label="Configurações"
       >
         <Settings size={18} />
       </button>

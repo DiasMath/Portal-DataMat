@@ -3,10 +3,11 @@
 import React, { useState } from 'react';
 import { useStudio } from '../../store/StudioContext';
 import { useRouter } from 'next/navigation';
+import { FolderDialog } from '../shared/FolderDialog';
+import { useToast } from '../shared/Toast';
 import {
   ArrowLeft,
   Save,
-  Share2,
   Eye,
   Clipboard,
   Database,
@@ -26,6 +27,8 @@ import {
   HelpCircle,
   FileText,
   BarChart3,
+  LineChart,
+  PieChart,
   Settings,
   Lock,
   AlignStartHorizontal,
@@ -37,6 +40,8 @@ import {
   Rows3,
   Columns3,
   Layers,
+  Table,
+  Timer,
 } from 'lucide-react';
 
 type RibbonTab = 'arquivo' | 'inicio' | 'inserir' | 'medidas' | 'modelagem' | 'exibicao' | 'ajuda';
@@ -54,13 +59,42 @@ const RIBBON_TABS: { key: RibbonTab; label: string }[] = [
 export function RibbonToolbar() {
   const { state, dispatch, canUndo, canRedo } = useStudio();
   const router = useRouter();
+  const { addToast } = useToast();
   const [activeTab, setActiveTab] = useState<RibbonTab>('inicio');
+  const [folderDialogOpen, setFolderDialogOpen] = useState(false);
 
   const handleBack = () => {
     router.push('/dashboard');
   };
 
+  const handleSave = () => {
+    const dashboardData = {
+      title: state.dashboardName,
+      description: state.dashboardDescription,
+      pages: state.pages,
+      dataModel: state.dataModel,
+      globalFilters: state.globalFilters,
+    };
+    dispatch({ type: 'SET_SAVING', payload: true });
+    dispatch({ type: 'SAVE_DASHBOARD' });
+    fetch('/api/studio/dashboards', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dashboardId: state.dashboardId || `dashboard-${Date.now()}`, data: dashboardData }),
+    }).then((res) => {
+      if (!res.ok) throw new Error('Save failed');
+      dispatch({ type: 'SET_SAVING', payload: false });
+      dispatch({ type: 'MARK_CLEAN' });
+      dispatch({ type: 'SET_LAST_SAVED_AT', payload: new Date().toISOString() });
+      addToast('Dashboard salvo com sucesso!', 'success');
+    }).catch(() => {
+      dispatch({ type: 'SET_SAVING', payload: false });
+      addToast('Erro ao salvar dashboard', 'error');
+    });
+  };
+
   const handleVisualizar = () => {
+    dispatch({ type: 'SAVE_VIEWER_STATE' });
     const dashboardId = state.dashboardId || 'new';
     window.open(`/studio/${dashboardId}/viewer`, '_blank');
   };
@@ -90,30 +124,32 @@ export function RibbonToolbar() {
 
         <div className="h-4 w-px bg-neutral-200 dark:bg-neutral-700" />
 
-        <span className="text-xs text-muted-foreground truncate max-w-[200px]">
-          {state.dashboardName}
-        </span>
-
-        {state.isDirty && (
-          <span className="text-[10px] text-amber-600 dark:text-amber-400">•</span>
-        )}
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-muted-foreground truncate max-w-[200px]">
+            {state.dashboardName}
+          </span>
+          {state.isSaving && (
+            <span className="text-[10px] text-amber-500">Salvando...</span>
+          )}
+          {!state.isSaving && state.lastSavedAt && !state.isDirty && (
+            <span className="text-[10px] text-green-500">
+              Salvo às {new Date(state.lastSavedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          )}
+          {!state.isSaving && state.isDirty && (
+            <span className="text-[10px] text-amber-500">●</span>
+          )}
+        </div>
 
         <div className="flex-1" />
 
         <button
+          onClick={handleSave}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded transition-colors"
           title="Salvar (Ctrl+S)"
         >
           <Save size={14} />
           Salvar
-        </button>
-
-        <button
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded transition-colors"
-          title="Compartilhar"
-        >
-          <Share2 size={14} />
-          Compartilhar
         </button>
 
         <button
@@ -158,31 +194,8 @@ export function RibbonToolbar() {
             <RibbonDivider />
 
             <RibbonGroup label="Dados">
-              <RibbonButton icon={<Database size={16} />} label="Obter dados" soon />
+              <RibbonButton icon={<Database size={16} />} label="Obter dados" onClick={() => dispatch({ type: 'OPEN_IMPORT_DIALOG' })} />
               <RibbonButton icon={<RefreshCw size={16} />} label="Atualizar" soon />
-            </RibbonGroup>
-
-            <RibbonDivider />
-
-            <RibbonGroup label="Inserir">
-              <RibbonButton
-                icon={<Plus size={16} />}
-                label="Novo visual"
-                accent
-                onClick={() => {
-                  dispatch({ type: 'ADD_VISUAL', payload: { type: 'bar', x: 50, y: 50 } });
-                }}
-              />
-              <RibbonButton icon={<Type size={16} />} label="Caixa de texto" soon />
-              <RibbonButton icon={<Square size={16} />} label="Formas" soon />
-              <RibbonButton icon={<Image size={16} />} label="Imagem" soon />
-            </RibbonGroup>
-
-            <RibbonDivider />
-
-            <RibbonGroup label="Cálculos">
-              <RibbonButton icon={<Filter size={16} />} label="Novo filtro" soon />
-              <RibbonButton icon={<Calculator size={16} />} label="Medida" soon />
             </RibbonGroup>
 
             <RibbonDivider />
@@ -259,26 +272,47 @@ export function RibbonToolbar() {
                 onClick={() => dispatch({ type: 'REDO' })}
               />
             </RibbonGroup>
-          </>
-        )}
-
-        {activeTab === 'inserir' && (
-          <>
-            <RibbonGroup label="Visualizações">
-              <RibbonButton icon={<BarChart3 size={16} />} label="Gráfico de Barras" onClick={() => dispatch({ type: 'ADD_VISUAL', payload: { type: 'bar', x: 50, y: 50 } })} />
-              <RibbonButton icon={<BarChart3 size={16} />} label="Gráfico de Linha" onClick={() => dispatch({ type: 'ADD_VISUAL', payload: { type: 'line', x: 50, y: 50 } })} />
-              <RibbonButton icon={<BarChart3 size={16} />} label="Gráfico de Pizza" onClick={() => dispatch({ type: 'ADD_VISUAL', payload: { type: 'pie', x: 50, y: 50 } })} />
-            </RibbonGroup>
 
             <RibbonDivider />
 
-            <RibbonGroup label="Elementos">
-              <RibbonButton icon={<Type size={16} />} label="Caixa de texto" soon />
-              <RibbonButton icon={<Square size={16} />} label="Formas" soon />
-              <RibbonButton icon={<Image size={16} />} label="Imagem" soon />
+            <RibbonGroup label="Segurança">
+              <RibbonButton icon={<Lock size={16} />} label="Gerenciar Funções" soon />
+              <RibbonButton icon={<Lock size={16} />} label="RLS" soon />
             </RibbonGroup>
           </>
         )}
+
+        {activeTab === 'inserir' && (() => {
+          const visualCount = activePage?.visuals.length ?? 0;
+          const nextX = 50 + (visualCount % 4) * 350;
+          const nextY = 50 + Math.floor(visualCount / 4) * 300;
+          return (
+            <>
+              <RibbonGroup label="Visualizações">
+                <RibbonButton icon={<BarChart3 size={16} />} label="Barras" onClick={() => dispatch({ type: 'ADD_VISUAL', payload: { type: 'bar', x: nextX, y: nextY } })} />
+                <RibbonButton icon={<LineChart size={16} />} label="Linha" onClick={() => dispatch({ type: 'ADD_VISUAL', payload: { type: 'line', x: nextX, y: nextY } })} />
+                <RibbonButton icon={<PieChart size={16} />} label="Pizza" onClick={() => dispatch({ type: 'ADD_VISUAL', payload: { type: 'pie', x: nextX, y: nextY } })} />
+              </RibbonGroup>
+
+              <RibbonDivider />
+
+              <RibbonGroup label="Elementos">
+                <RibbonButton icon={<Type size={16} />} label="Caixa de texto" onClick={() => dispatch({ type: 'ADD_TEXT_BOX', payload: { x: nextX, y: nextY } })} />
+                <RibbonButton icon={<Square size={16} />} label="Formas" soon />
+                <RibbonButton icon={<Image size={16} />} label="Imagem" soon />
+              </RibbonGroup>
+
+              <RibbonDivider />
+
+              <RibbonGroup label="Cálculos">
+                <RibbonButton icon={<Filter size={16} />} label="Novo filtro" onClick={() => dispatch({ type: 'EXPAND_FILTERS_PANEL' })} />
+                <RibbonButton icon={<Calculator size={16} />} label="Medida" onClick={() => dispatch({ type: 'OPEN_MEASURE_EDITOR' })} />
+                <RibbonButton icon={<Table size={16} />} label="Coluna Calculada" onClick={() => dispatch({ type: 'OPEN_CALCULATED_COLUMN_EDITOR' })} />
+                <RibbonButton icon={<Database size={16} />} label="Tabela Calculada" onClick={() => dispatch({ type: 'OPEN_CALCULATED_TABLE_EDITOR' })} />
+              </RibbonGroup>
+            </>
+          );
+        })()}
 
         {activeTab === 'medidas' && (
           <>
@@ -290,35 +324,46 @@ export function RibbonToolbar() {
                 onClick={() => dispatch({ type: 'OPEN_MEASURE_EDITOR' })}
               />
               <RibbonButton
+                icon={<Timer size={16} />}
+                label="Medida Temporária"
+                onClick={() => dispatch({ type: 'OPEN_MEASURE_EDITOR', isTemporary: true })}
+              />
+              <RibbonButton
                 icon={<Plus size={16} />}
                 label="Nova Pasta"
-                onClick={() => {
-                  const name = prompt('Nome da pasta:');
-                  if (name) {
-                    dispatch({ type: 'ADD_MEASURE_FOLDER', payload: { name } });
-                  }
-                }}
+                onClick={() => setFolderDialogOpen(true)}
               />
             </RibbonGroup>
 
             <RibbonDivider />
 
+            {state.selectedMeasureId && (
+              <>
+                <RibbonGroup label="Formatação da Medida">
+                  <RibbonButton
+                    icon={<Settings size={16} />}
+                    label="Abrir Editor"
+                    onClick={() => dispatch({ type: 'OPEN_MEASURE_EDITOR', payload: state.selectedMeasureId })}
+                  />
+                </RibbonGroup>
+
+                <RibbonDivider />
+              </>
+            )}
+
             <RibbonGroup label="Formato">
-              <RibbonButton icon={<Settings size={16} />} label="Formatar medida" onClick={() => dispatch({ type: 'OPEN_MEASURE_EDITOR' })} soon={false} />
-              <RibbonButton icon={<FileText size={16} />} label="Gerenciar" onClick={() => dispatch({ type: 'OPEN_MEASURE_EDITOR' })} soon={false} />
+              <RibbonButton
+                icon={<Settings size={16} />}
+                label="Formatar medida"
+                disabled={!state.dataModel?.measures?.length}
+                onClick={() => dispatch({ type: 'OPEN_MEASURE_EDITOR', payload: state.dataModel?.measures?.[0]?.id ?? null })}
+              />
             </RibbonGroup>
           </>
         )}
 
         {activeTab === 'modelagem' && (
           <>
-            <RibbonGroup label="Cálculos">
-              <RibbonButton icon={<Calculator size={16} />} label="Nova Medida" soon />
-              <RibbonButton icon={<Calculator size={16} />} label="Nova Coluna" soon />
-            </RibbonGroup>
-
-            <RibbonDivider />
-
             <RibbonGroup label="Relacionamentos">
               <RibbonButton icon={<Link2 size={16} />} label="Gerenciar" onClick={() => dispatch({ type: 'SET_ACTIVE_VIEW', payload: 'model' })} />
             </RibbonGroup>
@@ -345,8 +390,8 @@ export function RibbonToolbar() {
             <RibbonDivider />
 
             <RibbonGroup label="Zoom">
-              <RibbonButton icon={<ZoomOut size={16} />} label="Zoom -" onClick={() => dispatch({ type: 'SET_CANVAS_ZOOM', payload: state.canvasZoom - 0.1 })} />
-              <RibbonButton icon={<ZoomIn size={16} />} label="Zoom +" onClick={() => dispatch({ type: 'SET_CANVAS_ZOOM', payload: state.canvasZoom + 0.1 })} />
+              <RibbonButton icon={<ZoomOut size={16} />} label="Zoom -" onClick={() => dispatch({ type: 'SET_CANVAS_ZOOM', payload: Math.max(0.1, state.canvasZoom - 0.1) })} />
+              <RibbonButton icon={<ZoomIn size={16} />} label="Zoom +" onClick={() => dispatch({ type: 'SET_CANVAS_ZOOM', payload: Math.min(3, state.canvasZoom + 0.1) })} />
             </RibbonGroup>
 
             <RibbonDivider />
@@ -366,7 +411,7 @@ export function RibbonToolbar() {
           <>
             <RibbonGroup label="Arquivo">
               <RibbonButton icon={<FileText size={16} />} label="Novo" soon />
-              <RibbonButton icon={<Save size={16} />} label="Salvar" soon />
+              <RibbonButton icon={<Save size={16} />} label="Salvar" onClick={handleSave} />
               <RibbonButton icon={<Database size={16} />} label="Importar" soon />
             </RibbonGroup>
           </>
@@ -381,6 +426,15 @@ export function RibbonToolbar() {
           </>
         )}
       </div>
+
+      <FolderDialog
+        open={folderDialogOpen}
+        onClose={() => setFolderDialogOpen(false)}
+        onCreate={(name, parentId) => {
+          dispatch({ type: 'ADD_MEASURE_FOLDER', payload: { name, parentId } });
+        }}
+        folders={state.dataModel?.measureFolders || []}
+      />
     </div>
   );
 }
@@ -404,6 +458,7 @@ function RibbonButton({
   disabled,
   soon,
   onClick,
+  iconOnly,
 }: {
   icon: React.ReactNode;
   label: string;
@@ -412,6 +467,7 @@ function RibbonButton({
   disabled?: boolean;
   soon?: boolean;
   onClick?: () => void;
+  iconOnly?: boolean;
 }) {
   return (
     <button
@@ -426,7 +482,7 @@ function RibbonButton({
       title={soon ? `${label} (em breve)` : label}
     >
       {icon}
-      <span className="text-[9px] leading-none whitespace-nowrap">{label}</span>
+      {!iconOnly && <span className="text-[9px] leading-none whitespace-nowrap">{label}</span>}
     </button>
   );
 }

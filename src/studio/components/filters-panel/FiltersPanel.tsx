@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { useStudio } from '../../store/StudioContext';
-import { Filter, X, Plus, ChevronDown, ChevronRight, PanelRightClose } from 'lucide-react';
+import { Filter, X, Plus, ChevronDown, ChevronRight, PanelRightClose, Link2, Trash2 } from 'lucide-react';
 import type { FilterCondition } from '../../types/visuals';
 import type { DataModel } from '../../types/dashboard';
 
@@ -14,10 +14,13 @@ function FilterSection({
   filters,
   onAdd,
   onRemove,
+  onClearAll,
   canAdd = true,
   dataModel,
   pendingDrop,
   onClearPendingDrop,
+  syncedFilters = [],
+  onToggleSync,
 }: {
   title: string;
   sectionId: string;
@@ -25,18 +28,30 @@ function FilterSection({
   filters: FilterCondition[];
   onAdd: (filter: FilterCondition) => void;
   onRemove: (index: number) => void;
+  onClearAll: () => void;
   canAdd?: boolean;
   dataModel: DataModel | null;
   pendingDrop: { sectionId: string; tableName: string; columnName: string } | null;
   onClearPendingDrop: () => void;
+  syncedFilters?: { tableName: string; columnName: string }[];
+  onToggleSync?: (tableName: string, columnName: string) => void;
 }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [isAdding, setIsAdding] = useState(false);
-  const [newFilter, setNewFilter] = useState({
+  const [newFilter, setNewFilter] = useState<{
+    tableName: string;
+    columnName: string;
+    operator: FilterCondition['operator'];
+    value: string;
+    value2: string;
+    multiValues: string[];
+  }>({
     tableName: '',
     columnName: '',
-    operator: '=' as FilterCondition['operator'],
+    operator: '=',
     value: '',
+    value2: '',
+    multiValues: [],
   });
 
   const { isOver, setNodeRef } = useDroppable({
@@ -49,22 +64,51 @@ function FilterSection({
 
   const selectedTable = dataModel?.tables?.find(t => t.name === newFilter.tableName);
   const selectedColumns = selectedTable?.fields || [];
+  const selectedField = selectedColumns.find(f => f.name === newFilter.columnName);
+  const isDateField = selectedField?.type === 'date';
 
   const handleAdd = () => {
     if (!newFilter.tableName || !newFilter.columnName) return;
+
+    let value: unknown = newFilter.value;
+    if (newFilter.operator === 'IN' || newFilter.operator === 'NOT IN') {
+      value = newFilter.multiValues.filter(v => v.trim() !== '');
+    } else if (newFilter.operator === 'BETWEEN') {
+      value = newFilter.value;
+    }
+
     onAdd({
       tableName: newFilter.tableName,
       columnName: newFilter.columnName,
       operator: newFilter.operator,
-      value: newFilter.value,
+      value,
+      ...(newFilter.operator === 'BETWEEN' ? { value2: newFilter.value2 } : {}),
     });
-    setNewFilter({ tableName: '', columnName: '', operator: '=', value: '' });
+    setNewFilter({ tableName: '', columnName: '', operator: '=', value: '', value2: '', multiValues: [] });
     setIsAdding(false);
+  };
+
+  const handleAddMultiValue = () => {
+    setNewFilter(f => ({ ...f, multiValues: [...f.multiValues, ''] }));
+  };
+
+  const handleUpdateMultiValue = (index: number, value: string) => {
+    setNewFilter(f => ({
+      ...f,
+      multiValues: f.multiValues.map((v, i) => i === index ? value : v),
+    }));
+  };
+
+  const handleRemoveMultiValue = (index: number) => {
+    setNewFilter(f => ({
+      ...f,
+      multiValues: f.multiValues.filter((_, i) => i !== index),
+    }));
   };
 
   React.useEffect(() => {
     if (pendingDrop) {
-      setNewFilter({ tableName: pendingDrop.tableName, columnName: pendingDrop.columnName, operator: '=', value: '' });
+      setNewFilter({ tableName: pendingDrop.tableName, columnName: pendingDrop.columnName, operator: '=', value: '', value2: '', multiValues: [] });
       setIsAdding(true);
       setIsOpen(true);
       onClearPendingDrop();
@@ -82,6 +126,15 @@ function FilterSection({
       >
         {isOpen ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
         <span className="flex-1 text-left">{title}</span>
+        {filters.length > 0 && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onClearAll(); }}
+            className="text-muted-foreground hover:text-red-500 p-0.5 mr-1"
+            title="Limpar todos"
+          >
+            <Trash2 size={10} />
+          </button>
+        )}
         {canAdd && (
           <span
             onClick={(e) => { e.stopPropagation(); setIsAdding(!isAdding); }}
@@ -122,7 +175,7 @@ function FilterSection({
               <div className="flex gap-1">
                 <select
                   value={newFilter.operator}
-                  onChange={(e) => setNewFilter(f => ({ ...f, operator: e.target.value as FilterCondition['operator'] }))}
+                  onChange={(e) => setNewFilter(f => ({ ...f, operator: e.target.value as FilterCondition['operator'], value: '', value2: '', multiValues: [] }))}
                   className="w-20 px-1 py-1 text-[10px] bg-white dark:bg-neutral-900 rounded border border-neutral-200 dark:border-neutral-700"
                 >
                   <option value="=">=</option>
@@ -136,14 +189,62 @@ function FilterSection({
                   <option value="NOT IN">Não está em</option>
                   <option value="IS NULL">É nulo</option>
                   <option value="IS NOT NULL">Não é nulo</option>
+                  <option value="BETWEEN">Entre</option>
                 </select>
-                <input
-                  type="text"
-                  value={newFilter.value}
-                  onChange={(e) => setNewFilter(f => ({ ...f, value: e.target.value }))}
-                  placeholder="Valor"
-                  className="flex-1 px-1.5 py-1 text-[10px] bg-white dark:bg-neutral-900 rounded border border-neutral-200 dark:border-neutral-700"
-                />
+
+                {(newFilter.operator === 'IN' || newFilter.operator === 'NOT IN') ? (
+                  <div className="flex-1 space-y-1">
+                    {newFilter.multiValues.map((val, idx) => (
+                      <div key={idx} className="flex gap-1">
+                        <input
+                          type="text"
+                          value={val}
+                          onChange={(e) => handleUpdateMultiValue(idx, e.target.value)}
+                          placeholder={`Valor ${idx + 1}`}
+                          className="flex-1 px-1.5 py-1 text-[10px] bg-white dark:bg-neutral-900 rounded border border-neutral-200 dark:border-neutral-700"
+                        />
+                        <button
+                          onClick={() => handleRemoveMultiValue(idx)}
+                          className="text-muted-foreground hover:text-red-500 px-1"
+                        >
+                          <X size={10} />
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      onClick={handleAddMultiValue}
+                      className="text-[10px] text-amber-500 hover:text-amber-600"
+                    >
+                      + Adicionar valor
+                    </button>
+                  </div>
+                ) : newFilter.operator === 'BETWEEN' ? (
+                  <div className="flex-1 flex gap-1 items-center">
+                    <input
+                      type={isDateField ? 'date' : 'text'}
+                      value={newFilter.value}
+                      onChange={(e) => setNewFilter(f => ({ ...f, value: e.target.value }))}
+                      placeholder="De"
+                      className="flex-1 px-1.5 py-1 text-[10px] bg-white dark:bg-neutral-900 rounded border border-neutral-200 dark:border-neutral-700"
+                    />
+                    <span className="text-muted-foreground text-[10px]">e</span>
+                    <input
+                      type={isDateField ? 'date' : 'text'}
+                      value={newFilter.value2}
+                      onChange={(e) => setNewFilter(f => ({ ...f, value2: e.target.value }))}
+                      placeholder="Até"
+                      className="flex-1 px-1.5 py-1 text-[10px] bg-white dark:bg-neutral-900 rounded border border-neutral-200 dark:border-neutral-700"
+                    />
+                  </div>
+                ) : newFilter.operator !== 'IS NULL' && newFilter.operator !== 'IS NOT NULL' ? (
+                  <input
+                    type={isDateField ? 'date' : 'text'}
+                    value={newFilter.value}
+                    onChange={(e) => setNewFilter(f => ({ ...f, value: e.target.value }))}
+                    placeholder="Valor"
+                    className="flex-1 px-1.5 py-1 text-[10px] bg-white dark:bg-neutral-900 rounded border border-neutral-200 dark:border-neutral-700"
+                  />
+                ) : null}
               </div>
 
               <div className="flex gap-1">
@@ -170,27 +271,45 @@ function FilterSection({
             </div>
           )}
 
-          {filters.map((filter, index) => (
-            <div
-              key={index}
-              className="flex items-center gap-1 px-2 py-1 bg-neutral-50 dark:bg-neutral-800 rounded text-[10px]"
-            >
-              <div className="flex-1 min-w-0">
-                <div className="font-medium text-neutral-700 dark:text-neutral-300 truncate">
-                  {filter.columnName}
-                </div>
-                <div className="text-muted-foreground truncate">
-                  {filter.operator} · {String(filter.value)}
-                </div>
-              </div>
-              <button
-                onClick={() => onRemove(index)}
-                className="text-muted-foreground hover:text-red-400 transition-colors shrink-0"
+          {filters.map((filter, index) => {
+            const isSynced = syncedFilters.some(
+              f => f.tableName === filter.tableName && f.columnName === filter.columnName
+            );
+            
+            return (
+              <div
+                key={index}
+                className="flex items-center gap-1 px-2 py-1 bg-neutral-50 dark:bg-neutral-800 rounded text-[10px]"
               >
-                <X size={10} />
-              </button>
-            </div>
-          ))}
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-neutral-700 dark:text-neutral-300 truncate">
+                    {filter.columnName}
+                    {isSynced && (
+                      <Link2 size={8} className="inline ml-1 text-amber-500" />
+                    )}
+                  </div>
+                  <div className="text-muted-foreground truncate">
+                    {filter.operator} · {filter.operator === 'BETWEEN' ? `${String(filter.value)} e ${String(filter.value2)}` : Array.isArray(filter.value) ? filter.value.join(', ') : String(filter.value)}
+                  </div>
+                </div>
+                {onToggleSync && (
+                  <button
+                    onClick={() => onToggleSync(filter.tableName, filter.columnName)}
+                    className={`text-muted-foreground transition-colors shrink-0 ${isSynced ? 'text-amber-500 hover:text-amber-600' : 'hover:text-amber-500'}`}
+                    title={isSynced ? 'Desmarcar como sincronizado' : 'Marcar como sincronizado'}
+                  >
+                    <Link2 size={10} />
+                  </button>
+                )}
+                <button
+                  onClick={() => onRemove(index)}
+                  className="text-muted-foreground hover:text-red-400 transition-colors shrink-0"
+                >
+                  <X size={10} />
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -218,6 +337,10 @@ export function FiltersPanel() {
     dispatch({ type: 'SET_GLOBAL_FILTERS', payload: newFilters });
   };
 
+  const handleClearGlobal = () => {
+    dispatch({ type: 'SET_GLOBAL_FILTERS', payload: [] });
+  };
+
   const handleAddPage = (filter: FilterCondition) => {
     dispatch({ type: 'SET_PAGE_FILTERS', payload: { pageId: currentPageId, filters: [...currentPageFilters, filter] } });
   };
@@ -226,6 +349,10 @@ export function FiltersPanel() {
     const newFilters = [...currentPageFilters];
     newFilters.splice(index, 1);
     dispatch({ type: 'SET_PAGE_FILTERS', payload: { pageId: currentPageId, filters: newFilters } });
+  };
+
+  const handleClearPage = () => {
+    dispatch({ type: 'SET_PAGE_FILTERS', payload: { pageId: currentPageId, filters: [] } });
   };
 
   const handleAddVisual = (filter: FilterCondition) => {
@@ -238,6 +365,15 @@ export function FiltersPanel() {
     const newFilters = [...currentVisualFilters];
     newFilters.splice(index, 1);
     dispatch({ type: 'SET_VISUAL_FILTERS', payload: { visualId: selectedVisualId, filters: newFilters } });
+  };
+
+  const handleClearVisual = () => {
+    if (!selectedVisualId) return;
+    dispatch({ type: 'SET_VISUAL_FILTERS', payload: { visualId: selectedVisualId, filters: [] } });
+  };
+
+  const handleToggleSync = (tableName: string, columnName: string) => {
+    dispatch({ type: 'TOGGLE_SYNCED_FILTER', payload: { tableName, columnName } });
   };
 
   return (
@@ -265,6 +401,7 @@ export function FiltersPanel() {
             filters={currentVisualFilters}
             onAdd={handleAddVisual}
             onRemove={handleRemoveVisual}
+            onClearAll={handleClearVisual}
             dataModel={dataModel}
             pendingDrop={state.pendingFilterDrop?.sectionId === `visual-${selectedVisualId}` ? state.pendingFilterDrop : null}
             onClearPendingDrop={() => dispatch({ type: 'SET_PENDING_FILTER_DROP', payload: null })}
@@ -278,9 +415,12 @@ export function FiltersPanel() {
           filters={currentPageFilters}
           onAdd={handleAddPage}
           onRemove={handleRemovePage}
+          onClearAll={handleClearPage}
           dataModel={dataModel}
           pendingDrop={state.pendingFilterDrop?.sectionId === `page-${currentPageId}` ? state.pendingFilterDrop : null}
           onClearPendingDrop={() => dispatch({ type: 'SET_PENDING_FILTER_DROP', payload: null })}
+          syncedFilters={state.syncedFilters}
+          onToggleSync={handleToggleSync}
         />
 
         <FilterSection
@@ -290,9 +430,12 @@ export function FiltersPanel() {
           filters={globalFilters}
           onAdd={handleAddGlobal}
           onRemove={handleRemoveGlobal}
+          onClearAll={handleClearGlobal}
           dataModel={dataModel}
           pendingDrop={state.pendingFilterDrop?.sectionId === 'global' ? state.pendingFilterDrop : null}
           onClearPendingDrop={() => dispatch({ type: 'SET_PENDING_FILTER_DROP', payload: null })}
+          syncedFilters={state.syncedFilters}
+          onToggleSync={handleToggleSync}
         />
       </div>
     </div>
