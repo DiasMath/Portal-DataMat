@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -8,6 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -71,6 +78,11 @@ export default function DashboardsManagementPage() {
   const [confirmMode, setConfirmMode] = useState<"toggleActive" | "delete" | null>(null);
   const [targetDashboard, setTargetDashboard] = useState<Dashboard | null>(null);
   const [confirmName, setConfirmName] = useState("");
+
+  // Filter state
+  const [companyFilter, setCompanyFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const [formData, setFormData] = useState({
     name: "",
@@ -271,6 +283,23 @@ export default function DashboardsManagementPage() {
     setTargetDashboard(null);
   };
 
+  const filteredDashboards = useMemo(() => {
+    return dashboards.filter((dashboard) => {
+      if (companyFilter !== "all" && dashboard.companyId !== companyFilter) return false;
+      if (statusFilter === "active" && !dashboard.active) return false;
+      if (statusFilter === "inactive" && dashboard.active) return false;
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        const matchName = dashboard.name?.toLowerCase().includes(q);
+        const matchDesc = dashboard.description?.toLowerCase().includes(q);
+        const company = companies.find((c) => c.id === dashboard.companyId);
+        const matchCompany = company?.name?.toLowerCase().includes(q);
+        if (!matchName && !matchDesc && !matchCompany) return false;
+      }
+      return true;
+    });
+  }, [dashboards, companyFilter, statusFilter, searchQuery, companies]);
+
   if (loading && dashboards.length === 0) {
     return (
       <ProtectedRoute>
@@ -433,8 +462,51 @@ export default function DashboardsManagementPage() {
             <CardHeader>
               <CardTitle className="text-white">Dashboards Cadastrados</CardTitle>
             </CardHeader>
+            <CardContent className="p-4">
+              <div className="flex flex-wrap gap-3 items-center">
+                <Input
+                  placeholder="Buscar por nome, descrição ou empresa..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="max-w-xs"
+                />
+                <Select value={companyFilter} onValueChange={setCompanyFilter}>
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="Todas as empresas" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas as empresas</SelectItem>
+                    {companies.map((company) => (
+                      <SelectItem key={company.id} value={company.id}>
+                        {company.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-[160px]">
+                    <SelectValue placeholder="Todos os status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os status</SelectItem>
+                    <SelectItem value="active">Ativo</SelectItem>
+                    <SelectItem value="inactive">Inativo</SelectItem>
+                  </SelectContent>
+                </Select>
+                {(companyFilter !== "all" || statusFilter !== "all" || searchQuery) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => { setCompanyFilter("all"); setStatusFilter("all"); setSearchQuery(""); }}
+                    className="text-gray-400 hover:text-white"
+                  >
+                    Limpar filtros
+                  </Button>
+                )}
+              </div>
+            </CardContent>
             <CardContent className="p-0">
-              {dashboards.length === 0 ? (
+              {filteredDashboards.length === 0 ? (
                 <p className="p-4 text-sm text-gray-400">
                   Nenhum dashboard cadastrado até o momento.
                 </p>
@@ -451,7 +523,7 @@ export default function DashboardsManagementPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {dashboards.map((dashboard) => {
+                    {filteredDashboards.map((dashboard) => {
                       const company = companies.find(
                         (c) => c.id === dashboard.companyId
                       );

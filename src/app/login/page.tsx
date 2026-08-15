@@ -19,6 +19,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [dots, setDots] = useState("");
   const router = useRouter();
 
   useEffect(() => {
@@ -35,6 +36,17 @@ export default function LoginPage() {
       router.push('/unauthorized');
     }
   }, [user, isAuthorized, router, isAdmin, isMasterAdmin, authLoading]);
+
+  useEffect(() => {
+    if (!loading) { setDots(""); return; }
+    const frames = ["", ".", "..", "..."];
+    let i = 0;
+    const interval = setInterval(() => {
+      setDots(frames[i % frames.length]);
+      i++;
+    }, 400);
+    return () => clearInterval(interval);
+  }, [loading]);
 
   const handleEmailPasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -194,7 +206,7 @@ export default function LoginPage() {
                 className="w-full bg-yellow-text text-black font-heading font-semibold py-2.5 md:py-3 text-sm md:text-lg hover:bg-yellow-text/90 transition-colors"
                 disabled={loading || !email || !password}
               >
-                {loading ? "Entrando..." : "Entrar"}
+                {loading ? <>Entrando{dots}</> : "Entrar"}
               </Button>
 
               <div className="text-center">

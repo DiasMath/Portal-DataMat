@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { useAuth } from "@/contexts/AuthContext";
 import { collection, getDocs, orderBy, query } from "firebase/firestore";
@@ -43,9 +43,13 @@ function MasterAdminCompaniesView() {
           };
         }).filter(c => c.active !== false);
 
-        if (!isMasterAdmin && userData?.permissions?.allowedDashboards) {
+        // Filtrar empresas: masterAdmin vê tudo; canViewDashboardList=true vê tudo;
+        // canViewDashboardList=false com allowedDashboards filtra por empresas permitidas
+        if (!isMasterAdmin && userData?.permissions?.canViewDashboardList === false && userData?.permissions?.allowedDashboards) {
           const allowedCompanies = Object.keys(userData.permissions.allowedDashboards);
-          data = data.filter(company => allowedCompanies.includes(company.id));
+          if (allowedCompanies.length > 0) {
+            data = data.filter(company => allowedCompanies.includes(company.id));
+          }
         }
 
         setCompanies(data);
@@ -113,29 +117,46 @@ function MasterAdminCompaniesView() {
 function DashboardPage() {
   const { isMasterAdmin, userData, companyId, loading: authLoading } = useAuth();
   const router = useRouter();
-  const [redirecting, setRedirecting] = useState(false);
+  const [redirecting, setRedirecting] = useState(true);
 
-  const canViewList =  isMasterAdmin || userData?.permissions?.canViewDashboardList;
+  const canViewList = isMasterAdmin || userData?.permissions?.canViewDashboardList;
+  const hasInitiatedNav = useRef(false);
 
-  // Redirect no primeiro acesso (login) se tem defaultDashboardId
+  // Redirect unificado — evita chamar router.replace/push durante render
   useEffect(() => {
-    if (authLoading || redirecting) return;
+    // Impede re-execução do effect após router.replace() (React strict mode / HMR)
+    if (hasInitiatedNav.current) return;
+    if (authLoading || !userData) return;
 
-    // Só redireciona uma vez por sessão
     const hasRedirectedThisSession = sessionStorage.getItem('dashboardRedirected');
-    
-    const doRedirect = async () => {
-      // Só redireciona se não pode ver lista de empresas, tem companyId, defaultDashboardId,
-      // e se ainda não redirecionou nesta sessão
-      if (!canViewList && companyId && userData?.defaultDashboardId && !hasRedirectedThisSession) {
-        sessionStorage.setItem('dashboardRedirected', 'true');
-        setRedirecting(true);
-        router.replace(`/dashboard/${companyId}/${userData.defaultDashboardId}`);
-      }
-    };
 
-    doRedirect();
-  }, [userData, companyId, canViewList, router, redirecting, authLoading]);
+    // Prioridade 1: Se tem defaultDashboardId, redirecionar para ele no primeiro acesso
+    if (userData.defaultDashboardId && companyId && !hasRedirectedThisSession) {
+      sessionStorage.setItem('dashboardRedirected', 'true');
+      hasInitiatedNav.current = true;
+      router.replace(`/dashboard/${companyId}/${userData.defaultDashboardId}`);
+      return;
+    }
+
+    // Prioridade 2: Se não pode ver lista e tem companyId, redirecionar para a empresa
+    if (!canViewList && companyId) {
+      hasInitiatedNav.current = true;
+      router.replace(`/dashboard/${companyId}`);
+      return;
+    }
+
+    // Prioridade 3: Se pode ver lista com exatamente 1 empresa permitida, redirecionar
+    if (canViewList && userData.permissions?.allowedDashboards) {
+      const allowedCompanies = Object.keys(userData.permissions.allowedDashboards);
+      if (allowedCompanies.length === 1) {
+        hasInitiatedNav.current = true;
+        router.replace(`/dashboard/${allowedCompanies[0]}`);
+        return;
+      }
+    }
+
+    setRedirecting(false);
+  }, [userData, companyId, authLoading]);
 
   // Se está a redirecionar ou a carregar, mostra spinner
   if (redirecting || authLoading) {
@@ -150,22 +171,7 @@ function DashboardPage() {
     return <MasterAdminCompaniesView />;
   }
 
-  if (userData?.permissions?.allowedDashboards) {
-    const allowedCompanies = Object.keys(userData.permissions.allowedDashboards);
-    if (allowedCompanies.length === 1) {
-      router.replace(`/dashboard/${allowedCompanies[0]}`);
-      return null;
-    }
-    if (allowedCompanies.length > 1) {
-      return <MasterAdminCompaniesView />;
-    }
-  }
-
-  if (companyId) {
-    router.push(`/dashboard/${companyId}`);
-    return null;
-  }
-
+  // Utilizador operacional sem companyId
   return (
     <main className="flex min-h-screen items-center justify-center">
       <p className="text-sm text-muted-foreground">

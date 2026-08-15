@@ -1,5 +1,5 @@
 import { getPool } from './mysql-pool';
-import type { DatabaseSchema, TableInfo, ViewInfo, RoutineInfo } from '@/types/sql-workbench';
+import type { DatabaseSchema, TableInfo, ViewInfo, RoutineInfo, ForeignKeyInfo } from '@/types/sql-workbench';
 import { RowDataPacket } from 'mysql2/promise';
 
 export async function readSchema(connectionId: string): Promise<DatabaseSchema | null> {
@@ -16,7 +16,7 @@ export async function readSchema(connectionId: string): Promise<DatabaseSchema |
     const databases: string[] = schemaRows.map((r) => r.SCHEMA_NAME);
 
     if (!currentDb) {
-      return { database: '', databases, tables: [], views: [], procedures: [], functions: [] };
+      return { database: '', databases, tables: [], views: [], procedures: [], functions: [], foreignKeys: [] };
     }
 
     const [tableRows] = await pool.query<RowDataPacket[]>(`
@@ -40,6 +40,29 @@ export async function readSchema(connectionId: string): Promise<DatabaseSchema |
       WHERE TABLE_SCHEMA = ?
       ORDER BY TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX
     `, [currentDb]);
+
+    const [fkRows] = await pool.query<RowDataPacket[]>(`
+      SELECT 
+        kcu.TABLE_NAME as from_table,
+        kcu.COLUMN_NAME as from_column,
+        kcu.REFERENCED_TABLE_NAME as to_table,
+        kcu.REFERENCED_COLUMN_NAME as to_column,
+        rc.CONSTRAINT_NAME
+      FROM information_schema.KEY_COLUMN_USAGE kcu
+      JOIN information_schema.REFERENTIAL_CONSTRAINTS rc
+        ON kcu.CONSTRAINT_NAME = rc.CONSTRAINT_NAME
+        AND kcu.TABLE_SCHEMA = rc.CONSTRAINT_SCHEMA
+      WHERE kcu.TABLE_SCHEMA = ?
+        AND kcu.REFERENCED_TABLE_NAME IS NOT NULL
+    `, [currentDb]);
+
+    const foreignKeys: ForeignKeyInfo[] = fkRows.map((row) => ({
+      fromTable: row.from_table,
+      fromColumn: row.from_column,
+      toTable: row.to_table,
+      toColumn: row.to_column,
+      constraintName: row.CONSTRAINT_NAME,
+    }));
 
     const columnMap = new Map<string, any[]>();
     for (const row of columnRows) {
@@ -108,7 +131,7 @@ export async function readSchema(connectionId: string): Promise<DatabaseSchema |
       definition: f.ROUTINE_DEFINITION,
     }));
 
-    return { database: currentDb, databases, tables, views, procedures, functions };
+    return { database: currentDb, databases, tables, views, procedures, functions, foreignKeys };
   } catch (err) {
     console.error('readSchema error:', err);
     return null;

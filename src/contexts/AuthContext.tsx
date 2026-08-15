@@ -224,6 +224,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const signOut = async () => {
     try {
+      sessionStorage.clear();
       await firebaseSignOut(auth);
       setUser(null);
       setUserData(null);

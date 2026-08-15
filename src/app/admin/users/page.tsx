@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { Button } from "@/components/ui/button";
@@ -107,6 +107,11 @@ export default function UsersManagementPage() {
   const [targetUser, setTargetUser] = useState<User | null>(null);
   const [confirmName, setConfirmName] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // Filter state
+  const [companyFilter, setCompanyFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const defaultPerms = {
     canViewDashboardList: false,
@@ -232,15 +237,6 @@ export default function UsersManagementPage() {
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validação: Dashboard padrão é obrigatório para usuários normais
-    if (formData.role !== "master_admin" && 
-        !formData.permissions.canViewDashboardList && 
-        formData.companyId && 
-        !formData.defaultDashboardId) {
-      toast.error("Selecione um Dashboard Padrão para este usuário.");
-      return;
-    }
-    
     setSaving(true);
     try {
       const currentUser = auth.currentUser;
@@ -263,7 +259,7 @@ export default function UsersManagementPage() {
           authorized: formData.authorized,
           companyId: formData.companyId || undefined,
           permissions: formData.permissions,
-          defaultDashboardId: formData.permissions.canViewDashboardList ? null : (formData.defaultDashboardId || null),
+          defaultDashboardId: formData.defaultDashboardId || null,
         }),
       });
 
@@ -393,22 +389,13 @@ export default function UsersManagementPage() {
     e.preventDefault();
     if (!editingUser) return;
 
-    // Validação: Dashboard padrão é obrigatório para usuários normais
-    if (editFormData.role !== "master_admin" && 
-        !editFormData.permissions.canViewDashboardList && 
-        editFormData.companyId && 
-        !editFormData.defaultDashboardId) {
-      toast.error("Selecione um Dashboard Padrão para este usuário.");
-      return;
-    }
-
     setSaving(true);
     const success = await handleUpdateUser(editingUser.id, {
       displayName: editFormData.displayName,
       companyId: editFormData.companyId || undefined,
       role: editFormData.role,
       authorized: editFormData.authorized,
-      defaultDashboardId: editFormData.permissions.canViewDashboardList ? null : (editFormData.defaultDashboardId || null),
+      defaultDashboardId: editFormData.defaultDashboardId || null,
       permissions: {
         ...editFormData.permissions,
         canEdit: editFormData.role === "admin" ? editFormData.permissions.canEdit : false
@@ -711,6 +698,23 @@ const renderPermissionsBlock = (isEditing: boolean) => {
   };
   // --- FIM: Funções Auxiliares ---
 
+  const filteredUsers = useMemo(() => {
+    return users.filter((user) => {
+      if (companyFilter !== "all" && user.companyId !== companyFilter) return false;
+      if (statusFilter === "active" && !user.authorized) return false;
+      if (statusFilter === "inactive" && user.authorized) return false;
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        const matchName = user.displayName?.toLowerCase().includes(q);
+        const matchEmail = user.email?.toLowerCase().includes(q);
+        const company = companies.find((c) => c.id === user.companyId);
+        const matchCompany = company?.name?.toLowerCase().includes(q);
+        if (!matchName && !matchEmail && !matchCompany) return false;
+      }
+      return true;
+    });
+  }, [users, companyFilter, statusFilter, searchQuery, companies]);
+
   if (loading && users.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -846,16 +850,16 @@ const renderPermissionsBlock = (isEditing: boolean) => {
                         </Label>
                       </div>
 
-                      {/* --- BLOCO DO DASHBOARD PADRÃO - AGORA OBRIGATÓRIO --- */}
-                      {formData.role !== "master_admin" && !formData.permissions.canViewDashboardList && formData.companyId && (
+                      {/* --- BLOCO DO DASHBOARD PADRÃO --- */}
+                      {formData.role !== "master_admin" && formData.companyId && (
                         <div className="space-y-2 pt-2">
-                          <Label>Dashboard Padrão *</Label>
+                          <Label>Dashboard Padrão</Label>
                           <Select
-                            value={formData.defaultDashboardId}
+                            value={formData.defaultDashboardId || "__none__"}
                             onValueChange={(value) =>
                               setFormData({
                                 ...formData,
-                                defaultDashboardId: value,
+                                defaultDashboardId: value === "__none__" ? "" : value,
                               })
                             }
                           >
@@ -863,6 +867,7 @@ const renderPermissionsBlock = (isEditing: boolean) => {
                               <SelectValue placeholder="Selecione um dashboard padrão" />
                             </SelectTrigger>
                             <SelectContent>
+                              <SelectItem value="__none__">Sem dashboard padrão</SelectItem>
                               {dashboards
                                 .filter((d) => d.companyId === formData.companyId)
                                 .map((dash) => (
@@ -873,7 +878,7 @@ const renderPermissionsBlock = (isEditing: boolean) => {
                             </SelectContent>
                           </Select>
                           <p className="text-xs text-muted-foreground">
-                            O usuário será redirecionado para este dashboard ao fazer login.
+                            Selecione o dashboard que o usuário verá ao fazer login.
                           </p>
                         </div>
                       )}
@@ -910,6 +915,49 @@ const renderPermissionsBlock = (isEditing: boolean) => {
 
           {/* Users List */}
           <Card className="bg-[#1a1a1a] border border-yellow-500/20 shadow-lg shadow-yellow-500/5">
+            <CardContent className="p-4">
+              <div className="flex flex-wrap gap-3 items-center">
+                <Input
+                  placeholder="Buscar por nome, email ou empresa..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="max-w-xs"
+                />
+                <Select value={companyFilter} onValueChange={setCompanyFilter}>
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="Todas as empresas" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas as empresas</SelectItem>
+                    {companies.map((company) => (
+                      <SelectItem key={company.id} value={company.id}>
+                        {company.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-[160px]">
+                    <SelectValue placeholder="Todos os status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os status</SelectItem>
+                    <SelectItem value="active">Autorizado</SelectItem>
+                    <SelectItem value="inactive">Não autorizado</SelectItem>
+                  </SelectContent>
+                </Select>
+                {(companyFilter !== "all" || statusFilter !== "all" || searchQuery) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => { setCompanyFilter("all"); setStatusFilter("all"); setSearchQuery(""); }}
+                    className="text-gray-400 hover:text-white"
+                  >
+                    Limpar filtros
+                  </Button>
+                )}
+              </div>
+            </CardContent>
             <CardContent className="p-0">
               <Table>
                   <TableHeader>
@@ -923,7 +971,7 @@ const renderPermissionsBlock = (isEditing: boolean) => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {users.map((user) => (
+                  {filteredUsers.map((user) => (
                     <TableRow key={user.id}>
                       <TableCell className="text-left">
                         <div>
@@ -1067,19 +1115,20 @@ const renderPermissionsBlock = (isEditing: boolean) => {
                 </datalist>
               </div>
               {/* Dashboard Padrão - Obrigatório para usuários normais */}
-              {editingUser?.role !== "master_admin" && !editFormData.permissions.canViewDashboardList && editFormData.companyId && (
+              {editingUser?.role !== "master_admin" && editFormData.companyId && (
                 <div className="space-y-2">
-                  <Label htmlFor="edit-defaultDashboardId">Dashboard Padrão *</Label>
+                  <Label htmlFor="edit-defaultDashboardId">Dashboard Padrão</Label>
                   <Select
-                    value={editFormData.defaultDashboardId}
+                    value={editFormData.defaultDashboardId || "__none__"}
                     onValueChange={(value) =>
-                      setEditFormData({ ...editFormData, defaultDashboardId: value })
+                      setEditFormData({ ...editFormData, defaultDashboardId: value === "__none__" ? "" : value })
                     }
                   >
                     <SelectTrigger id="edit-defaultDashboardId">
                       <SelectValue placeholder="Selecione um dashboard padrão" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="__none__">Sem dashboard padrão</SelectItem>
                       {dashboards
                         .filter((d) => d.companyId === editFormData.companyId)
                         .map((dash) => (
@@ -1090,7 +1139,7 @@ const renderPermissionsBlock = (isEditing: boolean) => {
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">
-                    O usuário será redirecionado para este dashboard ao fazer login.
+                    Dashboard que o usuário verá ao fazer login.
                   </p>
                 </div>
               )}
