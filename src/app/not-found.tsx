@@ -3,7 +3,7 @@ import { Home, ArrowLeft } from "lucide-react";
 
 export default function NotFound() {
   return (
-    <div className="min-h-screen bg-[#0d0f12] flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
       <div className="text-center space-y-6 max-w-md">
         <div className="text-8xl font-heading font-bold text-[#FFB03F] opacity-50">404</div>
         

@@ -38,8 +38,8 @@ function CompanyDashboardsPage() {
     : userData?.permissions?.allowedDashboards?.[params?.companyId ?? ""];
   const router = useRouter();
 
-  // Se não pode ver a lista E não é da empresa, verifica o acesso específico
-  const hasAccess = canViewList || isOwnCompany || companyAccess === "all" || (companyAccess !== undefined && Array.isArray(companyAccess));
+  const hasGranularAccess = companyAccess === "all" || (companyAccess !== undefined && Array.isArray(companyAccess));
+  const hasAccess = canViewList || isOwnCompany || hasGranularAccess;
 
   const [company, setCompany] = useState<Company | null>(null);
   const [dashboards, setDashboards] = useState<Dashboard[]>([]);
@@ -85,7 +85,8 @@ function CompanyDashboardsPage() {
         });
 
         // Filtra os dashboards que o utilizador pode ver nesta empresa
-        if (!isMasterAdmin && companyAccess !== "all") {
+        // Só aplica filtro granular se NÃO tem canViewList (acesso global) e NÃO é master admin
+        if (!isMasterAdmin && !canViewList && companyAccess !== "all") {
           const allowedList = Array.isArray(companyAccess) ? companyAccess : [];
           dashboardsData = dashboardsData.filter(d => allowedList.includes(d.id));
         }
@@ -99,7 +100,7 @@ function CompanyDashboardsPage() {
       }
     }
 
-    if (canViewList || isOwnCompany) {
+    if (canViewList || isOwnCompany || hasGranularAccess) {
       fetchData();
     }
   }, [params?.companyId, canViewList, companyAccess, isMasterAdmin, isOwnCompany]);

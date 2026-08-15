@@ -44,6 +44,14 @@ export interface RoutineInfo {
   parameters?: string;
 }
 
+export interface ForeignKeyInfo {
+  fromTable: string;
+  fromColumn: string;
+  toTable: string;
+  toColumn: string;
+  constraintName: string;
+}
+
 export interface DatabaseSchema {
   database: string;
   databases: string[];
@@ -51,6 +59,7 @@ export interface DatabaseSchema {
   views: ViewInfo[];
   procedures: RoutineInfo[];
   functions: RoutineInfo[];
+  foreignKeys: ForeignKeyInfo[];
 }
 
 export interface QueryResult {

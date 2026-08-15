@@ -83,14 +83,36 @@ export async function GET(
     const userData = userDoc.data();
     const userRole = userData?.role || "user";
     const userCompanyId = userData?.companyId;
+    const userPermissions = userData?.permissions;
 
-    // Se for um utilizador comum (não-admin), ele SÓ pode aceder à sua própria empresa.
-    if (userRole === "user" && userCompanyId !== companyId) {
-      console.warn(`[ALERTA DE SEGURANÇA] UID: ${user.uid} tentou aceder ao dashboard da empresa: ${companyId}`);
-      return NextResponse.json(
-        { error: "Acesso negado. Não tem permissão para visualizar relatórios desta empresa." },
-        { status: 403 }
-      );
+    // Master admin e admin têm acesso total
+    if (userRole !== "master_admin" && userRole !== "admin") {
+      const canViewList = userPermissions?.canViewDashboardList === true;
+      const companyAccess = userPermissions?.allowedDashboards?.[companyId];
+      const hasGranularAccess = companyAccess === "all" || (Array.isArray(companyAccess) && companyAccess.includes(dashboardId));
+      const isOwnCompany = userCompanyId === companyId;
+
+      // Regra 1: Precisa de canViewList, acesso granular, ou ser empresa própria
+      if (!canViewList && !hasGranularAccess && !isOwnCompany) {
+        console.warn(`[ALERTA DE SEGURANÇA] UID: ${user.uid} tentou aceder ao dashboard da empresa: ${companyId}`);
+        return NextResponse.json(
+          { error: "Acesso negado. Não tem permissão para visualizar relatórios desta empresa." },
+          { status: 403 }
+        );
+      }
+
+      // Regra 2: Se é empresa própria mas NÃO tem canViewList nem acesso granular,
+      // verificar se tem dashboard restrito (defaultDashboardId)
+      if (isOwnCompany && !canViewList && !hasGranularAccess) {
+        const userDefaultDashboard = userData?.defaultDashboardId;
+        if (userDefaultDashboard && userDefaultDashboard !== dashboardId) {
+          console.warn(`[SEGURANÇA] UID: ${user.uid} tentou aceder ao dashboard ${dashboardId} mas só tem acesso ao ${userDefaultDashboard}`);
+          return NextResponse.json(
+            { error: "Acesso negado. Você só pode visualizar o dashboard padrão atribuído." },
+            { status: 403 }
+          );
+        }
+      }
     }
     // =========================================================================
 
