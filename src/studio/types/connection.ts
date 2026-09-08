@@ -1,13 +1,4 @@
-export interface StudioConnection {
-  id: string;
-  name: string;
-  host: string;
-  port: number;
-  user: string;
-  password: string;
-  database?: string;
-  color?: string;
-  status: 'connected' | 'disconnected' | 'error';
-  createdAt?: string;
-  updatedAt?: string;
-}
+// `StudioConnection` é um alias de `SavedConnection` (fonte única em
+// `@/lib/connections/types`). O Studio e o SQL Workbench agora enxergam
+// exatamente a mesma lista de conexões — ver `src/lib/connections/repository.ts`.
+export type { SavedConnection as StudioConnection } from '@/lib/connections/types';

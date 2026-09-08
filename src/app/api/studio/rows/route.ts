@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebase-admin';
-import { decrypt, isEncrypted } from '@/lib/crypto';
 import { validateMasterAdmin } from '@/lib/auth-helpers';
-import mysql from 'mysql2/promise';
-
-const CONNECTIONS_COLLECTION = 'studio_connections';
+import { getConnection } from '@/lib/connections/repository';
+import { getPool } from '@/lib/sql/mysql-pool';
 
 export async function GET(request: NextRequest) {
   const currentUser = await validateMasterAdmin(request);
@@ -36,65 +33,43 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    if (!adminDb) {
-      return NextResponse.json({ error: 'Firebase not configured' }, { status: 500 });
-    }
-
-    const doc = await adminDb.collection(CONNECTIONS_COLLECTION).doc(connectionId).get();
-    if (!doc.exists) {
+    // getConnection já confere que a conexão pertence a currentUser.uid.
+    const conn = await getConnection(currentUser.uid, connectionId);
+    if (!conn) {
       return NextResponse.json({ error: 'Conexão não encontrada' }, { status: 404 });
     }
 
-    const data = doc.data()!;
-    if (data.userId !== currentUser.uid) {
-      return NextResponse.json({ error: 'Acesso negado' }, { status: 403 });
+    const pool = await getPool(connectionId);
+    if (!pool) {
+      return NextResponse.json({ error: 'Falha ao conectar' }, { status: 500 });
     }
 
-    const connConfig = {
-      host: data.host,
-      port: data.port,
-      user: data.user,
-      password: data.password && isEncrypted(data.password) ? decrypt(data.password) : data.password,
-      database: data.database,
-    };
+    // Validate sort field (prevent SQL injection)
+    let orderClause = '';
+    if (sortField && /^[a-zA-Z0-9_]+$/.test(sortField)) {
+      orderClause = `ORDER BY \`${sortField}\` ${sortDirection}`;
+    }
 
-    const pool = await mysql.createPool({
-      ...connConfig,
-      waitForConnections: true,
-      connectionLimit: 5,
-      queueLimit: 0,
+    // Get total count
+    const [countResult] = await pool.query(
+      `SELECT COUNT(*) as total FROM \`${tableName}\``
+    );
+    const totalCount = Number((countResult as Record<string, unknown>[])[0]?.total) || 0;
+
+    // Get paginated rows
+    const [rows] = await pool.query(
+      `SELECT * FROM \`${tableName}\` ${orderClause} LIMIT ? OFFSET ?`,
+      [limit, offset]
+    );
+
+    return NextResponse.json({
+      success: true,
+      rows,
+      totalCount,
+      offset,
+      limit,
+      hasMore: offset + limit < totalCount,
     });
-
-    try {
-      // Validate sort field (prevent SQL injection)
-      let orderClause = '';
-      if (sortField && /^[a-zA-Z0-9_]+$/.test(sortField)) {
-        orderClause = `ORDER BY \`${sortField}\` ${sortDirection}`;
-      }
-
-      // Get total count
-      const [countResult] = await pool.query(
-        `SELECT COUNT(*) as total FROM \`${tableName}\``
-      );
-      const totalCount = Number((countResult as Record<string, unknown>[])[0]?.total) || 0;
-
-      // Get paginated rows
-      const [rows] = await pool.query(
-        `SELECT * FROM \`${tableName}\` ${orderClause} LIMIT ? OFFSET ?`,
-        [limit, offset]
-      );
-
-      return NextResponse.json({
-        success: true,
-        rows,
-        totalCount,
-        offset,
-        limit,
-        hasMore: offset + limit < totalCount,
-      });
-    } finally {
-      await pool.end();
-    }
   } catch (err) {
     console.error('Erro ao buscar rows:', err);
     return NextResponse.json(

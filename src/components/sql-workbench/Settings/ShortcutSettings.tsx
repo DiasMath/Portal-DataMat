@@ -8,81 +8,61 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  DEFAULT_SHORTCUTS,
+  SHORTCUT_LABELS,
+  loadShortcuts,
+  saveShortcuts,
+  eventToShortcutString,
+  type ShortcutAction,
+} from '../shortcuts';
 
 interface ShortcutSettingsProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-const DEFAULT_SHORTCUTS: Record<string, string> = {
-  'executeQuery': 'Ctrl+Enter',
-  'newTab': 'Ctrl+N',
-  'closeTab': 'Ctrl+W',
-  'toggleSidebar': 'Ctrl+B',
-  'toggleResults': 'Ctrl+E',
-  'formatSql': 'Ctrl+Shift+F',
-  'toggleHistory': 'Ctrl+H',
-  'saveQuery': 'Ctrl+S',
-  'splitHorizontal': 'Ctrl+Shift+H',
-  'splitVertical': 'Ctrl+Shift+V',
-};
-
-const SHORTCUT_LABELS: Record<string, string> = {
-  'executeQuery': 'Execute Query',
-  'newTab': 'New Tab',
-  'closeTab': 'Close Tab',
-  'toggleSidebar': 'Toggle Sidebar',
-  'toggleResults': 'Toggle Results',
-  'formatSql': 'Format SQL',
-  'toggleHistory': 'Toggle History',
-  'saveQuery': 'Save Query',
-  'splitHorizontal': 'Split Horizontal',
-  'splitVertical': 'Split Vertical',
-};
-
-const STORAGE_KEY = 'sql_workbench_shortcuts';
-
 export function ShortcutSettings({ open, onOpenChange }: ShortcutSettingsProps) {
-  const [shortcuts, setShortcuts] = useState<Record<string, string>>(DEFAULT_SHORTCUTS);
-  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [shortcuts, setShortcuts] = useState<Record<ShortcutAction, string>>(DEFAULT_SHORTCUTS);
+  const [editingKey, setEditingKey] = useState<ShortcutAction | null>(null);
 
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        setShortcuts({ ...DEFAULT_SHORTCUTS, ...parsed });
-      } catch {
-        // ignore
+    if (open) setShortcuts(loadShortcuts());
+  }, [open]);
+
+  // Escuta o teclado no window (não num elemento específico) enquanto
+  // `editingKey` estiver setado. A versão anterior colocava o `onKeyDown`
+  // no botão que só existe quando NÃO se está editando — ou seja, nunca
+  // chegava a capturar a tecla pressionada. Isso resolve os dois problemas
+  // de uma vez: captura de verdade, e sem depender de foco de elemento.
+  useEffect(() => {
+    if (!editingKey) return;
+
+    const handleWindowKeyDown = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (e.key === 'Escape') {
+        setEditingKey(null);
+        return;
       }
-    }
-  }, []);
 
-  const saveShortcuts = (updated: Record<string, string>) => {
-    setShortcuts(updated);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-  };
+      const shortcutString = eventToShortcutString(e);
+      if (shortcutString) {
+        const updated = { ...shortcuts, [editingKey]: shortcutString };
+        setShortcuts(updated);
+        saveShortcuts(updated);
+        setEditingKey(null);
+      }
+    };
 
-  const handleKeyDown = (e: KeyboardEvent, key: string) => {
-    e.preventDefault();
-    e.stopPropagation();
+    window.addEventListener('keydown', handleWindowKeyDown, true);
+    return () => window.removeEventListener('keydown', handleWindowKeyDown, true);
+  }, [editingKey, shortcuts]);
 
-    const parts: string[] = [];
-    if (e.ctrlKey || e.metaKey) parts.push('Ctrl');
-    if (e.shiftKey) parts.push('Shift');
-    if (e.altKey) parts.push('Alt');
-
-    const keyName = e.key;
-    if (!['Control', 'Shift', 'Alt', 'Meta'].includes(keyName)) {
-      parts.push(keyName.length === 1 ? keyName.toUpperCase() : keyName);
-    }
-
-    if (parts.length > 1) {
-      const newShortcut = parts.join('+');
-      const updated = { ...shortcuts, [key]: newShortcut };
-      saveShortcuts(updated);
-    }
-    setEditingKey(null);
+  const handleReset = () => {
+    setShortcuts(DEFAULT_SHORTCUTS);
+    saveShortcuts(DEFAULT_SHORTCUTS);
   };
 
   return (
@@ -91,22 +71,21 @@ export function ShortcutSettings({ open, onOpenChange }: ShortcutSettingsProps) 
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Keyboard className="h-5 w-5" />
-            Keyboard Shortcuts
+            Atalhos de teclado
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-2">
-          {Object.entries(SHORTCUT_LABELS).map(([key, label]) => (
+          {(Object.keys(SHORTCUT_LABELS) as ShortcutAction[]).map((key) => (
             <div key={key} className="flex items-center justify-between py-2 px-3 rounded hover:bg-accent">
-              <span className="text-sm text-foreground">{label}</span>
+              <span className="text-sm text-foreground">{SHORTCUT_LABELS[key]}</span>
               {editingKey === key ? (
-                <div className="text-xs text-muted-foreground animate-pulse">
-                  Press keys...
+                <div className="text-xs text-muted-foreground animate-pulse px-2 py-1">
+                  Pressione as teclas... (Esc para cancelar)
                 </div>
               ) : (
                 <button
                   onClick={() => setEditingKey(key)}
                   className="text-xs font-mono bg-background border border-border rounded px-2 py-1 hover:bg-accent transition-colors"
-                  onKeyDown={(e) => handleKeyDown(e as unknown as KeyboardEvent, key)}
                 >
                   {shortcuts[key]}
                 </button>
@@ -116,12 +95,10 @@ export function ShortcutSettings({ open, onOpenChange }: ShortcutSettingsProps) 
         </div>
         <div className="flex justify-end pt-2">
           <button
-            onClick={() => {
-              saveShortcuts(DEFAULT_SHORTCUTS);
-            }}
+            onClick={handleReset}
             className="text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
-            Reset to defaults
+            Restaurar padrões
           </button>
         </div>
       </DialogContent>

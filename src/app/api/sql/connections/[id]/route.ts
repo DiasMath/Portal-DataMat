@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateMasterAdmin } from '@/lib/auth-helpers';
-import { getConnection, updateConnection, deleteConnection } from '@/lib/firebase/connections';
+import { getConnection, updateConnection, deleteConnection, stripPassword } from '@/lib/connections/repository';
 
 export async function GET(
   request: NextRequest,
@@ -19,7 +19,7 @@ export async function GET(
       return NextResponse.json({ error: 'Conexão não encontrada' }, { status: 404 });
     }
 
-    return NextResponse.json(connection);
+    return NextResponse.json(stripPassword(connection));
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : String(err) },
@@ -40,6 +40,7 @@ export async function PUT(
 
     const { id } = await params;
     const updates = await request.json();
+    delete updates.id;
 
     const success = await updateConnection(currentUser.uid, id, updates);
 

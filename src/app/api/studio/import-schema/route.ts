@@ -1,27 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebase-admin';
-import { decrypt, isEncrypted } from '@/lib/crypto';
-import { createPool } from '@/lib/sql/mysql-pool';
 import { readSchema } from '@/lib/sql/schema-reader';
 import { convertSchemaToDataModel } from '@/studio/lib/import-schema';
 import { validateMasterAdmin } from '@/lib/auth-helpers';
-
-const CONNECTIONS_COLLECTION = 'studio_connections';
-
-async function loadStudioConnection(connectionId: string) {
-  if (!adminDb) return null;
-  try {
-    const doc = await adminDb.collection(CONNECTIONS_COLLECTION).doc(connectionId).get();
-    if (!doc.exists) return null;
-    const data = doc.data() || {};
-    if (data.password && typeof data.password === 'string' && isEncrypted(data.password)) {
-      data.password = decrypt(data.password);
-    }
-    return data;
-  } catch {
-    return null;
-  }
-}
+import { getConnection } from '@/lib/connections/repository';
 
 export async function POST(request: NextRequest) {
   const currentUser = await validateMasterAdmin(request);
@@ -39,21 +20,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const connConfig = await loadStudioConnection(connectionId);
-    if (!connConfig) {
+    // Antes esta rota lia a conexão direto de `studio_connections` sem
+    // checar o dono do documento. `getConnection` já faz essa checagem, e
+    // `readSchema`/`getPool` cuidam de abrir o pool a partir do connectionId.
+    const conn = await getConnection(currentUser.uid, connectionId);
+    if (!conn) {
       return NextResponse.json(
         { success: false, error: 'Conexão não encontrada' },
         { status: 404 }
       );
     }
-
-    await createPool(connectionId, {
-      host: connConfig.host,
-      port: connConfig.port,
-      user: connConfig.user,
-      password: connConfig.password,
-      database: connConfig.database,
-    });
 
     const schema = await readSchema(connectionId);
     if (!schema) {

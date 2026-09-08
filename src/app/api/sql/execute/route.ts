@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/sql/executor';
-import { getPool } from '@/lib/sql/mysql-pool';
 import { validateMasterAdmin } from '@/lib/auth-helpers';
 
 const MAX_SQL_SIZE = 100 * 1024;
@@ -47,7 +46,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { connectionId, sql, database } = await request.json();
+    const { connectionId, sql, database, executionId } = await request.json();
 
     if (!connectionId || !sql) {
       return NextResponse.json(
@@ -71,33 +70,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const pool = await getPool(connectionId);
-    if (!pool) {
-      return NextResponse.json(
-        { success: false, error: 'Connection not found. Please reconnect.' },
-        { status: 404 }
-      );
-    }
-
-    if (database) {
-      const safeDb = database.replace(/[^a-zA-Z0-9_]/g, '');
-      if (!safeDb || safeDb !== database) {
-        return NextResponse.json(
-          { success: false, error: 'Invalid database name' },
-          { status: 400 }
-        );
-      }
-      try {
-        await pool.query(`USE \`${safeDb}\``);
-      } catch {
-        return NextResponse.json(
-          { success: false, error: `Database '${safeDb}' not found` },
-          { status: 400 }
-        );
-      }
-    }
-
-    const result = await executeQuery(connectionId, sql);
+    const result = await executeQuery(connectionId, sql, database || undefined, executionId, currentUser.uid);
 
     return NextResponse.json({
       success: result.success,

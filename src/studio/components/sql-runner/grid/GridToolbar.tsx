@@ -82,6 +82,17 @@ export function GridToolbar({ data, onExport, onRerun }: GridToolbarProps) {
         JSON
       </button>
 
+      {/* Export XLSX */}
+      <button
+        onClick={() => onExport('xlsx')}
+        className="flex items-center gap-1 px-2 py-1 rounded hover:bg-neutral-800 transition-colors"
+        style={{ color: GRID_COLORS.rowText }}
+        title="Exportar como Excel"
+      >
+        <Download size={10} />
+        XLSX
+      </button>
+
       {/* Rerun */}
       {onRerun && (
         <button

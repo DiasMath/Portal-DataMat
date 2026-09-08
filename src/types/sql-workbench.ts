@@ -1,14 +1,8 @@
-export interface Connection {
-  id: string;
-  name: string;
-  host: string;
-  port: number;
-  user: string;
-  password: string;
-  database?: string;
-  color?: string;
-  status: 'connected' | 'disconnected' | 'error';
-}
+// `Connection` é um alias de `SavedConnection` (fonte única em
+// `@/lib/connections/types`), compartilhado com o Studio. Mantido aqui
+// para não quebrar os imports existentes de `@/types/sql-workbench`.
+import type { SavedConnection } from '@/lib/connections/types';
+export type Connection = SavedConnection;
 
 export interface ColumnInfo {
   name: string;
@@ -69,6 +63,15 @@ export interface QueryResult {
   executionTime: number;
   type: 'select' | 'insert' | 'update' | 'delete' | 'ddl' | 'transaction';
   message?: string;
+  /** true quando um LIMIT de segurança foi adicionado automaticamente (ver executor.ts). */
+  autoLimited?: boolean;
+  /**
+   * O SQL que realmente gerou este resultado — não necessariamente igual
+   * ao texto atual do editor, que pode ter sido editado depois de rodar
+   * (aba fica "dirty" sem reexecutar). Usado pelo drill-down e pelo
+   * "filtrar por valor" pra não adivinhar a tabela errada nesse caso.
+   */
+  sourceSql?: string;
 }
 
 export interface QueryTab {
@@ -134,4 +137,7 @@ export interface SqlWorkbenchState {
   splitSize: number;
   queryHistory: QueryHistoryEntry[];
   highlightEnabled: boolean;
+  /** true enquanto uma query está rodando — usado pra trocar "Executar" por "Cancelar" no toolbar. */
+  isExecuting: boolean;
+  activeExecutionId: string | null;
 }

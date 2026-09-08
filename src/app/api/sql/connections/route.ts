@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateMasterAdmin } from '@/lib/auth-helpers';
-import { getConnections, createConnection } from '@/lib/firebase/connections';
-import type { Connection } from '@/types/sql-workbench';
-
-function stripPassword(conn: Connection): Omit<Connection, 'password'> {
-  const { password: _, ...rest } = conn;
-  return rest;
-}
+import { listConnections, createConnection, stripPassword } from '@/lib/connections/repository';
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,9 +10,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ connections: [] });
     }
 
-    const connections = await getConnections(currentUser.uid);
+    const connections = await listConnections(currentUser.uid);
     return NextResponse.json({ connections: connections.map(stripPassword) });
-  } catch (err) {
+  } catch {
     return NextResponse.json({ connections: [] });
   }
 }
@@ -32,12 +26,13 @@ export async function POST(request: NextRequest) {
     }
 
     const connection = await request.json();
-    const { id, ...rest } = connection;
+    const { id: _id, status: _status, ...rest } = connection;
 
-    const newId = await createConnection(currentUser.uid, {
-      ...rest,
-      status: 'disconnected',
-    });
+    if (!rest.name || !rest.host || !rest.user) {
+      return NextResponse.json({ error: 'name, host e user são obrigatórios' }, { status: 400 });
+    }
+
+    const newId = await createConnection(currentUser.uid, { ...rest, status: 'disconnected' });
 
     return NextResponse.json({ id: newId, ...rest, status: 'disconnected' });
   } catch (err) {

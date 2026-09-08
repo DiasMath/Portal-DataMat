@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useEffect } from 'react';
 import Editor, { OnMount, OnChange } from '@monaco-editor/react';
 import type * as Monaco from 'monaco-editor';
 import { useSqlWorkbench } from '@/contexts/SqlWorkbenchContext';
@@ -9,6 +9,7 @@ interface QueryEditorProps {
   tabId: string;
   sql: string;
   connectionId?: string;
+  fontSize?: number;
 }
 
 const SQL_KEYWORDS = [
@@ -49,14 +50,29 @@ const MYSQL_FUNCTIONS = [
   'FORMAT', 'LOCATE', 'FIELD', 'FIND_IN_SET',
 ];
 
-export function QueryEditor({ tabId, sql, connectionId }: QueryEditorProps) {
-  const { state, dispatch, executeQuery } = useSqlWorkbench();
+export function QueryEditor({ tabId, sql, connectionId, fontSize = 14 }: QueryEditorProps) {
+  const { state, dispatch, executeQuery, registerEditor, unregisterEditor } = useSqlWorkbench();
   const editorRef = useRef<any>(null);
   const sqlRef = useRef(sql);
   sqlRef.current = sql;
+  const completionDisposableRef = useRef<{ dispose: () => void } | null>(null);
+
+  // Cada instância do QueryEditor é remontada quando você troca de aba
+  // (o `key={tab.id}` no componente pai força isso). Sem descartar o
+  // provider de autocomplete registrado no mount anterior, cada troca de
+  // aba deixava um provider "sql" a mais pendurado no Monaco global —
+  // acumulando ao longo do dia e deixando o autocomplete cada vez mais
+  // pesado (e com sugestões duplicadas).
+  useEffect(() => {
+    return () => {
+      completionDisposableRef.current?.dispose();
+      unregisterEditor(tabId);
+    };
+  }, [tabId, unregisterEditor]);
 
   const handleEditorMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
+    registerEditor(tabId, editor);
 
     monaco.editor.defineTheme('datamat-sql', {
       base: 'vs-dark',
@@ -85,7 +101,7 @@ export function QueryEditor({ tabId, sql, connectionId }: QueryEditorProps) {
     });
     editor.updateOptions({ theme: 'datamat-sql' });
 
-    monaco.languages.registerCompletionItemProvider('sql', {
+    completionDisposableRef.current = monaco.languages.registerCompletionItemProvider('sql', {
       triggerCharacters: [' ', '.', '(', ','],
       provideCompletionItems: (model: Monaco.editor.ITextModel, position: Monaco.Position) => {
         const word = model.getWordUntilPosition(position);
@@ -193,7 +209,7 @@ export function QueryEditor({ tabId, sql, connectionId }: QueryEditorProps) {
         onMount={handleEditorMount}
         options={{
           minimap: { enabled: false },
-          fontSize: 14,
+          fontSize,
           fontFamily: 'var(--font-geist-mono), Consolas, monospace',
           lineNumbers: 'on',
           renderLineHighlight: 'all',

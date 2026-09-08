@@ -139,15 +139,19 @@ export function TableCreatorDialog({ open, onOpenChange, onSave }: {
 
     setCreating(true);
     try {
-      await executeQuery(sql);
-      toast.success('Tabela criada com sucesso!');
-      onOpenChange(false);
-      onSave(sql);
-      // Reset form
-      setTableName('');
-      setColumns([{ id: '1', name: 'id', type: 'INT', length: '', primaryKey: true, notNull: true, unique: false, autoIncrement: true, defaultValue: '', comment: '' }]);
-      setIndexes([]);
-      setForeignKeys([]);
+      const success = await executeQuery(sql);
+      if (success) {
+        toast.success('Tabela criada com sucesso!');
+        onOpenChange(false);
+        onSave(sql);
+        // Reset form
+        setTableName('');
+        setColumns([{ id: '1', name: 'id', type: 'INT', length: '', primaryKey: true, notNull: true, unique: false, autoIncrement: true, defaultValue: '', comment: '' }]);
+        setIndexes([]);
+        setForeignKeys([]);
+      } else {
+        toast.error('Erro ao criar tabela — veja a aba de Mensagens da query ativa para detalhes');
+      }
     } catch (err) {
       toast.error('Erro ao criar tabela');
     } finally {
@@ -203,7 +207,7 @@ export function TableCreatorDialog({ open, onOpenChange, onSave }: {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh]">
+      <DialogContent className="max-w-6xl w-[95vw] max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>Criar Nova Tabela</DialogTitle>
           <DialogDescription>

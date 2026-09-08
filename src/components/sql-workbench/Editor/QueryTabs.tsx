@@ -2,11 +2,11 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { useSqlWorkbench } from '@/contexts/SqlWorkbenchContext';
-import { X, Plus, SplitSquareHorizontal } from 'lucide-react';
+import { X, Plus, SplitSquareHorizontal, SplitSquareVertical } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 export function QueryTabs() {
-  const { state, dispatch, newTab, enableSplitHorizontal, disableSplit } = useSqlWorkbench();
+  const { state, dispatch, newTab, enableSplitHorizontal, enableSplitVertical, disableSplit } = useSqlWorkbench();
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const dragIdxRef = useRef<number | null>(null);
   const [closingTabId, setClosingTabId] = useState<string | null>(null);
@@ -76,6 +76,14 @@ export function QueryTabs() {
     }
   };
 
+  const handleSplitVertical = () => {
+    if (state.splitMode === 'vertical') {
+      disableSplit();
+    } else {
+      enableSplitVertical();
+    }
+  };
+
   return (
     <div className="flex items-center gap-1">
       <div className="flex items-center gap-0.5 overflow-x-auto">
@@ -118,14 +126,21 @@ export function QueryTabs() {
         <button
           onClick={handleSplitHorizontal}
           className={`p-1 rounded transition-colors ${state.splitMode === 'horizontal' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'}`}
-          title="Dividir horizontalmente"
+          title="Dividir horizontalmente (Ctrl+Shift+H)"
         >
           <SplitSquareHorizontal className="h-4 w-4" />
         </button>
         <button
+          onClick={handleSplitVertical}
+          className={`p-1 rounded transition-colors ${state.splitMode === 'vertical' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'}`}
+          title="Dividir verticalmente (Ctrl+Shift+V)"
+        >
+          <SplitSquareVertical className="h-4 w-4" />
+        </button>
+        <button
           onClick={() => newTab()}
           className="p-1 hover:bg-accent rounded transition-colors"
-          title="Nova aba (Ctrl+N)"
+          title="Nova aba (Ctrl+Alt+N)"
         >
           <Plus className="h-4 w-4 text-muted-foreground" />
         </button>

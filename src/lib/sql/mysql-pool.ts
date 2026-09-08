@@ -19,6 +19,49 @@ const pools = new Map<string, PoolEntry>();
 const POOL_LIMIT = 10;
 const POOL_TTL = 30 * 60 * 1000;
 
+/**
+ * Registro de execuções em andamento, pra permitir cancelar uma query
+ * (`KILL QUERY <thread>` no MySQL) a partir de outra requisição — a
+ * conexão que está rodando a query está ocupada, então o cancelamento
+ * precisa vir de uma conexão diferente do mesmo pool.
+ */
+interface ActiveExecution {
+  connectionId: string;
+  mysqlThreadId: number;
+  userId: string;
+}
+const activeExecutions = new Map<string, ActiveExecution>();
+
+export function registerActiveExecution(executionId: string, entry: ActiveExecution): void {
+  activeExecutions.set(executionId, entry);
+}
+
+export function unregisterActiveExecution(executionId: string): void {
+  activeExecutions.delete(executionId);
+}
+
+export async function cancelExecution(executionId: string, userId: string): Promise<{ success: boolean; error?: string }> {
+  const entry = activeExecutions.get(executionId);
+  if (!entry) {
+    return { success: false, error: 'Execução não encontrada (pode já ter terminado)' };
+  }
+  if (entry.userId !== userId) {
+    return { success: false, error: 'Acesso negado' };
+  }
+
+  const pool = pools.get(entry.connectionId)?.pool;
+  if (!pool) {
+    return { success: false, error: 'Conexão não encontrada' };
+  }
+
+  try {
+    await pool.query(`KILL QUERY ${entry.mysqlThreadId}`);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 export async function getPool(connectionId: string): Promise<Pool | null> {
   const entry = pools.get(connectionId);
   if (entry) {
@@ -115,42 +158,10 @@ export async function testConnection(config: PoolConfig): Promise<{ success: boo
 }
 
 async function loadConfigFromFirestore(connectionId: string): Promise<PoolConfig | null> {
-  try {
-    const { adminDb } = await import('@/lib/firebase-admin');
-    if (!adminDb) {
-      console.error('[mysql-pool] adminDb not available');
-      return null;
-    }
-
-    const doc = await adminDb.collection('sql_connections').doc(connectionId).get();
-    if (!doc.exists) {
-      console.error('[mysql-pool] Connection doc not found:', connectionId);
-      return null;
-    }
-
-    const data = doc.data()!;
-    let password = data.password || '';
-
-    if (password && password.includes(':') && password.split(':').length === 3) {
-      const { decrypt } = await import('@/lib/crypto');
-      try {
-        password = decrypt(password);
-      } catch (e) {
-        console.error('[mysql-pool] Failed to decrypt password:', e);
-      }
-    }
-
-    return {
-      host: data.host,
-      port: Number(data.port),
-      user: data.user,
-      password,
-      database: data.database || undefined,
-    };
-  } catch (e) {
-    console.error('[mysql-pool] loadConfigFromFirestore error:', e);
-    return null;
-  }
+  // Delega para o repositório único de conexões (evita duplicar a lógica
+  // de leitura/descriptografia que antes vivia só aqui).
+  const { loadDecryptedConfig } = await import('@/lib/connections/repository');
+  return loadDecryptedConfig(connectionId);
 }
 
 setInterval(() => {

@@ -2,18 +2,28 @@ import { getPool } from './mysql-pool';
 import type { DatabaseSchema, TableInfo, ViewInfo, RoutineInfo, ForeignKeyInfo } from '@/types/sql-workbench';
 import { RowDataPacket } from 'mysql2/promise';
 
-export async function readSchema(connectionId: string): Promise<DatabaseSchema | null> {
+export async function readSchema(connectionId: string, database?: string): Promise<DatabaseSchema | null> {
   const pool = await getPool(connectionId);
   if (!pool) return null;
 
   try {
-    const [dbRows] = await pool.query<RowDataPacket[]>('SELECT DATABASE() as db');
-    const currentDb = dbRows[0]?.db || null;
-
     const [schemaRows] = await pool.query<RowDataPacket[]>(
       'SELECT SCHEMA_NAME FROM information_schema.SCHEMATA ORDER BY SCHEMA_NAME'
     );
     const databases: string[] = schemaRows.map((r) => r.SCHEMA_NAME);
+
+    // Se um banco específico foi passado (ex: usuário expandiu outro banco
+    // na sidebar), usamos ele diretamente como filtro nas queries de
+    // information_schema — sem depender de `USE banco` + `SELECT DATABASE()`.
+    // Um `pool.query()` pode pegar qualquer conexão física do pool a cada
+    // chamada; um `USE` rodado numa chamada não garante que a consulta
+    // seguinte caia na mesma conexão, o que fazia o schema lido às vezes
+    // refletir o banco padrão da conexão em vez do banco escolhido.
+    let currentDb = database;
+    if (!currentDb) {
+      const [dbRows] = await pool.query<RowDataPacket[]>('SELECT DATABASE() as db');
+      currentDb = dbRows[0]?.db || undefined;
+    }
 
     if (!currentDb) {
       return { database: '', databases, tables: [], views: [], procedures: [], functions: [], foreignKeys: [] };

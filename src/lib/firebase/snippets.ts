@@ -4,6 +4,30 @@ import type { Snippet, SavedQuery } from '@/types/sql-workbench';
 const SNIPPETS_COLLECTION = 'sql_snippets';
 const SAVED_QUERIES_COLLECTION = 'sql_saved_queries';
 
+/**
+ * Na primeira vez que um usuário abre a aba de Snippets (sem nenhum
+ * salvo ainda), semeamos os templates prontos (`DEFAULT_SNIPPETS`) como
+ * documentos reais dele no Firestore — não como uma lista hardcoded
+ * exibida à parte. Assim ele pode editar/excluir como qualquer outro
+ * snippet, sem precisar de um caminho de código especial em nenhum outro
+ * lugar do app.
+ */
+async function seedDefaultSnippets(userId: string): Promise<Snippet[]> {
+  if (!adminDb) return [];
+  const batch = adminDb.batch();
+  const seeded: Snippet[] = [];
+
+  for (const snippet of DEFAULT_SNIPPETS) {
+    const { id: _templateId, ...rest } = snippet;
+    const docRef = adminDb.collection(SNIPPETS_COLLECTION).doc();
+    batch.set(docRef, { userId, ...rest, createdAt: new Date() });
+    seeded.push({ ...rest, id: docRef.id });
+  }
+
+  await batch.commit();
+  return seeded;
+}
+
 export async function getSnippets(userId: string): Promise<Snippet[]> {
   if (!adminDb) return [];
   const snapshot = await adminDb
@@ -11,6 +35,10 @@ export async function getSnippets(userId: string): Promise<Snippet[]> {
     .where('userId', '==', userId)
     .orderBy('createdAt', 'desc')
     .get();
+
+  if (snapshot.empty) {
+    return seedDefaultSnippets(userId);
+  }
 
   return snapshot.docs.map((doc) => ({
     id: doc.id,

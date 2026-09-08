@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { useSqlWorkbench } from '@/contexts/SqlWorkbenchContext';
 import { AddConnectionDialog } from './AddConnectionDialog';
 import { TableCreatorDialog } from '@/components/sql-workbench/TableCreatorDialog';
+import { ViewCreatorDialog } from '@/components/sql-workbench/ViewCreatorDialog';
+import { RoutineCreatorDialog } from '@/components/sql-workbench/RoutineCreatorDialog';
 import type { Connection, DatabaseSchema, TableInfo } from '@/types/sql-workbench';
 import {
   Database,
@@ -23,12 +25,25 @@ import {
   Trash,
   PlusCircle,
   FilePlus,
+  Pencil,
+  Copy,
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 export function Sidebar() {
   const { state, dispatch, newTab, executeQuery, setActiveDatabase } = useSqlWorkbench();
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [editingConnection, setEditingConnection] = useState<Connection | null>(null);
   const [showCreateTable, setShowCreateTable] = useState(false);
+  const [showCreateView, setShowCreateView] = useState(false);
+  const [showCreateProcedure, setShowCreateProcedure] = useState(false);
+  const [showCreateFunction, setShowCreateFunction] = useState(false);
+
+  const refreshActiveDatabaseSchema = () => {
+    if (state.activeConnectionId && state.activeDatabase) {
+      loadDatabaseSchema(state.activeConnectionId, state.activeDatabase, true);
+    }
+  };
   const [expandedConnections, setExpandedConnections] = useState<Set<string>>(new Set());
   const [expandedDatabases, setExpandedDatabases] = useState<Set<string>>(new Set());
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
@@ -62,17 +77,14 @@ export function Sidebar() {
   const connectToDatabase = async (conn: Connection) => {
     setConnectingId(conn.id);
     try {
+      // Não mandamos host/user/password aqui: a API já busca e descriptografa
+      // a config salva a partir do connectionId. `conn` vem de
+      // GET /api/sql/connections, que nunca inclui a senha (ver stripPassword),
+      // então reenviar esses campos quebraria a reconexão depois de um reload.
       const res = await fetch('/api/sql/connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          connectionId: conn.id,
-          host: conn.host,
-          port: Number(conn.port),
-          user: conn.user,
-          password: conn.password,
-          database: conn.database || undefined,
-        }),
+        body: JSON.stringify({ connectionId: conn.id }),
       });
 
       const data = await res.json();
@@ -102,8 +114,43 @@ export function Sidebar() {
     try {
       await fetch(`/api/sql/connections/${conn.id}`, { method: 'DELETE' });
       dispatch({ type: 'REMOVE_CONNECTION', payload: conn.id });
+      toast.success('Conexão excluída');
     } catch (err) {
       console.error('Failed to delete connection:', err);
+      toast.error('Erro ao excluir conexão');
+    }
+  };
+
+  const duplicateConnection = async (conn: Connection) => {
+    try {
+      const res = await fetch('/api/sql/connections', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: `${conn.name} (cópia)`,
+          host: conn.host,
+          port: conn.port,
+          user: conn.user,
+          // A senha não vem no objeto `conn` (nunca é enviada pelo GET), então
+          // a cópia fica sem senha até o usuário editá-la e preenchê-la.
+          password: '',
+          database: conn.database,
+          color: conn.color,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || 'Erro ao duplicar conexão');
+        return;
+      }
+      dispatch({
+        type: 'ADD_CONNECTION',
+        payload: { ...conn, id: data.id, name: `${conn.name} (cópia)`, password: '', status: 'disconnected' },
+      });
+      toast.success('Conexão duplicada — defina a senha antes de conectar');
+    } catch (err) {
+      console.error('Failed to duplicate connection:', err);
+      toast.error('Erro ao duplicar conexão');
     }
   };
 
@@ -119,6 +166,20 @@ export function Sidebar() {
     setExpandedTables(newSet);
   };
 
+  const loadDatabaseSchema = async (connectionId: string, dbName: string, force = false) => {
+    const key = `${connectionId}:${dbName}`;
+    if (!force && databaseSchemas[key]) return;
+    try {
+      const schemaRes = await fetch(`/api/sql/schema?connectionId=${connectionId}&database=${encodeURIComponent(dbName)}`);
+      const schemaData = await schemaRes.json();
+      if (schemaData.success && schemaData.schema) {
+        setDatabaseSchemas(prev => ({ ...prev, [key]: schemaData.schema }));
+      }
+    } catch (err) {
+      console.error('Failed to load schema:', err);
+    }
+  };
+
   const toggleDatabase = async (dbName: string, connectionId: string) => {
     const newSet = new Set(expandedDatabases);
     const isExpanding = !newSet.has(dbName);
@@ -130,18 +191,7 @@ export function Sidebar() {
     setExpandedDatabases(newSet);
 
     if (isExpanding) {
-      const key = `${connectionId}:${dbName}`;
-      if (!databaseSchemas[key]) {
-        try {
-          const schemaRes = await fetch(`/api/sql/schema?connectionId=${connectionId}&database=${encodeURIComponent(dbName)}`);
-          const schemaData = await schemaRes.json();
-          if (schemaData.success && schemaData.schema) {
-            setDatabaseSchemas(prev => ({ ...prev, [key]: schemaData.schema }));
-          }
-        } catch (err) {
-          console.error('Failed to load schema:', err);
-        }
-      }
+      await loadDatabaseSchema(connectionId, dbName);
     }
   };
 
@@ -282,7 +332,7 @@ export function Sidebar() {
               return (
                 <div key={conn.id}>
                   <div
-                    className={`flex items-center gap-1 px-2 py-1 hover:bg-accent cursor-pointer ${
+                    className={`group flex items-center gap-1 px-2 py-1 hover:bg-accent cursor-pointer ${
                       state.activeConnectionId === conn.id ? 'bg-accent' : ''
                     }`}
                   >
@@ -310,16 +360,38 @@ export function Sidebar() {
                       )}
                     </button>
 
+                    <span
+                      className="h-2 w-2 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: conn.color || '#6366f1' }}
+                      title="Cor da conexão"
+                    />
                     <Database className="h-4 w-4 text-primary" />
 
                     <span className="flex-1 text-sm truncate text-foreground">{conn.name}</span>
 
-                    <button
-                      onClick={() => deleteConnection(conn)}
-                      className="p-0.5 hover:bg-destructive/20 rounded opacity-0 hover:opacity-100 transition-opacity"
-                    >
-                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                    </button>
+                    <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setEditingConnection(conn); setShowAddDialog(true); }}
+                        className="p-0.5 hover:bg-accent rounded"
+                        title="Editar conexão"
+                      >
+                        <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); duplicateConnection(conn); }}
+                        className="p-0.5 hover:bg-accent rounded"
+                        title="Duplicar conexão"
+                      >
+                        <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); deleteConnection(conn); }}
+                        className="p-0.5 hover:bg-destructive/20 rounded"
+                        title="Excluir conexão"
+                      >
+                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                      </button>
+                    </div>
                   </div>
 
                   {isExpanded && schema && schema.databases && schema.databases.length > 0 && (
@@ -357,31 +429,32 @@ export function Sidebar() {
                               </span>
                               <Database className="h-3.5 w-3.5 text-primary" />
                               <span
-                                onClick={() => setActiveDatabase(dbName)}
-                                className={`text-sm truncate ${activeDatabase === dbName ? 'text-yellow-text font-medium' : 'text-foreground'}`}
+                                onClick={(e) => { e.stopPropagation(); toggleDatabase(dbName, conn.id); }}
+                                onDoubleClick={(e) => { e.stopPropagation(); setActiveDatabase(dbName); }}
+                                title="Clique duplo para tornar este o banco ativo"
+                                className={`text-sm truncate select-none ${activeDatabase === dbName ? 'text-yellow-text font-medium' : 'text-foreground'}`}
                               >
                                 {dbName}
                               </span>
                             </div>
                             {isDbExpanded && dbSchema && (
                               <div className="ml-4">
-                                {dbSchema.tables.length > 0 && (
-                                  <div>
-                                    <div
-                                      onClick={() => toggleSection(sectionTables)}
-                                      className="flex items-center gap-1 px-2 py-0.5 text-xs text-muted-foreground uppercase tracking-wider cursor-pointer hover:bg-accent/50"
+                                <div>
+                                  <div
+                                    onClick={() => toggleSection(sectionTables)}
+                                    className="flex items-center gap-1 px-2 py-0.5 text-xs text-muted-foreground uppercase tracking-wider cursor-pointer hover:bg-accent/50"
+                                  >
+                                    {isTablesExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                                    <Table className="h-3 w-3" />
+                                    Tables ({dbSchema.tables.length})
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); setShowCreateTable(true); }}
+                                      className="ml-auto p-0.5 hover:bg-accent rounded transition-colors"
+                                      title="Criar nova tabela"
                                     >
-                                      {isTablesExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                                      <Table className="h-3 w-3" />
-                                      Tables ({dbSchema.tables.length})
-                                      <button
-                                        onClick={(e) => { e.stopPropagation(); setShowCreateTable(true); }}
-                                        className="ml-auto p-0.5 hover:bg-accent rounded transition-colors"
-                                        title="Criar nova tabela"
-                                      >
-                                        <Plus className="h-3 w-3" />
-                                      </button>
-                                    </div>
+                                      <Plus className="h-3 w-3" />
+                                    </button>
+                                  </div>
                                     {isTablesExpanded && dbSchema.tables.map((table) => (
                                       <div key={table.name}>
                                         <div
@@ -413,61 +486,75 @@ export function Sidebar() {
                                       </div>
                                     ))}
                                   </div>
-                                )}
-                                {dbSchema.views.length > 0 && (
-                                  <div>
-                                    <div
-                                      onClick={() => toggleSection(sectionViews)}
-                                      className="flex items-center gap-1 px-2 py-0.5 text-xs text-muted-foreground uppercase tracking-wider cursor-pointer hover:bg-accent/50"
+                                <div>
+                                  <div
+                                    onClick={() => toggleSection(sectionViews)}
+                                    className="flex items-center gap-1 px-2 py-0.5 text-xs text-muted-foreground uppercase tracking-wider cursor-pointer hover:bg-accent/50"
+                                  >
+                                    {isViewsExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                                    <Eye className="h-3 w-3" />
+                                    Views ({dbSchema.views.length})
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); setShowCreateView(true); }}
+                                      className="ml-auto p-0.5 hover:bg-accent rounded transition-colors"
+                                      title="Criar nova view"
                                     >
-                                      {isViewsExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                                      <Eye className="h-3 w-3" />
-                                      Views ({dbSchema.views.length})
-                                    </div>
-                                    {isViewsExpanded && dbSchema.views.map((view) => (
-                                      <div key={view.name} className="flex items-center gap-1 px-2 py-0.5 ml-4 hover:bg-accent cursor-pointer">
-                                        <Eye className="h-3.5 w-3.5 text-muted-foreground" />
-                                        <span className="text-sm text-foreground">{view.name}</span>
-                                      </div>
-                                    ))}
+                                      <Plus className="h-3 w-3" />
+                                    </button>
                                   </div>
-                                )}
-                                {dbSchema.procedures.length > 0 && (
-                                  <div>
-                                    <div
-                                      onClick={() => toggleSection(sectionProcedures)}
-                                      className="flex items-center gap-1 px-2 py-0.5 text-xs text-muted-foreground uppercase tracking-wider cursor-pointer hover:bg-accent/50"
+                                  {isViewsExpanded && dbSchema.views.map((view) => (
+                                    <div key={view.name} className="flex items-center gap-1 px-2 py-0.5 ml-4 hover:bg-accent cursor-pointer">
+                                      <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+                                      <span className="text-sm text-foreground">{view.name}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                                <div>
+                                  <div
+                                    onClick={() => toggleSection(sectionProcedures)}
+                                    className="flex items-center gap-1 px-2 py-0.5 text-xs text-muted-foreground uppercase tracking-wider cursor-pointer hover:bg-accent/50"
+                                  >
+                                    {isProceduresExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                                    <FileCode className="h-3 w-3" />
+                                    Procedures ({dbSchema.procedures.length})
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); setShowCreateProcedure(true); }}
+                                      className="ml-auto p-0.5 hover:bg-accent rounded transition-colors"
+                                      title="Criar nova procedure"
                                     >
-                                      {isProceduresExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                                      <FileCode className="h-3 w-3" />
-                                      Procedures ({dbSchema.procedures.length})
-                                    </div>
-                                    {isProceduresExpanded && dbSchema.procedures.map((proc) => (
-                                      <div key={proc.name} className="flex items-center gap-1 px-2 py-0.5 ml-4 hover:bg-accent cursor-pointer">
-                                        <FileCode className="h-3.5 w-3.5 text-yellow-500" />
-                                        <span className="text-sm text-foreground">{proc.name}</span>
-                                      </div>
-                                    ))}
+                                      <Plus className="h-3 w-3" />
+                                    </button>
                                   </div>
-                                )}
-                                {dbSchema.functions.length > 0 && (
-                                  <div>
-                                    <div
-                                      onClick={() => toggleSection(sectionFunctions)}
-                                      className="flex items-center gap-1 px-2 py-0.5 text-xs text-muted-foreground uppercase tracking-wider cursor-pointer hover:bg-accent/50"
+                                  {isProceduresExpanded && dbSchema.procedures.map((proc) => (
+                                    <div key={proc.name} className="flex items-center gap-1 px-2 py-0.5 ml-4 hover:bg-accent cursor-pointer">
+                                      <FileCode className="h-3.5 w-3.5 text-yellow-500" />
+                                      <span className="text-sm text-foreground">{proc.name}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                                <div>
+                                  <div
+                                    onClick={() => toggleSection(sectionFunctions)}
+                                    className="flex items-center gap-1 px-2 py-0.5 text-xs text-muted-foreground uppercase tracking-wider cursor-pointer hover:bg-accent/50"
+                                  >
+                                    {isFunctionsExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                                    <FunctionSquare className="h-3 w-3" />
+                                    Functions ({dbSchema.functions.length})
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); setShowCreateFunction(true); }}
+                                      className="ml-auto p-0.5 hover:bg-accent rounded transition-colors"
+                                      title="Criar nova function"
                                     >
-                                      {isFunctionsExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                                      <FunctionSquare className="h-3 w-3" />
-                                      Functions ({dbSchema.functions.length})
-                                    </div>
-                                    {isFunctionsExpanded && dbSchema.functions.map((func) => (
-                                      <div key={func.name} className="flex items-center gap-1 px-2 py-0.5 ml-4 hover:bg-accent cursor-pointer">
-                                        <FunctionSquare className="h-3.5 w-3.5 text-green-500" />
-                                        <span className="text-sm text-foreground">{func.name}</span>
-                                      </div>
-                                    ))}
+                                      <Plus className="h-3 w-3" />
+                                    </button>
                                   </div>
-                                )}
+                                  {isFunctionsExpanded && dbSchema.functions.map((func) => (
+                                    <div key={func.name} className="flex items-center gap-1 px-2 py-0.5 ml-4 hover:bg-accent cursor-pointer">
+                                      <FunctionSquare className="h-3.5 w-3.5 text-green-500" />
+                                      <span className="text-sm text-foreground">{func.name}</span>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
                             )}
                           </div>
@@ -484,17 +571,46 @@ export function Sidebar() {
 
       <AddConnectionDialog
         open={showAddDialog}
-        onOpenChange={setShowAddDialog}
+        editingConnection={editingConnection}
+        onOpenChange={(open) => {
+          setShowAddDialog(open);
+          if (!open) setEditingConnection(null);
+        }}
         onSave={(conn) => {
-          dispatch({ type: 'ADD_CONNECTION', payload: { ...conn, status: 'disconnected' } });
+          if (editingConnection) {
+            dispatch({ type: 'UPDATE_CONNECTION', payload: conn });
+          } else {
+            dispatch({ type: 'ADD_CONNECTION', payload: { ...conn, status: 'disconnected' } });
+          }
           setShowAddDialog(false);
+          setEditingConnection(null);
         }}
       />
 
       <TableCreatorDialog
         open={showCreateTable}
         onOpenChange={setShowCreateTable}
-        onSave={() => {}}
+        onSave={refreshActiveDatabaseSchema}
+      />
+
+      <ViewCreatorDialog
+        open={showCreateView}
+        onOpenChange={setShowCreateView}
+        onCreated={refreshActiveDatabaseSchema}
+      />
+
+      <RoutineCreatorDialog
+        open={showCreateProcedure}
+        onOpenChange={setShowCreateProcedure}
+        kind="PROCEDURE"
+        onCreated={refreshActiveDatabaseSchema}
+      />
+
+      <RoutineCreatorDialog
+        open={showCreateFunction}
+        onOpenChange={setShowCreateFunction}
+        kind="FUNCTION"
+        onCreated={refreshActiveDatabaseSchema}
       />
 
       {dbContextMenu && (

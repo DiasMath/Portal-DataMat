@@ -4,7 +4,7 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { GridColumnHeader } from './GridColumnHeader';
 import { GridRow } from './GridRow';
 import { GridToolbar } from './GridToolbar';
-import { exportGridData, downloadFile } from './grid-export';
+import { downloadGridExport } from './grid-export';
 import { GRID_COLORS, type GridData, type SortConfig, type ColumnWidths, type ExportFormat } from './types';
 import { TableVirtuoso } from 'react-virtuoso';
 
@@ -80,11 +80,7 @@ export function QueryResultsGrid({ data, onRerun }: QueryResultsGridProps) {
   }, []);
 
   const handleExport = useCallback((format: ExportFormat) => {
-    const content = exportGridData(data, format);
-    const ext = format === 'csv' ? 'csv' : 'json';
-    const mime = format === 'csv' ? 'text/csv' : 'application/json';
-    const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
-    downloadFile(content, `query-result-${timestamp}.${ext}`, mime);
+    void downloadGridExport(data, format);
   }, [data]);
 
   if (!data || data.columns.length === 0) {

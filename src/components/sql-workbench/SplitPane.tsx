@@ -29,14 +29,13 @@ export function SplitPane({
 
     const handleMouseMove = (e: MouseEvent) => {
       if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
 
       if (direction === 'horizontal') {
-        const containerWidth = containerRef.current.clientWidth;
-        const newSize = (e.clientX / containerWidth) * 100;
+        const newSize = ((e.clientX - rect.left) / rect.width) * 100;
         setSize(Math.max(minSize, Math.min(maxSize, newSize)));
       } else {
-        const containerHeight = containerRef.current.clientHeight;
-        const newSize = (e.clientY / containerHeight) * 100;
+        const newSize = ((e.clientY - rect.top) / rect.height) * 100;
         setSize(Math.max(minSize, Math.min(maxSize, newSize)));
       }
     };

@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { TableVirtuoso } from 'react-virtuoso';
 import type { FieldSchema } from '../../types/dashboard';
+import { exportTabularData } from '@/lib/export/tabular-export';
 
 interface RowData {
   [key: string]: unknown;
@@ -290,44 +291,21 @@ export function DataView() {
       ? filteredRows.filter((_, i) => selectedRowIndices.has(i))
       : filteredRows;
 
-    let content: string;
-    let mimeType: string;
-    let ext: string;
+    // Usa o label amigável do campo (quando existir) como cabeçalho, igual
+    // ao comportamento anterior — só remapeia as chaves antes de delegar
+    // pro exportador compartilhado.
+    const columns = fields.map(f => f.label || f.name);
+    const rows = selectedRows.map(row => {
+      const mapped: Record<string, unknown> = {};
+      fields.forEach(f => { mapped[f.label || f.name] = row[f.name]; });
+      return mapped;
+    });
 
-    if (format === 'csv') {
-      const header = fields.map(f => `"${f.label || f.name}"`).join(';');
-      const body = selectedRows.map(row =>
-        fields.map(f => {
-          const val = row[f.name];
-          return `"${String(val ?? '').replace(/"/g, '""')}"`;
-        }).join(';')
-      ).join('\n');
-      content = header + '\n' + body;
-      mimeType = 'text/csv;charset=utf-8;';
-      ext = 'csv';
-    } else if (format === 'json') {
-      const data = selectedRows.map(row => {
-        const obj: Record<string, unknown> = {};
-        fields.forEach(f => { obj[f.label || f.name] = row[f.name]; });
-        return obj;
-      });
-      content = JSON.stringify(data, null, 2);
-      mimeType = 'application/json';
-      ext = 'json';
-    } else {
-      content = '';
-      mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-      ext = 'xlsx';
-      return;
-    }
-
-    const blob = new Blob([content], { type: mimeType });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${selectedTable.name}.${ext}`;
-    a.click();
-    URL.revokeObjectURL(url);
+    void exportTabularData(
+      { columns, rows },
+      format,
+      { baseFilename: selectedTable.name, tableName: selectedTable.name, csvDelimiter: ';' }
+    );
     setShowExportMenu(false);
   }, [selectedTable, filteredRows, selectedRowIndices]);
 

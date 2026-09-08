@@ -8,6 +8,7 @@ import { ResultsPanel } from './Results/ResultsPanel';
 import { QueryTabs } from './Editor/QueryTabs';
 import { SplitPane } from './SplitPane';
 import { ShortcutSettings } from './Settings/ShortcutSettings';
+import { DEFAULT_SHORTCUTS, loadShortcuts, matchesShortcut, type ShortcutAction } from './shortcuts';
 import { toast } from 'sonner';
 import {
   Play,
@@ -19,6 +20,10 @@ import {
   Save,
   Trash2,
   Settings,
+  Square,
+  Loader2,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react';
 
 export function SqlWorkbench() {
@@ -30,12 +35,56 @@ export function SqlWorkbench() {
     executeQuery,
     activeTab,
     enableSplitHorizontal,
+    enableSplitVertical,
     disableSplit,
     formatSql,
     saveQuery,
+    getSelectedSql,
+    cancelQuery,
   } = useSqlWorkbench();
   const containerRef = useRef<HTMLDivElement>(null);
   const [showSettings, setShowSettings] = useState(false);
+
+  const FONT_SIZE_STORAGE_KEY = 'sql_workbench_font_size';
+  const MIN_FONT_SIZE = 10;
+  const MAX_FONT_SIZE = 24;
+  const [fontSize, setFontSize] = useState(14);
+
+  useEffect(() => {
+    const saved = localStorage.getItem(FONT_SIZE_STORAGE_KEY);
+    if (saved) {
+      const parsed = parseInt(saved, 10);
+      if (!isNaN(parsed)) setFontSize(parsed);
+    }
+  }, []);
+
+  const adjustFontSize = (delta: number) => {
+    setFontSize((prev) => {
+      const next = Math.max(MIN_FONT_SIZE, Math.min(MAX_FONT_SIZE, prev + delta));
+      localStorage.setItem(FONT_SIZE_STORAGE_KEY, String(next));
+      return next;
+    });
+  };
+  const [shortcuts, setShortcuts] = useState<Record<ShortcutAction, string>>(DEFAULT_SHORTCUTS);
+
+  useEffect(() => {
+    setShortcuts(loadShortcuts());
+  }, []);
+
+  // Confirmação antes de recarregar/fechar a página — sempre, não só com
+  // query não salva: fechar a aba derruba a conexão MySQL (o pool do
+  // servidor não sabe que você "só" recarregou), então mesmo sem edição
+  // pendente você teria que reconectar. O texto da mensagem é definido
+  // pelo navegador (não é customizável por segurança), mas o diálogo
+  // nativo "Sair do site?" já cobre o caso.
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
 
   const handleExecute = () => {
     if (!state.activeConnectionId) {
@@ -46,7 +95,11 @@ export function SqlWorkbench() {
       toast.error('Digite uma query para executar');
       return;
     }
-    executeQuery(activeTab.sql);
+    // Se houver texto selecionado no editor, roda só o trecho selecionado
+    // — igual ao que o Ctrl+Enter já fazia, mas antes o botão "Executar"
+    // ignorava a seleção e sempre rodava a aba inteira.
+    const selected = getSelectedSql(activeTab.id);
+    executeQuery(selected || activeTab.sql);
   };
 
   const executeTransaction = (command: 'BEGIN' | 'COMMIT' | 'ROLLBACK') => {
@@ -88,22 +141,22 @@ export function SqlWorkbench() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+      if (matchesShortcut(e, shortcuts.newTab)) {
         e.preventDefault();
         newTab();
       }
 
-      if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+      if (matchesShortcut(e, shortcuts.toggleSidebar)) {
         e.preventDefault();
         toggleSidebar();
       }
 
-      if ((e.ctrlKey || e.metaKey) && e.key === 'e') {
+      if (matchesShortcut(e, shortcuts.toggleResults)) {
         e.preventDefault();
         dispatch({ type: 'SET_RESULTS_COLLAPSED', payload: !state.resultsCollapsed });
       }
 
-      if ((e.ctrlKey || e.metaKey) && e.key === 'w') {
+      if (matchesShortcut(e, shortcuts.closeTab)) {
         e.preventDefault();
         e.stopPropagation();
         if (state.activeTabId) {
@@ -111,12 +164,21 @@ export function SqlWorkbench() {
         }
       }
 
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'H') {
+      if (matchesShortcut(e, shortcuts.splitHorizontal)) {
         e.preventDefault();
         if (state.splitMode === 'horizontal') {
           disableSplit();
         } else {
           enableSplitHorizontal();
+        }
+      }
+
+      if (matchesShortcut(e, shortcuts.splitVertical)) {
+        e.preventDefault();
+        if (state.splitMode === 'vertical') {
+          disableSplit();
+        } else {
+          enableSplitVertical();
         }
       }
 
@@ -131,17 +193,17 @@ export function SqlWorkbench() {
         }
       }
 
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'F') {
+      if (matchesShortcut(e, shortcuts.formatSql)) {
         e.preventDefault();
         formatSql();
       }
 
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'G') {
+      if (matchesShortcut(e, shortcuts.toggleHighlight)) {
         e.preventDefault();
         dispatch({ type: 'TOGGLE_HIGHLIGHT' });
       }
 
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      if (matchesShortcut(e, shortcuts.saveQuery)) {
         e.preventDefault();
         handleSave();
       }
@@ -149,7 +211,7 @@ export function SqlWorkbench() {
 
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [newTab, toggleSidebar, formatSql, state.activeTabId, state.activeConnectionId, state.resultsCollapsed, state.splitMode, state.secondaryTabId, state.tabs, dispatch, enableSplitHorizontal, disableSplit]);
+  }, [newTab, toggleSidebar, formatSql, state.activeTabId, state.activeConnectionId, state.resultsCollapsed, state.splitMode, state.secondaryTabId, state.tabs, dispatch, enableSplitHorizontal, enableSplitVertical, disableSplit, shortcuts]);
 
   const handleSidebarResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -199,7 +261,7 @@ export function SqlWorkbench() {
     if (!tabId) return null;
     const tab = state.tabs.find(t => t.id === tabId);
     if (!tab) return null;
-    return <QueryEditor key={tab.id} tabId={tab.id} sql={tab.sql} connectionId={tab.connectionId} />;
+    return <QueryEditor key={tab.id} tabId={tab.id} sql={tab.sql} connectionId={tab.connectionId} fontSize={fontSize} />;
   };
 
   const renderSplitEditors = () => {
@@ -210,10 +272,10 @@ export function SqlWorkbench() {
           style={{ height: editorHeight }}
         >
           {activeTab ? (
-            <QueryEditor key={activeTab.id} tabId={activeTab.id} sql={activeTab.sql} connectionId={activeTab.connectionId} />
+            <QueryEditor key={activeTab.id} tabId={activeTab.id} sql={activeTab.sql} connectionId={activeTab.connectionId} fontSize={fontSize} />
           ) : (
             <div className="flex items-center justify-center h-full text-muted-foreground">
-              Nenhuma aba aberta. Pressione Ctrl+N para criar uma nova.
+              Nenhuma aba aberta. Pressione Ctrl+Alt+N para criar uma nova.
             </div>
           )}
         </div>
@@ -268,14 +330,26 @@ export function SqlWorkbench() {
               <QueryTabs />
             </div>
             <div className="flex items-center gap-1 px-2 py-1 border-t border-border flex-wrap">
-              <button
-                onClick={handleExecute}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors text-sm font-medium"
-                title="Executar (Ctrl+Enter)"
-              >
-                <Play className="h-3.5 w-3.5" />
-                Executar
-              </button>
+              {state.isExecuting ? (
+                <button
+                  onClick={cancelQuery}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-destructive text-destructive-foreground rounded hover:bg-destructive/90 transition-colors text-sm font-medium"
+                  title="Cancelar execução (mata a query no servidor)"
+                >
+                  <Square className="h-3.5 w-3.5 fill-current" />
+                  Cancelar
+                  <Loader2 className="h-3.5 w-3.5 animate-spin ml-0.5" />
+                </button>
+              ) : (
+                <button
+                  onClick={handleExecute}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors text-sm font-medium"
+                  title="Executar (Ctrl+Enter) — roda só o trecho selecionado, se houver"
+                >
+                  <Play className="h-3.5 w-3.5" />
+                  Executar
+                </button>
+              )}
 
               <button
                 onClick={() => executeTransaction('BEGIN')}
@@ -336,6 +410,26 @@ export function SqlWorkbench() {
               <div className="w-px h-5 bg-border mx-1" />
 
               <button
+                onClick={() => adjustFontSize(-1)}
+                disabled={fontSize <= MIN_FONT_SIZE}
+                className="p-1.5 hover:bg-accent rounded transition-colors disabled:opacity-30 disabled:pointer-events-none"
+                title="Diminuir fonte do editor"
+              >
+                <ZoomOut className="h-4 w-4 text-muted-foreground" />
+              </button>
+              <span className="text-xs text-muted-foreground w-6 text-center select-none">{fontSize}</span>
+              <button
+                onClick={() => adjustFontSize(1)}
+                disabled={fontSize >= MAX_FONT_SIZE}
+                className="p-1.5 hover:bg-accent rounded transition-colors disabled:opacity-30 disabled:pointer-events-none"
+                title="Aumentar fonte do editor"
+              >
+                <ZoomIn className="h-4 w-4 text-muted-foreground" />
+              </button>
+
+              <div className="w-px h-5 bg-border mx-1" />
+
+              <button
                 onClick={() => setShowSettings(true)}
                 className="flex items-center gap-1 px-2 py-1 hover:bg-accent rounded text-sm text-muted-foreground hover:text-foreground transition-colors"
                 title="Configurações"
@@ -364,7 +458,13 @@ export function SqlWorkbench() {
         </div>
       </div>
 
-      <ShortcutSettings open={showSettings} onOpenChange={setShowSettings} />
+      <ShortcutSettings
+        open={showSettings}
+        onOpenChange={(open) => {
+          setShowSettings(open);
+          if (!open) setShortcuts(loadShortcuts());
+        }}
+      />
     </div>
   );
 }

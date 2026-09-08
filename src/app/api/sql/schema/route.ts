@@ -27,30 +27,29 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  let safeDb: string | undefined;
   if (database) {
-    const safeDb = database.replace(/[^a-zA-Z0-9_]/g, '');
+    safeDb = database.replace(/[^a-zA-Z0-9_]/g, '');
     if (!safeDb || safeDb !== database) {
       return NextResponse.json(
         { success: false, error: 'Invalid database name' },
         { status: 400 }
       );
     }
-    try {
-      await pool.query(`USE \`${safeDb}\``);
-    } catch {
-      return NextResponse.json(
-        { success: false, error: `Database '${safeDb}' not found` },
-        { status: 400 }
-      );
-    }
   }
 
   try {
-    const schema = await readSchema(connectionId);
+    // Passamos o banco explicitamente pro schema-reader em vez de rodar
+    // `USE banco` no pool e torcer pra próxima query cair na mesma conexão
+    // física — pool.query() pode usar qualquer conexão do pool a cada
+    // chamada, então o `USE` não tinha garantia nenhuma de valer pra
+    // leitura de schema seguinte. Isso causava schema errado (ou faltando
+    // views/procedures) ao trocar de banco pela sidebar.
+    const schema = await readSchema(connectionId, safeDb);
 
     if (!schema) {
       return NextResponse.json(
-        { success: false, error: 'Failed to read schema' },
+        { success: false, error: safeDb ? `Database '${safeDb}' not found or failed to read schema` : 'Failed to read schema' },
         { status: 500 }
       );
     }

@@ -18,7 +18,7 @@ export interface ColumnWidths {
 }
 
 /** Export format */
-export type ExportFormat = 'csv' | 'json';
+export type ExportFormat = 'csv' | 'json' | 'sql' | 'xlsx';
 
 /** Grid color theme (Workbench-inspired dark) */
 export const GRID_COLORS = {

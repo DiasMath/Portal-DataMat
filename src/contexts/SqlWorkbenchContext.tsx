@@ -34,6 +34,8 @@ const initialState: SqlWorkbenchState = {
   splitSize: 50,
   queryHistory: [],
   highlightEnabled: false,
+  isExecuting: false,
+  activeExecutionId: null,
 };
 
 type Action =
@@ -58,6 +60,7 @@ type Action =
   | { type: 'SET_SCHEMA'; payload: { connectionId: string; schema: DatabaseSchema } }
   | { type: 'ADD_TO_HISTORY'; payload: QueryHistoryEntry }
   | { type: 'CLEAR_HISTORY' }
+  | { type: 'SET_EXECUTING'; payload: { isExecuting: boolean; activeExecutionId: string | null } }
   | { type: 'TOGGLE_HIGHLIGHT' }
   | { type: 'LOAD_STATE'; payload: Partial<SqlWorkbenchState> };
 
@@ -164,6 +167,9 @@ function reducer(state: SqlWorkbenchState, action: Action): SqlWorkbenchState {
     case 'CLEAR_HISTORY':
       return { ...state, queryHistory: [] };
 
+    case 'SET_EXECUTING':
+      return { ...state, isExecuting: action.payload.isExecuting, activeExecutionId: action.payload.activeExecutionId };
+
     case 'TOGGLE_HIGHLIGHT':
       return { ...state, highlightEnabled: !state.highlightEnabled };
 
@@ -180,7 +186,8 @@ interface SqlWorkbenchContextType {
   dispatch: React.Dispatch<Action>;
   activeTab: QueryTab | undefined;
   secondaryTab: QueryTab | undefined;
-  executeQuery: (sql?: string) => Promise<void>;
+  executeQuery: (sql?: string) => Promise<boolean>;
+  cancelQuery: () => Promise<void>;
   formatSql: () => void;
   newTab: (title?: string, sql?: string, connectionId?: string) => void;
   closeTab: (id: string) => void;
@@ -194,6 +201,10 @@ interface SqlWorkbenchContextType {
   clearHistory: () => void;
   runFromHistory: (historyEntry: QueryHistoryEntry) => void;
   saveQuery: (name?: string) => Promise<string | null>;
+  registerEditor: (tabId: string, editor: unknown) => void;
+  unregisterEditor: (tabId: string) => void;
+  /** Texto selecionado no editor da aba, ou null se não houver seleção (ou aba não registrada). */
+  getSelectedSql: (tabId: string) => string | null;
 }
 
 const SqlWorkbenchContext = createContext<SqlWorkbenchContextType | null>(null);
@@ -202,15 +213,88 @@ export function SqlWorkbenchProvider({ children }: { children: React.ReactNode }
   const [state, dispatch] = useReducer(reducer, initialState);
   const stateRef = useRef(state);
   stateRef.current = state;
+  // Instâncias do Monaco Editor por aba — registradas pelo QueryEditor no
+  // mount. Usado só pra ler a seleção atual (ex: "Executar" no toolbar
+  // rodando só o trecho selecionado); nunca guardamos isso no state React
+  // porque não precisa (nem deveria) causar re-render.
+  const editorInstancesRef = useRef<Map<string, any>>(new Map());
 
+  const registerEditor = useCallback((tabId: string, editor: unknown) => {
+    editorInstancesRef.current.set(tabId, editor);
+  }, []);
+
+  const unregisterEditor = useCallback((tabId: string) => {
+    editorInstancesRef.current.delete(tabId);
+  }, []);
+
+  const getSelectedSql = useCallback((tabId: string): string | null => {
+    const editor = editorInstancesRef.current.get(tabId);
+    if (!editor) return null;
+    const selection = editor.getSelection?.();
+    if (!selection || selection.isEmpty?.()) return null;
+    const model = editor.getModel?.();
+    const text = model?.getValueInRange?.(selection);
+    return text && text.trim() ? text : null;
+  }, []);
+
+  // Persistência entre sessões: preferências de UI, abas abertas (sem os
+  // resultados — só o texto da query, pra não inflar o localStorage nem
+  // arriscar erro de serialização com valores exóticos do MySQL) e o
+  // histórico de execuções. Antes disso, um F5 apagava toda query não
+  // salva e o histórico da sessão.
+  //
+  // As duas checagens de "criar aba em branco se não houver nenhuma" e
+  // "restaurar abas salvas" foram unificadas num único effect: separadas,
+  // ambas liam o mesmo `state.tabs.length === 0` da renderização inicial e
+  // corriam o risco de disparar as duas, deixando uma aba em branco extra
+  // além das abas restauradas.
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
+    let restoredTabs: QueryTab[] = [];
+    let restoredActiveTabId: string | null = null;
+    let restoredSecondaryTabId: string | null = null;
+    let restoredHistory: QueryHistoryEntry[] | null = null;
+
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        const { connections: _, tabs: __, ...rest } = parsed;
-        dispatch({ type: 'LOAD_STATE', payload: rest });
+        const { connections: _connections, tabs: savedTabs, queryHistory: savedHistory, ...uiPrefs } = parsed;
+        dispatch({ type: 'LOAD_STATE', payload: uiPrefs });
+
+        if (Array.isArray(savedTabs) && savedTabs.length > 0) {
+          restoredTabs = savedTabs.map((t: Partial<QueryTab>) => ({
+            id: t.id || uuidv4(),
+            title: t.title || 'Query',
+            sql: t.sql || '',
+            connectionId: t.connectionId || '',
+            isDirty: false,
+            messages: [],
+          }));
+          const savedActiveId = parsed.activeTabId as string | undefined;
+          restoredActiveTabId = restoredTabs.find((t) => t.id === savedActiveId)?.id || restoredTabs[0].id;
+          const savedSecondaryId = parsed.secondaryTabId as string | undefined;
+          restoredSecondaryTabId = restoredTabs.find((t) => t.id === savedSecondaryId)?.id || null;
+        }
+
+        if (Array.isArray(savedHistory)) {
+          restoredHistory = savedHistory.map((h: QueryHistoryEntry) => ({
+            ...h,
+            timestamp: new Date(h.timestamp),
+          }));
+        }
       } catch { /* ignore */ }
+    }
+
+    if (restoredTabs.length > 0) {
+      dispatch({ type: 'SET_TABS', payload: restoredTabs });
+      dispatch({ type: 'SET_ACTIVE_TAB', payload: restoredActiveTabId });
+      dispatch({ type: 'SET_SECONDARY_TAB', payload: restoredSecondaryTabId });
+    } else {
+      dispatch({ type: 'ADD_TAB' });
+    }
+
+    if (restoredHistory) {
+      dispatch({ type: 'LOAD_STATE', payload: { queryHistory: restoredHistory } });
     }
   }, []);
 
@@ -221,15 +305,25 @@ export function SqlWorkbenchProvider({ children }: { children: React.ReactNode }
       resultsHeight: state.resultsHeight,
       splitMode: state.splitMode,
       splitSize: state.splitSize,
+      activeTabId: state.activeTabId,
+      secondaryTabId: state.secondaryTabId,
+      // Persistimos só o essencial de cada aba — sem `results`/`messages`,
+      // que são recriados na próxima execução e podem ficar grandes.
+      tabs: state.tabs.map((t) => ({
+        id: t.id,
+        title: t.title,
+        sql: t.sql,
+        connectionId: t.connectionId,
+      })),
+      queryHistory: state.queryHistory,
     };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
-  }, [state.sidebarCollapsed, state.sidebarWidth, state.resultsHeight, state.splitMode, state.splitSize]);
-
-  useEffect(() => {
-    if (state.tabs.length === 0) {
-      dispatch({ type: 'ADD_TAB' });
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+    } catch {
+      // Se estourar a cota do localStorage (histórico muito grande, por
+      // exemplo), preferimos silenciar a falhar a sessão inteira.
     }
-  }, []);
+  }, [state.sidebarCollapsed, state.sidebarWidth, state.resultsHeight, state.splitMode, state.splitSize, state.activeTabId, state.secondaryTabId, state.tabs, state.queryHistory]);
 
   const executeQuery = useCallback(async (sql?: string) => {
     const s = stateRef.current;
@@ -238,7 +332,10 @@ export function SqlWorkbenchProvider({ children }: { children: React.ReactNode }
     const connectionId = activeTab?.connectionId || s.activeConnectionId;
     const database = s.activeDatabase;
 
-    if (!querySql || !connectionId) return;
+    if (!querySql || !connectionId) return false;
+
+    const executionId = uuidv4();
+    dispatch({ type: 'SET_EXECUTING', payload: { isExecuting: true, activeExecutionId: executionId } });
 
     const startTime = performance.now();
     let success = false;
@@ -250,7 +347,7 @@ export function SqlWorkbenchProvider({ children }: { children: React.ReactNode }
       const res = await fetch('/api/sql/execute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ connectionId, sql: querySql, database }),
+        body: JSON.stringify({ connectionId, sql: querySql, database, executionId }),
       });
 
       data = await res.json();
@@ -266,6 +363,8 @@ export function SqlWorkbenchProvider({ children }: { children: React.ReactNode }
           executionTime,
           type: data.type as QueryResult['type'],
           message: data.message as string,
+          autoLimited: data.autoLimited as boolean | undefined,
+          sourceSql: querySql,
         };
 
         const tabMessages = (data.messages as Array<{ type: string; text: string }>)?.map((m) => ({
@@ -317,6 +416,29 @@ export function SqlWorkbenchProvider({ children }: { children: React.ReactNode }
         error: success ? undefined : errorMsg,
       },
     });
+
+    dispatch({ type: 'SET_EXECUTING', payload: { isExecuting: false, activeExecutionId: null } });
+
+    return success;
+  }, []);
+
+  const cancelQuery = useCallback(async () => {
+    const executionId = stateRef.current.activeExecutionId;
+    if (!executionId) return;
+    try {
+      await fetch('/api/sql/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ executionId }),
+      });
+      // Não precisamos tratar o resultado aqui: o `KILL QUERY` faz o
+      // `conn.query()` da execução original lançar erro, que já é
+      // capturado e resolvido normalmente pelo próprio `executeQuery` —
+      // isso só dispara o cancelamento, quem limpa o estado é o fluxo
+      // normal de erro/finally de lá.
+    } catch {
+      // Silencioso — se falhar, a query segue seu curso normal.
+    }
   }, []);
 
   const formatSql = useCallback(() => {
@@ -446,6 +568,10 @@ export function SqlWorkbenchProvider({ children }: { children: React.ReactNode }
         setActiveDatabase,
         clearHistory,
         runFromHistory,
+        registerEditor,
+        unregisterEditor,
+        getSelectedSql,
+        cancelQuery,
       }}
     >
       {children}
