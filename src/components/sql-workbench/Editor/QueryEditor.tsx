@@ -50,8 +50,35 @@ const MYSQL_FUNCTIONS = [
   'FORMAT', 'LOCATE', 'FIELD', 'FIND_IN_SET',
 ];
 
+const SQL_RESERVED_AFTER_TABLE = new Set([
+  'WHERE', 'GROUP', 'ORDER', 'LIMIT', 'JOIN', 'ON', 'AND', 'OR', 'SET',
+  'VALUES', 'HAVING', 'UNION', 'LEFT', 'RIGHT', 'INNER', 'OUTER', 'CROSS',
+  'USING', 'AS',
+]);
+
+/**
+ * Extrai as tabelas referenciadas num SQL (com apelido, se houver) a
+ * partir das cláusulas FROM/JOIN — usado pro autocomplete priorizar
+ * colunas das tabelas que você já está usando na query, em vez de
+ * misturar tudo do banco junto. É um parser propositalmente simples
+ * (regex, não uma gramática SQL completa) — não trata subqueries
+ * aninhadas nem CTEs, cobre o caso comum de FROM/JOIN direto.
+ */
+function parseReferencedTables(sql: string): { table: string; alias?: string }[] {
+  const results: { table: string; alias?: string }[] = [];
+  const regex = /\b(?:FROM|JOIN)\s+`?([a-zA-Z_][a-zA-Z0-9_]*)`?(?:\s+(?:AS\s+)?`?([a-zA-Z_][a-zA-Z0-9_]*)`?)?/gi;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(sql)) !== null) {
+    const table = match[1];
+    let alias: string | undefined = match[2];
+    if (alias && SQL_RESERVED_AFTER_TABLE.has(alias.toUpperCase())) alias = undefined;
+    results.push({ table, alias });
+  }
+  return results;
+}
+
 export function QueryEditor({ tabId, sql, connectionId, fontSize = 14 }: QueryEditorProps) {
-  const { state, dispatch, executeQuery, registerEditor, unregisterEditor } = useSqlWorkbench();
+  const { state, dispatch, registerEditor, unregisterEditor } = useSqlWorkbench();
   const editorRef = useRef<any>(null);
   const sqlRef = useRef(sql);
   sqlRef.current = sql;
@@ -113,6 +140,43 @@ export function QueryEditor({ tabId, sql, connectionId, fontSize = 14 }: QueryEd
         };
 
         const suggestions: any[] = [];
+        const fullSql = model.getValue();
+        const referencedTables = connectionId && state.schemas[connectionId] ? parseReferencedTables(fullSql) : [];
+        const referencedTableNames = new Set(referencedTables.map((t) => t.table.toLowerCase()));
+
+        // Se o texto antes do cursor termina em "algo." (ex: "p." ou
+        // "produtos."), tenta resolver esse prefixo pra uma tabela real
+        // (via apelido ou nome direto) e sugere só as colunas dela — é o
+        // caso mais comum de "não quero ver coluna de outra tabela".
+        const textBeforeCursor = model.getValueInRange({
+          startLineNumber: position.lineNumber,
+          startColumn: 1,
+          endLineNumber: position.lineNumber,
+          endColumn: word.startColumn,
+        });
+        const dotMatch = textBeforeCursor.match(/([a-zA-Z_][a-zA-Z0-9_]*)\.\s*$/);
+
+        if (dotMatch && connectionId && state.schemas[connectionId]) {
+          const prefix = dotMatch[1].toLowerCase();
+          const schema = state.schemas[connectionId];
+          const resolvedTable =
+            referencedTables.find((t) => (t.alias || t.table).toLowerCase() === prefix)?.table ||
+            schema.tables.find((t) => t.name.toLowerCase() === prefix)?.name;
+          const table = resolvedTable ? schema.tables.find((t) => t.name === resolvedTable) : undefined;
+
+          if (table) {
+            table.columns.forEach((col) => {
+              suggestions.push({
+                label: col.name,
+                kind: monaco.languages.CompletionItemKind.Field,
+                insertText: `\`${col.name}\``,
+                detail: `${col.type} — ${table.name}`,
+                range,
+              });
+            });
+            return { suggestions };
+          }
+        }
 
         SQL_KEYWORDS.forEach((kw) => {
           suggestions.push({
@@ -120,6 +184,7 @@ export function QueryEditor({ tabId, sql, connectionId, fontSize = 14 }: QueryEd
             kind: monaco.languages.CompletionItemKind.Keyword,
             insertText: kw,
             range,
+            sortText: `2_${kw}`,
           });
         });
 
@@ -130,6 +195,7 @@ export function QueryEditor({ tabId, sql, connectionId, fontSize = 14 }: QueryEd
             insertText: fn + '($0)',
             insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
             range,
+            sortText: `2_${fn}`,
           });
         });
 
@@ -137,12 +203,19 @@ export function QueryEditor({ tabId, sql, connectionId, fontSize = 14 }: QueryEd
           const schema = state.schemas[connectionId];
 
           schema.tables.forEach((table) => {
+            const isReferenced = referencedTableNames.has(table.name.toLowerCase());
+            // Prefixo de ordenação: tabelas/colunas já usadas na query
+            // (FROM/JOIN atual) aparecem primeiro, mas as outras continuam
+            // disponíveis — útil pra montar um JOIN novo, por exemplo.
+            const sortPrefix = isReferenced ? '0' : '1';
+
             suggestions.push({
               label: table.name,
               kind: monaco.languages.CompletionItemKind.Class,
               insertText: `\`${table.name}\``,
               detail: 'Table',
               range,
+              sortText: `${sortPrefix}_${table.name}`,
             });
 
             table.columns.forEach((col) => {
@@ -150,8 +223,9 @@ export function QueryEditor({ tabId, sql, connectionId, fontSize = 14 }: QueryEd
                 label: col.name,
                 kind: monaco.languages.CompletionItemKind.Field,
                 insertText: `\`${col.name}\``,
-                detail: `${col.type}`,
+                detail: isReferenced ? `${col.type} — ${table.name}` : `${col.type}`,
                 range,
+                sortText: `${sortPrefix}_${col.name}`,
               });
             });
           });
@@ -163,6 +237,7 @@ export function QueryEditor({ tabId, sql, connectionId, fontSize = 14 }: QueryEd
               insertText: `\`${view.name}\``,
               detail: 'View',
               range,
+              sortText: `1_${view.name}`,
             });
           });
         }
@@ -171,21 +246,11 @@ export function QueryEditor({ tabId, sql, connectionId, fontSize = 14 }: QueryEd
       },
     });
 
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
-      const model = editor.getModel();
-      const sel = editor.getSelection();
-      let sqlToRun = '';
-
-      if (sel && !sel.isEmpty()) {
-        sqlToRun = model?.getValueInRange(sel) || '';
-      } else {
-        sqlToRun = model?.getValue() || '';
-      }
-
-      if (sqlToRun.trim()) {
-        executeQuery(sqlToRun);
-      }
-    });
+    // Executar via Ctrl+Enter (mesmo com o foco aqui dentro) é tratado
+    // pelo handler global em SqlWorkbench.tsx, que lê a seleção atual
+    // deste editor através do registro compartilhado (`getSelectedSql`)
+    // — mantido num só lugar pra não duplicar a lógica de "roda só o
+    // trecho selecionado, senão roda tudo".
   };
 
   const handleChange: OnChange = useCallback((value) => {

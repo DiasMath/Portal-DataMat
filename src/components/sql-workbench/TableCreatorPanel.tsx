@@ -1,23 +1,17 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog';
+import { useState, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
-import { Plus, Trash2, Copy } from 'lucide-react';
+import { Plus, Trash2, Copy, TableProperties } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSqlWorkbench } from '@/contexts/SqlWorkbenchContext';
+import { useCloseCreatorTab } from './useCloseCreatorTab';
+import type { DatabaseSchema } from '@/types/sql-workbench';
 
 interface Column {
   id: string;
@@ -63,12 +57,38 @@ const INDEX_TYPES = ['BTREE', 'HASH', 'FULLTEXT', 'SPATIAL'] as const;
 
 const FK_ACTIONS = ['CASCADE', 'SET NULL', 'RESTRICT', 'NO ACTION'] as const;
 
-export function TableCreatorDialog({ open, onOpenChange, onSave }: { 
-  open: boolean; 
-  onOpenChange: (open: boolean) => void;
-  onSave: (sql: string) => void;
-}) {
-  const { state, executeQuery } = useSqlWorkbench();
+/**
+ * Painel de criação de tabela — renderiza no MESMO lugar e tamanho onde o
+ * editor SQL normalmente fica (não é mais um dialog flutuante). Igual ao
+ * MySQL Workbench: "Create Table" abre como uma aba própria, com o
+ * espaço inteiro da área de edição disponível.
+ */
+export function TableCreatorPanel({ tabId }: { tabId: string }) {
+  const { executeQuery, state } = useSqlWorkbench();
+  const closeCreatorTab = useCloseCreatorTab();
+
+  // Schema da conexão/banco desta aba, usado só pra montar o dropdown de
+  // "tabela referenciada" na foreign key com as tabelas reais em vez de
+  // texto livre (evita erro de digitação só descoberto quando o MySQL
+  // recusa o CREATE TABLE).
+  const tab = state.tabs.find((t) => t.id === tabId);
+  const [schema, setSchema] = useState<DatabaseSchema | null>(null);
+
+  useEffect(() => {
+    if (!tab?.connectionId || !state.activeDatabase) return;
+    const params = new URLSearchParams({ connectionId: tab.connectionId, database: state.activeDatabase });
+    fetch(`/api/sql/schema?${params.toString()}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.schema) setSchema(data.schema);
+      })
+      .catch(() => {});
+  }, [tab?.connectionId, state.activeDatabase]);
+
+  const getTableColumns = useCallback(
+    (tableName: string) => schema?.tables.find((t) => t.name === tableName)?.columns || [],
+    [schema]
+  );
   const [tableName, setTableName] = useState('');
   const [columns, setColumns] = useState<Column[]>([
     { id: '1', name: 'id', type: 'INT', length: '', primaryKey: true, notNull: true, unique: false, autoIncrement: true, defaultValue: '', comment: '' },
@@ -132,23 +152,14 @@ export function TableCreatorDialog({ open, onOpenChange, onSave }: {
       return;
     }
 
-    if (!state.activeConnectionId) {
-      toast.error('Selecione uma conexão primeiro');
-      return;
-    }
-
     setCreating(true);
     try {
       const success = await executeQuery(sql);
       if (success) {
         toast.success('Tabela criada com sucesso!');
-        onOpenChange(false);
-        onSave(sql);
-        // Reset form
-        setTableName('');
-        setColumns([{ id: '1', name: 'id', type: 'INT', length: '', primaryKey: true, notNull: true, unique: false, autoIncrement: true, defaultValue: '', comment: '' }]);
-        setIndexes([]);
-        setForeignKeys([]);
+        // Fecha esta aba e volta pra uma aba de query normal — igual ao
+        // que acontece no MySQL Workbench depois de aplicar a criação.
+        closeCreatorTab(tabId);
       } else {
         toast.error('Erro ao criar tabela — veja a aba de Mensagens da query ativa para detalhes');
       }
@@ -196,7 +207,13 @@ export function TableCreatorDialog({ open, onOpenChange, onSave }: {
   };
 
   const updateForeignKey = (id: string, field: keyof ForeignKey, value: any) => {
-    setForeignKeys(foreignKeys.map(fk => fk.id === id ? { ...fk, [field]: value } : fk));
+    setForeignKeys(foreignKeys.map(fk => {
+      if (fk.id !== id) return fk;
+      // Trocar a tabela referenciada invalida as colunas já escolhidas
+      // (eram colunas da tabela antiga).
+      if (field === 'refTable') return { ...fk, refTable: value, refColumns: [] };
+      return { ...fk, [field]: value };
+    }));
   };
 
   const copySQL = () => {
@@ -206,16 +223,16 @@ export function TableCreatorDialog({ open, onOpenChange, onSave }: {
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl w-[95vw] max-h-[90vh]">
-        <DialogHeader>
-          <DialogTitle>Criar Nova Tabela</DialogTitle>
-          <DialogDescription>
-            Defina a estrutura da tabela visualmente
-          </DialogDescription>
-        </DialogHeader>
+    <div className="h-full w-full flex flex-col bg-background">
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
+        <TableProperties className="h-5 w-5 text-primary" />
+        <div>
+          <div className="font-semibold text-sm">Criar Nova Tabela</div>
+          <div className="text-xs text-muted-foreground">Defina a estrutura da tabela visualmente</div>
+        </div>
+      </div>
 
-        <div className="flex flex-col h-[70vh] overflow-hidden">
+        <div className="flex flex-col flex-1 overflow-hidden">
           {/* Tabs */}
           <div className="flex border-b border-border">
             {(['columns', 'indexes', 'foreignKeys', 'sql'] as const).map((tab) => (
@@ -505,12 +522,19 @@ export function TableCreatorDialog({ open, onOpenChange, onSave }: {
 
                       <div>
                         <Label>Tabela Referenciada</Label>
-                        <Input
+                        <Select
                           value={fk.refTable}
-                          onChange={(e) => updateForeignKey(fk.id, 'refTable', e.target.value)}
-                          placeholder="ex: companies"
-                          className="w-full"
-                        />
+                          onValueChange={(v) => updateForeignKey(fk.id, 'refTable', v)}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Selecionar tabela..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {(schema?.tables || []).map((t) => (
+                              <SelectItem key={t.name} value={t.name}>{t.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
 
@@ -523,10 +547,10 @@ export function TableCreatorDialog({ open, onOpenChange, onSave }: {
                           }
                         }}>
                           <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Selecionar coluna..." />
+                            <SelectValue placeholder={fk.refTable ? 'Selecionar coluna...' : 'Escolha a tabela primeiro'} />
                           </SelectTrigger>
                           <SelectContent>
-                            {columns.map((c) => <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>)}
+                            {getTableColumns(fk.refTable).map((c) => <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>)}
                           </SelectContent>
                         </Select>
                         {fk.refColumns.map((col, ci) => (
@@ -590,15 +614,14 @@ export function TableCreatorDialog({ open, onOpenChange, onSave }: {
           </div>
         </div>
 
-        <DialogFooter className="border-t border-border">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleCreate} disabled={creating || !tableName.trim() || !state.activeConnectionId}>
-              {creating ? 'Criando...' : 'Criar Tabela'}
-            </Button>
-          </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        <div className="flex items-center justify-end gap-2 border-t border-border px-4 py-3">
+        <Button variant="outline" onClick={() => closeCreatorTab(tabId)}>
+          Cancelar
+        </Button>
+        <Button onClick={handleCreate} disabled={creating || !tableName.trim()}>
+          {creating ? 'Criando...' : 'Criar Tabela'}
+        </Button>
+      </div>
+    </div>
   );
 }

@@ -82,6 +82,13 @@ export interface QueryTab {
   isDirty: boolean;
   results?: QueryResult;
   messages: QueryMessage[];
+  /**
+   * 'table-editor'/'view-editor'/'procedure-editor'/'function-editor'
+   * fazem essa aba renderizar o construtor visual correspondente (mesmo
+   * lugar e tamanho da aba de query, como no MySQL Workbench) em vez do
+   * editor SQL. Ausente/'query' = aba normal.
+   */
+  kind?: 'query' | 'table-editor' | 'view-editor' | 'procedure-editor' | 'function-editor';
 }
 
 export interface QueryMessage {

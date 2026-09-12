@@ -4,11 +4,17 @@ import { useEffect, useCallback, useRef, useState } from 'react';
 import { useSqlWorkbench } from '@/contexts/SqlWorkbenchContext';
 import { Sidebar } from './Sidebar/Sidebar';
 import { QueryEditor } from './Editor/QueryEditor';
+import { TableCreatorPanel } from './TableCreatorPanel';
+import { ViewCreatorPanel } from './ViewCreatorPanel';
+import { RoutineCreatorPanel } from './RoutineCreatorPanel';
+import type { QueryTab } from '@/types/sql-workbench';
 import { ResultsPanel } from './Results/ResultsPanel';
 import { QueryTabs } from './Editor/QueryTabs';
 import { SplitPane } from './SplitPane';
 import { ShortcutSettings } from './Settings/ShortcutSettings';
 import { DEFAULT_SHORTCUTS, loadShortcuts, matchesShortcut, type ShortcutAction } from './shortcuts';
+import { QueryVariablesDialog } from './QueryVariablesDialog';
+import { extractVariables, substituteVariables } from '@/lib/sql/query-variables';
 import { toast } from 'sonner';
 import {
   Play,
@@ -99,7 +105,42 @@ export function SqlWorkbench() {
     // — igual ao que o Ctrl+Enter já fazia, mas antes o botão "Executar"
     // ignorava a seleção e sempre rodava a aba inteira.
     const selected = getSelectedSql(activeTab.id);
-    executeQuery(selected || activeTab.sql);
+    runWithVariables(selected || activeTab.sql);
+  };
+
+  // Variáveis de query (`:nome_da_variavel`, preenchidas antes de
+  // executar). Os últimos valores digitados ficam salvos no localStorage
+  // pra não precisar redigitar a mesma data/id toda vez que roda de novo.
+  const VARIABLES_STORAGE_KEY = 'sql_workbench_variable_defaults';
+  const [pendingExecution, setPendingExecution] = useState<{ sql: string } | null>(null);
+  const [variableDefaults, setVariableDefaults] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(VARIABLES_STORAGE_KEY);
+      if (saved) setVariableDefaults(JSON.parse(saved));
+    } catch { /* ignore */ }
+  }, []);
+
+  const runWithVariables = (sql: string) => {
+    const vars = extractVariables(sql);
+    if (vars.length === 0) {
+      executeQuery(sql);
+      return;
+    }
+    setPendingExecution({ sql });
+  };
+
+  const handleVariablesSubmit = (values: Record<string, string>) => {
+    if (!pendingExecution) return;
+    const updatedDefaults = { ...variableDefaults, ...values };
+    setVariableDefaults(updatedDefaults);
+    try {
+      localStorage.setItem(VARIABLES_STORAGE_KEY, JSON.stringify(updatedDefaults));
+    } catch { /* ignore */ }
+    const finalSql = substituteVariables(pendingExecution.sql, values);
+    setPendingExecution(null);
+    executeQuery(finalSql);
   };
 
   const executeTransaction = (command: 'BEGIN' | 'COMMIT' | 'ROLLBACK') => {
@@ -120,7 +161,7 @@ export function SqlWorkbench() {
       toast.error('Digite uma query para explicar');
       return;
     }
-    executeQuery(`EXPLAIN ${activeTab.sql}`);
+    runWithVariables(`EXPLAIN ${activeTab.sql}`);
   };
 
   const handleClear = () => {
@@ -141,6 +182,15 @@ export function SqlWorkbench() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Enquanto o diálogo de Configurações está aberto, os atalhos
+      // globais ficam desligados — sem isso, tentar capturar uma tecla
+      // já usada por outro atalho (pra reatribuir) fazia esse handler
+      // "roubar" o evento antes dele chegar no listener de captura do
+      // ShortcutSettings (via stopPropagation), e a nova tecla nunca
+      // era salva — parecia que "não estava salvando", mas na real nem
+      // chegava a capturar.
+      if (showSettings) return;
+
       if (matchesShortcut(e, shortcuts.newTab)) {
         e.preventDefault();
         newTab();
@@ -207,11 +257,22 @@ export function SqlWorkbench() {
         e.preventDefault();
         handleSave();
       }
+
+      // Executar também funciona com o foco fora do editor (o Ctrl+Enter
+      // "local" do Monaco só dispara com o cursor dentro dele). Damos
+      // stopPropagation pra evitar que o comando do próprio Monaco também
+      // dispare quando o foco estiver no editor — sem isso, executaria a
+      // query duas vezes.
+      if (matchesShortcut(e, shortcuts.executeQuery)) {
+        e.preventDefault();
+        e.stopPropagation();
+        handleExecute();
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [newTab, toggleSidebar, formatSql, state.activeTabId, state.activeConnectionId, state.resultsCollapsed, state.splitMode, state.secondaryTabId, state.tabs, dispatch, enableSplitHorizontal, enableSplitVertical, disableSplit, shortcuts]);
+  }, [newTab, toggleSidebar, formatSql, state.activeTabId, state.activeConnectionId, state.resultsCollapsed, state.splitMode, state.secondaryTabId, state.tabs, dispatch, enableSplitHorizontal, enableSplitVertical, disableSplit, shortcuts, showSettings]);
 
   const handleSidebarResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -257,11 +318,26 @@ export function SqlWorkbench() {
     ? 'calc(100vh - 64px)'
     : `calc(100vh - 64px - ${state.resultsHeight}px - 4px)`;
 
+  const renderTabContent = (tab: QueryTab) => {
+    switch (tab.kind) {
+      case 'table-editor':
+        return <TableCreatorPanel key={tab.id} tabId={tab.id} />;
+      case 'view-editor':
+        return <ViewCreatorPanel key={tab.id} tabId={tab.id} />;
+      case 'procedure-editor':
+        return <RoutineCreatorPanel key={tab.id} tabId={tab.id} kind="PROCEDURE" />;
+      case 'function-editor':
+        return <RoutineCreatorPanel key={tab.id} tabId={tab.id} kind="FUNCTION" />;
+      default:
+        return <QueryEditor key={tab.id} tabId={tab.id} sql={tab.sql} connectionId={tab.connectionId} fontSize={fontSize} />;
+    }
+  };
+
   const renderEditor = (tabId: string | null) => {
     if (!tabId) return null;
     const tab = state.tabs.find(t => t.id === tabId);
     if (!tab) return null;
-    return <QueryEditor key={tab.id} tabId={tab.id} sql={tab.sql} connectionId={tab.connectionId} fontSize={fontSize} />;
+    return renderTabContent(tab);
   };
 
   const renderSplitEditors = () => {
@@ -272,10 +348,10 @@ export function SqlWorkbench() {
           style={{ height: editorHeight }}
         >
           {activeTab ? (
-            <QueryEditor key={activeTab.id} tabId={activeTab.id} sql={activeTab.sql} connectionId={activeTab.connectionId} fontSize={fontSize} />
+            renderTabContent(activeTab)
           ) : (
             <div className="flex items-center justify-center h-full text-muted-foreground">
-              Nenhuma aba aberta. Pressione Ctrl+Alt+N para criar uma nova.
+              Nenhuma aba aberta. Pressione Ctrl+Alt+Shift+N para criar uma nova.
             </div>
           )}
         </div>
@@ -464,6 +540,14 @@ export function SqlWorkbench() {
           setShowSettings(open);
           if (!open) setShortcuts(loadShortcuts());
         }}
+      />
+
+      <QueryVariablesDialog
+        open={!!pendingExecution}
+        variables={pendingExecution ? extractVariables(pendingExecution.sql) : []}
+        defaults={variableDefaults}
+        onCancel={() => setPendingExecution(null)}
+        onSubmit={handleVariablesSubmit}
       />
     </div>
   );

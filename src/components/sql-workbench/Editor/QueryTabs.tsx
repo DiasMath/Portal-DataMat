@@ -2,8 +2,15 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { useSqlWorkbench } from '@/contexts/SqlWorkbenchContext';
-import { X, Plus, SplitSquareHorizontal, SplitSquareVertical } from 'lucide-react';
+import { X, Plus, SplitSquareHorizontal, SplitSquareVertical, TableProperties, Eye, FileCode, FunctionSquare } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+
+const TAB_KIND_ICONS: Record<string, typeof TableProperties> = {
+  'table-editor': TableProperties,
+  'view-editor': Eye,
+  'procedure-editor': FileCode,
+  'function-editor': FunctionSquare,
+};
 
 export function QueryTabs() {
   const { state, dispatch, newTab, enableSplitHorizontal, enableSplitVertical, disableSplit } = useSqlWorkbench();
@@ -102,7 +109,10 @@ export function QueryTabs() {
                 : 'bg-card text-muted-foreground hover:bg-accent hover:text-foreground'
             } ${dragOverIdx === idx ? 'border-l-2 border-primary' : ''}`}
           >
-            <span className="truncate max-w-[150px]">
+            <span className="truncate max-w-[150px] flex items-center gap-1">
+              {tab.kind && TAB_KIND_ICONS[tab.kind] && (
+                (() => { const Icon = TAB_KIND_ICONS[tab.kind!]; return <Icon className="h-3 w-3 shrink-0" />; })()
+              )}
               {tab.title}
               {tab.isDirty && <span className="text-primary ml-1">•</span>}
             </span>
@@ -140,7 +150,7 @@ export function QueryTabs() {
         <button
           onClick={() => newTab()}
           className="p-1 hover:bg-accent rounded transition-colors"
-          title="Nova aba (Ctrl+Alt+N)"
+          title="Nova aba (Ctrl+Alt+Shift+N)"
         >
           <Plus className="h-4 w-4 text-muted-foreground" />
         </button>

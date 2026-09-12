@@ -23,13 +23,14 @@ export type ShortcutAction =
 
 export const DEFAULT_SHORTCUTS: Record<ShortcutAction, string> = {
   executeQuery: 'Ctrl+Enter',
-  // Ctrl+N e Ctrl+W são reservados pelo navegador (nova janela / fechar
-  // aba) e não podem ser interceptados via JS em nenhum browser moderno —
-  // qualquer app web que "usa" essas combinações na verdade não está
-  // fazendo nada, o navegador ignora o preventDefault. Por isso os
-  // padrões usam Ctrl+Alt.
-  newTab: 'Ctrl+Alt+N',
-  closeTab: 'Ctrl+Alt+W',
+  // Ctrl+N e Ctrl+W são reservados pelo navegador — sem solução, o JS não
+  // consegue interceptar. Ctrl+Q pra fechar aba foi escolhido porque no
+  // Chrome/Brave (Windows/Linux) essa combinação não é reservada — mas
+  // vale saber: no Firefox, Ctrl+Q é o atalho de "Sair do navegador" e
+  // fecha tudo sem confirmação. Se algum dia trocar de navegador
+  // principal pra Firefox, remapeie em Configurações → Atalhos de teclado.
+  newTab: 'Ctrl+Alt+Shift+N',
+  closeTab: 'Ctrl+Q',
   toggleSidebar: 'Ctrl+B',
   toggleResults: 'Ctrl+E',
   formatSql: 'Ctrl+Shift+F',

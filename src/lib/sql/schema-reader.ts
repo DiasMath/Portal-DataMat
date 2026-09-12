@@ -111,9 +111,16 @@ export async function readSchema(connectionId: string, database?: string): Promi
         indexes: indexMap.get(t.TABLE_NAME) || [],
       }));
 
-    const views: ViewInfo[] = tableRows
-      .filter((t) => t.TABLE_TYPE === 'VIEW')
-      .map((v) => ({ name: v.TABLE_NAME }));
+    const viewNames = tableRows.filter((t) => t.TABLE_TYPE === 'VIEW').map((v) => v.TABLE_NAME as string);
+    let viewDefinitions = new Map<string, string>();
+    if (viewNames.length > 0) {
+      const [viewRows] = await pool.query<RowDataPacket[]>(
+        `SELECT TABLE_NAME, VIEW_DEFINITION FROM information_schema.VIEWS WHERE TABLE_SCHEMA = ?`,
+        [currentDb]
+      );
+      viewDefinitions = new Map(viewRows.map((v) => [v.TABLE_NAME as string, v.VIEW_DEFINITION as string]));
+    }
+    const views: ViewInfo[] = viewNames.map((name) => ({ name, definition: viewDefinitions.get(name) }));
 
     const [procRows] = await pool.query<RowDataPacket[]>(`
       SELECT ROUTINE_NAME, ROUTINE_DEFINITION

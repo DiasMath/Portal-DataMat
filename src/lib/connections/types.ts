@@ -18,6 +18,8 @@ export interface SavedConnection {
   database?: string;
   color?: string;
   favorite?: boolean;
+  /** Grupo (pasta) ao qual esta conexão pertence, se houver. */
+  groupId?: string | null;
   status: 'connected' | 'disconnected' | 'error';
   createdAt?: unknown;
   updatedAt?: unknown;

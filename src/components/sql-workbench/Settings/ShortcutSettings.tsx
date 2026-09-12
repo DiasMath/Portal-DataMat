@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Keyboard } from 'lucide-react';
+import { toast } from 'sonner';
 import {
   Dialog,
   DialogContent,
@@ -49,10 +50,18 @@ export function ShortcutSettings({ open, onOpenChange }: ShortcutSettingsProps) 
 
       const shortcutString = eventToShortcutString(e);
       if (shortcutString) {
+        const alreadyUsedBy = (Object.keys(shortcuts) as ShortcutAction[]).find(
+          (k) => k !== editingKey && shortcuts[k] === shortcutString
+        );
         const updated = { ...shortcuts, [editingKey]: shortcutString };
         setShortcuts(updated);
         saveShortcuts(updated);
         setEditingKey(null);
+        toast.success(`Atalho salvo: ${shortcutString}`, {
+          description: alreadyUsedBy
+            ? `Atenção: essa combinação também estava em "${SHORTCUT_LABELS[alreadyUsedBy]}" — os dois vão disparar juntos.`
+            : undefined,
+        });
       }
     };
 

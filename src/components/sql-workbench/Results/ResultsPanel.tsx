@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { exportTabularData } from '@/lib/export/tabular-export';
-import { Download, AlertCircle, CheckCircle2, Info, Play, Trash2, FileCode, Highlighter, Check, Minus, Copy, Filter, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Search, WrapText, X } from 'lucide-react';
+import { Download, AlertCircle, CheckCircle2, Info, Play, Trash2, FileCode, Highlighter, Check, Minus, Copy, Filter, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Search, WrapText, X, FileText, Braces, FileSpreadsheet, Database } from 'lucide-react';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { SnippetsToolbar } from '../History/SnippetsToolbar';
 import { TableVirtuoso, type TableComponents } from 'react-virtuoso';
 import React from 'react';
@@ -33,17 +34,21 @@ export function ResultsPanel() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const highlightEnabled = state.highlightEnabled;
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
-  const [showDownloadDialog, setShowDownloadDialog] = useState(false);
 
+  // Ao rodar uma query com erro, pula direto pra aba de Mensagens — antes
+  // o erro ficava escondido atrás da aba Grid (vazia) e parecia que "não
+  // aconteceu nada". Com sucesso, volta pra Grid — sem isso, se você
+  // tivesse ficado olhando Histórico/Snippets/Mensagens antes, o
+  // resultado novo chegava escondido numa aba que não estava sendo
+  // exibida.
   useEffect(() => {
     const msgs = activeTab?.messages;
-    if (msgs && msgs.length > 0) {
-      const lastMsg = msgs[msgs.length - 1];
-      if (lastMsg.type === 'error') {
-        setActiveResultsTab('messages');
-      }
+    if (msgs && msgs.length > 0 && msgs[msgs.length - 1].type === 'error') {
+      setActiveResultsTab('messages');
+    } else if (activeTab?.results) {
+      setActiveResultsTab('grid');
     }
-  }, [activeTab?.messages]);
+  }, [activeTab?.messages, activeTab?.results]);
   const [colWidths, setColWidths] = useState<Record<string, number>>({});
   const resizingRef = useRef<{ col: string; startX: number; startW: number } | null>(null);
 
@@ -141,7 +146,14 @@ export function ResultsPanel() {
 
   const handleSort = (column: string) => {
     if (sortColumn === column) {
-      setSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'));
+      if (sortDirection === 'asc') {
+        setSortDirection('desc');
+      } else {
+        // Terceiro clique na mesma coluna: volta ao estado neutro (sem
+        // ordenação), igual ao ciclo do MySQL Workbench — sem ordenação
+        // → asc → desc → sem ordenação de novo.
+        setSortColumn(null);
+      }
     } else {
       setSortColumn(column);
       setSortDirection('asc');
@@ -235,7 +247,6 @@ export function ResultsPanel() {
       format,
       { baseFilename: 'query_result', tableName: guessSourceTable(results.sourceSql ?? activeTab?.sql ?? '') }
     );
-    setShowDownloadDialog(false);
   };
 
   const copyAllAsTsv = () => {
@@ -593,13 +604,34 @@ export function ResultsPanel() {
             >
               <Highlighter className="h-3.5 w-3.5" />
             </button>
-            <button
-              onClick={() => setShowDownloadDialog(true)}
-              className="p-1.5 rounded hover:bg-accent text-muted-foreground transition-colors"
-              title="Exportar resultados"
-            >
-              <Download className="h-3.5 w-3.5" />
-            </button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="p-1.5 rounded hover:bg-accent text-muted-foreground transition-colors"
+                  title="Exportar resultados"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                {([
+                  { format: 'csv' as const, label: 'CSV (.csv)', icon: FileText },
+                  { format: 'json' as const, label: 'JSON (.json)', icon: Braces },
+                  { format: 'xlsx' as const, label: 'Excel (.xlsx)', icon: FileSpreadsheet },
+                  { format: 'sql' as const, label: 'SQL INSERT (.sql)', icon: Database },
+                ]).map((opt) => (
+                  <DropdownMenuItem key={opt.format} onClick={() => exportAs(opt.format)}>
+                    <opt.icon className="h-4 w-4 mr-2" />
+                    {opt.label}
+                  </DropdownMenuItem>
+                ))}
+                {selectedRows.size > 0 && (
+                  <p className="px-2 py-1.5 text-xs text-muted-foreground border-t border-border mt-1">
+                    {selectedRows.size} linha(s) selecionada(s)
+                  </p>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         )}
       </div>
@@ -607,34 +639,6 @@ export function ResultsPanel() {
       <div className="flex-1 overflow-hidden">
         {activeResultsTab === 'grid' ? renderGrid() : activeResultsTab === 'messages' ? renderMessages() : activeResultsTab === 'history' ? renderHistory() : <SnippetsToolbar />}
       </div>
-
-      <Dialog open={showDownloadDialog} onOpenChange={setShowDownloadDialog}>
-        <DialogContent className="bg-card border-border max-w-xs">
-          <DialogHeader>
-            <DialogTitle className="text-sm">Exportar como</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-1">
-            {([
-              { format: 'csv' as const, label: 'CSV (.csv)', desc: 'Valores separados por vírgula' },
-              { format: 'json' as const, label: 'JSON (.json)', desc: 'Formato JSON estruturado' },
-              { format: 'xlsx' as const, label: 'Excel (.xlsx)', desc: 'Planilha do Excel' },
-              { format: 'sql' as const, label: 'SQL INSERT (.sql)', desc: 'Gerar scripts INSERT' },
-            ]).map((opt) => (
-              <button
-                key={opt.format}
-                onClick={() => exportAs(opt.format)}
-                className="w-full px-3 py-2 text-left rounded hover:bg-accent transition-colors"
-              >
-                <p className="text-sm text-foreground">{opt.label}</p>
-                <p className="text-xs text-muted-foreground">{opt.desc}</p>
-              </button>
-            ))}
-          </div>
-          {selectedRows.size > 0 && (
-            <p className="text-xs text-muted-foreground text-center">{selectedRows.size} linha(s) selecionada(s)</p>
-          )}
-        </DialogContent>
-      </Dialog>
 
       {cellContextMenu && (
         <div className="fixed inset-0 z-50" onClick={closeCellContextMenu} onContextMenu={(e) => { e.preventDefault(); closeCellContextMenu(); }}>

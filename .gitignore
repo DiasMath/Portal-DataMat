@@ -20,6 +20,7 @@
 # production
 /build
 firestore.rules
+.firebaserc
 # misc
 .DS_Store
 *.pem
@@ -40,3 +41,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+Doc Datamat Studio
+graphify-out

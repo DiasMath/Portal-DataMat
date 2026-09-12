@@ -3,10 +3,20 @@
 import { useState, useEffect } from 'react';
 import { useSqlWorkbench } from '@/contexts/SqlWorkbenchContext';
 import { AddConnectionDialog } from './AddConnectionDialog';
-import { TableCreatorDialog } from '@/components/sql-workbench/TableCreatorDialog';
-import { ViewCreatorDialog } from '@/components/sql-workbench/ViewCreatorDialog';
-import { RoutineCreatorDialog } from '@/components/sql-workbench/RoutineCreatorDialog';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from '@/components/ui/alert-dialog';
 import type { Connection, DatabaseSchema, TableInfo } from '@/types/sql-workbench';
+import type { ConnectionGroup, DatabaseGroup } from '@/lib/connections/group-types';
+import { GroupPickerDialog } from './GroupPickerDialog';
+import { FolderTree } from 'lucide-react';
 import {
   Database,
   Table,
@@ -33,17 +43,121 @@ import { toast } from 'sonner';
 export function Sidebar() {
   const { state, dispatch, newTab, executeQuery, setActiveDatabase } = useSqlWorkbench();
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [connectionToDelete, setConnectionToDelete] = useState<Connection | null>(null);
   const [editingConnection, setEditingConnection] = useState<Connection | null>(null);
-  const [showCreateTable, setShowCreateTable] = useState(false);
-  const [showCreateView, setShowCreateView] = useState(false);
-  const [showCreateProcedure, setShowCreateProcedure] = useState(false);
-  const [showCreateFunction, setShowCreateFunction] = useState(false);
 
-  const refreshActiveDatabaseSchema = () => {
-    if (state.activeConnectionId && state.activeDatabase) {
-      loadDatabaseSchema(state.activeConnectionId, state.activeDatabase, true);
+  // ---------- Grupos (conexão e banco) ----------
+  const [connectionGroups, setConnectionGroups] = useState<ConnectionGroup[]>([]);
+  const [connectionGroupFilter, setConnectionGroupFilter] = useState<string | null>(null);
+  const [databaseGroupsByConnection, setDatabaseGroupsByConnection] = useState<Record<string, DatabaseGroup[]>>({});
+  const [databaseGroupFilterByConnection, setDatabaseGroupFilterByConnection] = useState<Record<string, string | null>>({});
+  const [groupPicker, setGroupPicker] = useState<
+    | { kind: 'connection'; connectionId: string; currentGroupId: string | null }
+    | { kind: 'database'; connectionId: string; databaseName: string; currentGroupId: string | null }
+    | null
+  >(null);
+
+  useEffect(() => {
+    fetch('/api/sql/connection-groups')
+      .then((res) => res.json())
+      .then((data) => { if (data.groups) setConnectionGroups(data.groups); })
+      .catch(() => {});
+  }, []);
+
+  const loadDatabaseGroups = (connectionId: string) => {
+    fetch(`/api/sql/database-groups?connectionId=${connectionId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.groups) setDatabaseGroupsByConnection((prev) => ({ ...prev, [connectionId]: data.groups }));
+      })
+      .catch(() => {});
+  };
+
+  const createConnectionGroup = async (name: string, parentId: string | null) => {
+    const res = await fetch('/api/sql/connection-groups', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, parentId }),
+    });
+    const data = await res.json();
+    if (res.ok) setConnectionGroups((prev) => [...prev, { id: data.id, name: data.name, parentId: data.parentId }]);
+  };
+
+  const assignConnectionGroup = async (connectionId: string, groupId: string | null) => {
+    await fetch(`/api/sql/connections/${connectionId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ groupId }),
+    });
+    dispatch({ type: 'UPDATE_CONNECTION', payload: { ...state.connections.find((c) => c.id === connectionId)!, groupId } });
+  };
+
+  const createDatabaseGroup = async (connectionId: string, name: string, parentId: string | null) => {
+    const res = await fetch('/api/sql/database-groups', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ connectionId, name, parentId }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setDatabaseGroupsByConnection((prev) => ({
+        ...prev,
+        [connectionId]: [...(prev[connectionId] || []), { id: data.id, name: data.name, parentId: data.parentId, connectionId, databases: [] }],
+      }));
     }
   };
+
+  const assignDatabaseGroup = async (connectionId: string, databaseName: string, groupId: string | null) => {
+    await fetch('/api/sql/database-groups/assign', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ connectionId, databaseName, targetGroupId: groupId }),
+    });
+    loadDatabaseGroups(connectionId);
+  };
+
+  const openCreatorTab = (
+    connectionId: string,
+    dbName: string,
+    kind: 'table-editor' | 'view-editor' | 'procedure-editor' | 'function-editor'
+  ) => {
+    // Abre como aba própria, ocupando o mesmo lugar/tamanho do editor de
+    // query — igual ao "Create Table/View/Procedure/Function" do MySQL
+    // Workbench — em vez de um dialog flutuante.
+    const titles = {
+      'table-editor': 'Nova Tabela',
+      'view-editor': 'Nova View',
+      'procedure-editor': 'Nova Procedure',
+      'function-editor': 'Nova Function',
+    } as const;
+    setActiveDatabase(dbName);
+    newTab(titles[kind], '', connectionId, kind);
+  };
+
+  const openRoutineDefinition = async (
+    connectionId: string,
+    routineName: string,
+    routineKind: 'PROCEDURE' | 'FUNCTION'
+  ) => {
+    // "SHOW CREATE" devolve a definição já pronta pra rodar de novo
+    // (com parâmetros e tudo), diferente do que dá pra montar só com
+    // information_schema.ROUTINES (que não traz a assinatura).
+    try {
+      const res = await fetch('/api/sql/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ connectionId, sql: `SHOW CREATE ${routineKind} \`${routineName}\`` }),
+      });
+      const data = await res.json();
+      const row = data?.rows?.[0];
+      const ddlColumn = routineKind === 'PROCEDURE' ? 'Create Procedure' : 'Create Function';
+      const ddl: string | undefined = row?.[ddlColumn];
+      newTab(routineName, ddl ? `${ddl};` : `-- Não foi possível obter a definição de "${routineName}"`, connectionId);
+    } catch {
+      newTab(routineName, `-- Erro ao buscar a definição de "${routineName}"`, connectionId);
+    }
+  };
+
   const [expandedConnections, setExpandedConnections] = useState<Set<string>>(new Set());
   const [expandedDatabases, setExpandedDatabases] = useState<Set<string>>(new Set());
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
@@ -109,8 +223,14 @@ export function Sidebar() {
     }
   };
 
-  const deleteConnection = async (conn: Connection) => {
-    if (!confirm(`Excluir conexão "${conn.name}"?`)) return;
+  const deleteConnection = (conn: Connection) => {
+    setConnectionToDelete(conn);
+  };
+
+  const confirmDeleteConnection = async () => {
+    if (!connectionToDelete) return;
+    const conn = connectionToDelete;
+    setConnectionToDelete(null);
     try {
       await fetch(`/api/sql/connections/${conn.id}`, { method: 'DELETE' });
       dispatch({ type: 'REMOVE_CONNECTION', payload: conn.id });
@@ -156,7 +276,7 @@ export function Sidebar() {
 
   const toggleConnection = (id: string) => {
     const newSet = new Set(expandedConnections);
-    if (newSet.has(id)) { newSet.delete(id); } else { newSet.add(id); }
+    if (newSet.has(id)) { newSet.delete(id); } else { newSet.add(id); if (!databaseGroupsByConnection[id]) loadDatabaseGroups(id); }
     setExpandedConnections(newSet);
   };
 
@@ -179,6 +299,21 @@ export function Sidebar() {
       console.error('Failed to load schema:', err);
     }
   };
+
+  // Qualquer CREATE/ALTER/DROP executado com sucesso em qualquer aba —
+  // não só pelos botões dedicados de criar tabela/view/procedure/function
+  // — dispara isso, então a árvore fica sempre em dia sem precisar
+  // recolher/expandir manualmente.
+  useEffect(() => {
+    const handleSchemaChanged = (e: Event) => {
+      const { connectionId, database } = (e as CustomEvent<{ connectionId: string; database: string | null }>).detail;
+      if (connectionId && database) {
+        loadDatabaseSchema(connectionId, database, true);
+      }
+    };
+    window.addEventListener('sql-workbench:schema-changed', handleSchemaChanged);
+    return () => window.removeEventListener('sql-workbench:schema-changed', handleSchemaChanged);
+  }, [databaseSchemas]);
 
   const toggleDatabase = async (dbName: string, connectionId: string) => {
     const newSet = new Set(expandedDatabases);
@@ -313,17 +448,39 @@ export function Sidebar() {
         </button>
       </div>
 
+      {connectionGroups.length > 0 && (
+        <div className="px-2 py-1.5 border-b border-border flex items-center gap-1.5">
+          <FolderTree className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <select
+            value={connectionGroupFilter || ''}
+            onChange={(e) => setConnectionGroupFilter(e.target.value || null)}
+            className="flex-1 text-xs bg-background border border-border rounded px-1.5 py-1"
+          >
+            <option value="">Todas as conexões</option>
+            {connectionGroups.map((g) => (
+              <option key={g.id} value={g.id}>{g.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <div className="flex-1 overflow-auto">
-        {state.connections.length === 0 ? (
+        {(() => {
+          const visibleConnections = connectionGroupFilter
+            ? state.connections.filter((c) => c.groupId === connectionGroupFilter)
+            : state.connections;
+          return visibleConnections.length === 0 ? (
           <div className="p-4 text-center text-sm text-muted-foreground">
-            Nenhuma conexão.{' '}
-            <button onClick={() => setShowAddDialog(true)} className="text-primary hover:underline">
-              Adicionar
-            </button>
+            {connectionGroupFilter ? 'Nenhuma conexão neste grupo.' : (
+              <>Nenhuma conexão.{' '}
+              <button onClick={() => setShowAddDialog(true)} className="text-primary hover:underline">
+                Adicionar
+              </button></>
+            )}
           </div>
         ) : (
           <div className="py-1">
-            {state.connections.map((conn) => {
+            {visibleConnections.map((conn) => {
               const schema = state.schemas[conn.id];
               const isExpanded = expandedConnections.has(conn.id);
               const isConnected = conn.status === 'connected';
@@ -368,8 +525,20 @@ export function Sidebar() {
                     <Database className="h-4 w-4 text-primary" />
 
                     <span className="flex-1 text-sm truncate text-foreground">{conn.name}</span>
+                    {conn.groupId && (
+                      <span className="text-[10px] text-muted-foreground bg-accent/50 px-1 py-0.5 rounded shrink-0">
+                        {connectionGroups.find((g) => g.id === conn.groupId)?.name || '…'}
+                      </span>
+                    )}
 
                     <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setGroupPicker({ kind: 'connection', connectionId: conn.id, currentGroupId: conn.groupId || null }); }}
+                        className="p-0.5 hover:bg-accent rounded"
+                        title="Mover para grupo"
+                      >
+                        <FolderTree className="h-3.5 w-3.5 text-muted-foreground" />
+                      </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); setEditingConnection(conn); setShowAddDialog(true); }}
                         className="p-0.5 hover:bg-accent rounded"
@@ -394,13 +563,33 @@ export function Sidebar() {
                     </div>
                   </div>
 
-                  {isExpanded && schema && schema.databases && schema.databases.length > 0 && (
+                  {isExpanded && schema && schema.databases && schema.databases.length > 0 && (() => {
+                    const dbGroups = databaseGroupsByConnection[conn.id] || [];
+                    const dbGroupFilter = databaseGroupFilterByConnection[conn.id] || null;
+                    const findDbGroup = (name: string) => dbGroups.find((g) => g.databases.includes(name));
+                    const visibleDatabases = dbGroupFilter
+                      ? schema.databases.filter((d) => findDbGroup(d)?.id === dbGroupFilter)
+                      : schema.databases;
+
+                    return (
                     <div className="ml-4">
                       <div className="flex items-center gap-1 px-2 py-0.5 text-xs text-muted-foreground uppercase tracking-wider">
                         <Database className="h-3 w-3" />
-                        Bancos ({schema.databases.length})
+                        Bancos ({visibleDatabases.length}{dbGroupFilter ? `/${schema.databases.length}` : ''})
                       </div>
-                      {schema.databases.map((dbName) => {
+                      {dbGroups.length > 0 && (
+                        <div className="px-2 pb-1">
+                          <select
+                            value={dbGroupFilter || ''}
+                            onChange={(e) => setDatabaseGroupFilterByConnection((prev) => ({ ...prev, [conn.id]: e.target.value || null }))}
+                            className="w-full text-[10px] bg-background border border-border rounded px-1 py-0.5"
+                          >
+                            <option value="">Todos os bancos</option>
+                            {dbGroups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+                          </select>
+                        </div>
+                      )}
+                      {visibleDatabases.map((dbName) => {
                         const isDbExpanded = expandedDatabases.has(dbName);
                         const dbKey = `${conn.id}:${dbName}`;
                         const dbSchema = databaseSchemas[dbKey];
@@ -412,9 +601,10 @@ export function Sidebar() {
                         const isViewsExpanded = expandedSections.has(sectionViews);
                         const isProceduresExpanded = expandedSections.has(sectionProcedures);
                         const isFunctionsExpanded = expandedSections.has(sectionFunctions);
+                        const dbGroup = findDbGroup(dbName);
 
                         return (
-                          <div key={dbName}>
+                          <div key={dbName} className="group/db">
                             <div
                               onContextMenu={(e) => handleDbContextMenu(e, dbName, conn.id)}
                               className={`flex items-center gap-1 px-2 py-0.5 hover:bg-accent cursor-pointer ${
@@ -432,10 +622,22 @@ export function Sidebar() {
                                 onClick={(e) => { e.stopPropagation(); toggleDatabase(dbName, conn.id); }}
                                 onDoubleClick={(e) => { e.stopPropagation(); setActiveDatabase(dbName); }}
                                 title="Clique duplo para tornar este o banco ativo"
-                                className={`text-sm truncate select-none ${activeDatabase === dbName ? 'text-yellow-text font-medium' : 'text-foreground'}`}
+                                className={`flex-1 text-sm truncate select-none ${activeDatabase === dbName ? 'text-yellow-text font-medium' : 'text-foreground'}`}
                               >
                                 {dbName}
                               </span>
+                              {dbGroup && (
+                                <span className="text-[10px] text-muted-foreground bg-accent/50 px-1 py-0.5 rounded shrink-0">
+                                  {dbGroup.name}
+                                </span>
+                              )}
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setGroupPicker({ kind: 'database', connectionId: conn.id, databaseName: dbName, currentGroupId: dbGroup?.id || null }); }}
+                                className="p-0.5 hover:bg-accent rounded opacity-0 group-hover/db:opacity-100 transition-opacity shrink-0"
+                                title="Mover para grupo"
+                              >
+                                <FolderTree className="h-3 w-3 text-muted-foreground" />
+                              </button>
                             </div>
                             {isDbExpanded && dbSchema && (
                               <div className="ml-4">
@@ -448,7 +650,7 @@ export function Sidebar() {
                                     <Table className="h-3 w-3" />
                                     Tables ({dbSchema.tables.length})
                                     <button
-                                      onClick={(e) => { e.stopPropagation(); setShowCreateTable(true); }}
+                                      onClick={(e) => { e.stopPropagation(); openCreatorTab(conn.id, dbName, 'table-editor'); }}
                                       className="ml-auto p-0.5 hover:bg-accent rounded transition-colors"
                                       title="Criar nova tabela"
                                     >
@@ -495,7 +697,7 @@ export function Sidebar() {
                                     <Eye className="h-3 w-3" />
                                     Views ({dbSchema.views.length})
                                     <button
-                                      onClick={(e) => { e.stopPropagation(); setShowCreateView(true); }}
+                                      onClick={(e) => { e.stopPropagation(); openCreatorTab(conn.id, dbName, 'view-editor'); }}
                                       className="ml-auto p-0.5 hover:bg-accent rounded transition-colors"
                                       title="Criar nova view"
                                     >
@@ -503,7 +705,17 @@ export function Sidebar() {
                                     </button>
                                   </div>
                                   {isViewsExpanded && dbSchema.views.map((view) => (
-                                    <div key={view.name} className="flex items-center gap-1 px-2 py-0.5 ml-4 hover:bg-accent cursor-pointer">
+                                    <div
+                                      key={view.name}
+                                      className="flex items-center gap-1 px-2 py-0.5 ml-4 hover:bg-accent cursor-pointer"
+                                      onDoubleClick={() => {
+                                        const sql = view.definition
+                                          ? `CREATE VIEW \`${view.name}\` AS\n${view.definition};`
+                                          : `-- Não foi possível obter a definição de "${view.name}"\nSELECT * FROM \`${view.name}\` LIMIT 100;`;
+                                        newTab(view.name, sql, conn.id);
+                                      }}
+                                      title="Duplo clique para ver a definição"
+                                    >
                                       <Eye className="h-3.5 w-3.5 text-muted-foreground" />
                                       <span className="text-sm text-foreground">{view.name}</span>
                                     </div>
@@ -518,7 +730,7 @@ export function Sidebar() {
                                     <FileCode className="h-3 w-3" />
                                     Procedures ({dbSchema.procedures.length})
                                     <button
-                                      onClick={(e) => { e.stopPropagation(); setShowCreateProcedure(true); }}
+                                      onClick={(e) => { e.stopPropagation(); openCreatorTab(conn.id, dbName, 'procedure-editor'); }}
                                       className="ml-auto p-0.5 hover:bg-accent rounded transition-colors"
                                       title="Criar nova procedure"
                                     >
@@ -526,7 +738,12 @@ export function Sidebar() {
                                     </button>
                                   </div>
                                   {isProceduresExpanded && dbSchema.procedures.map((proc) => (
-                                    <div key={proc.name} className="flex items-center gap-1 px-2 py-0.5 ml-4 hover:bg-accent cursor-pointer">
+                                    <div
+                                      key={proc.name}
+                                      className="flex items-center gap-1 px-2 py-0.5 ml-4 hover:bg-accent cursor-pointer"
+                                      onDoubleClick={() => openRoutineDefinition(conn.id, proc.name, 'PROCEDURE')}
+                                      title="Duplo clique para ver a definição"
+                                    >
                                       <FileCode className="h-3.5 w-3.5 text-yellow-500" />
                                       <span className="text-sm text-foreground">{proc.name}</span>
                                     </div>
@@ -541,7 +758,7 @@ export function Sidebar() {
                                     <FunctionSquare className="h-3 w-3" />
                                     Functions ({dbSchema.functions.length})
                                     <button
-                                      onClick={(e) => { e.stopPropagation(); setShowCreateFunction(true); }}
+                                      onClick={(e) => { e.stopPropagation(); openCreatorTab(conn.id, dbName, 'function-editor'); }}
                                       className="ml-auto p-0.5 hover:bg-accent rounded transition-colors"
                                       title="Criar nova function"
                                     >
@@ -549,7 +766,12 @@ export function Sidebar() {
                                     </button>
                                   </div>
                                   {isFunctionsExpanded && dbSchema.functions.map((func) => (
-                                    <div key={func.name} className="flex items-center gap-1 px-2 py-0.5 ml-4 hover:bg-accent cursor-pointer">
+                                    <div
+                                      key={func.name}
+                                      className="flex items-center gap-1 px-2 py-0.5 ml-4 hover:bg-accent cursor-pointer"
+                                      onDoubleClick={() => openRoutineDefinition(conn.id, func.name, 'FUNCTION')}
+                                      title="Duplo clique para ver a definição"
+                                    >
                                       <FunctionSquare className="h-3.5 w-3.5 text-green-500" />
                                       <span className="text-sm text-foreground">{func.name}</span>
                                     </div>
@@ -561,12 +783,14 @@ export function Sidebar() {
                         );
                       })}
                     </div>
-                  )}
+                    );
+                    })()}
                 </div>
               );
             })}
           </div>
-        )}
+        );
+        })()}
       </div>
 
       <AddConnectionDialog
@@ -587,31 +811,53 @@ export function Sidebar() {
         }}
       />
 
-      <TableCreatorDialog
-        open={showCreateTable}
-        onOpenChange={setShowCreateTable}
-        onSave={refreshActiveDatabaseSchema}
-      />
+      {groupPicker && (
+        <GroupPickerDialog
+          open={!!groupPicker}
+          onOpenChange={(open) => !open && setGroupPicker(null)}
+          title={groupPicker.kind === 'connection' ? 'Mover conexão para grupo' : `Mover "${groupPicker.databaseName}" para grupo`}
+          groups={
+            groupPicker.kind === 'connection'
+              ? connectionGroups
+              : (databaseGroupsByConnection[groupPicker.connectionId] || [])
+          }
+          currentGroupId={groupPicker.currentGroupId}
+          onSelect={(groupId) => {
+            if (groupPicker.kind === 'connection') {
+              assignConnectionGroup(groupPicker.connectionId, groupId);
+            } else {
+              assignDatabaseGroup(groupPicker.connectionId, groupPicker.databaseName, groupId);
+            }
+          }}
+          onCreateGroup={async (name, parentId) => {
+            if (groupPicker.kind === 'connection') {
+              await createConnectionGroup(name, parentId);
+            } else {
+              await createDatabaseGroup(groupPicker.connectionId, name, parentId);
+            }
+          }}
+        />
+      )}
 
-      <ViewCreatorDialog
-        open={showCreateView}
-        onOpenChange={setShowCreateView}
-        onCreated={refreshActiveDatabaseSchema}
-      />
-
-      <RoutineCreatorDialog
-        open={showCreateProcedure}
-        onOpenChange={setShowCreateProcedure}
-        kind="PROCEDURE"
-        onCreated={refreshActiveDatabaseSchema}
-      />
-
-      <RoutineCreatorDialog
-        open={showCreateFunction}
-        onOpenChange={setShowCreateFunction}
-        kind="FUNCTION"
-        onCreated={refreshActiveDatabaseSchema}
-      />
+      <AlertDialog open={!!connectionToDelete} onOpenChange={(open) => !open && setConnectionToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir conexão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que quer excluir a conexão &quot;{connectionToDelete?.name}&quot;? Essa ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteConnection}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {dbContextMenu && (
         <div className="fixed inset-0 z-50" onClick={() => setDbContextMenu(null)}>
@@ -667,7 +913,7 @@ export function Sidebar() {
               <FilePlus className="h-4 w-4" /> Generate CREATE
             </button>
             <div className="h-px bg-border my-1" />
-            <button className="w-full px-3 py-1.5 text-sm text-left hover:bg-accent flex items-center gap-2" onClick={() => { setTableContextMenu(null); setShowCreateTable(true); }}>
+            <button className="w-full px-3 py-1.5 text-sm text-left hover:bg-accent flex items-center gap-2" onClick={() => { const connId = tableContextMenu?.connectionId; setTableContextMenu(null); if (connId) openCreatorTab(connId, state.activeDatabase || '', 'table-editor'); }}>
               <Plus className="h-4 w-4" /> Criar nova tabela
             </button>
           </div>

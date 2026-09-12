@@ -105,6 +105,7 @@ function reducer(state: SqlWorkbenchState, action: Action): SqlWorkbenchState {
         connectionId: action.payload?.connectionId || state.activeConnectionId || '',
         isDirty: false,
         messages: [],
+        kind: action.payload?.kind,
       };
       const newTabs = [...state.tabs, newTab].slice(-MAX_TABS);
       return { ...state, tabs: newTabs, activeTabId: newTab.id };
@@ -189,7 +190,7 @@ interface SqlWorkbenchContextType {
   executeQuery: (sql?: string) => Promise<boolean>;
   cancelQuery: () => Promise<void>;
   formatSql: () => void;
-  newTab: (title?: string, sql?: string, connectionId?: string) => void;
+  newTab: (title?: string, sql?: string, connectionId?: string, kind?: QueryTab['kind']) => void;
   closeTab: (id: string) => void;
   toggleSidebar: () => void;
   toggleResults: () => void;
@@ -269,6 +270,7 @@ export function SqlWorkbenchProvider({ children }: { children: React.ReactNode }
             connectionId: t.connectionId || '',
             isDirty: false,
             messages: [],
+            kind: t.kind,
           }));
           const savedActiveId = parsed.activeTabId as string | undefined;
           restoredActiveTabId = restoredTabs.find((t) => t.id === savedActiveId)?.id || restoredTabs[0].id;
@@ -314,6 +316,7 @@ export function SqlWorkbenchProvider({ children }: { children: React.ReactNode }
         title: t.title,
         sql: t.sql,
         connectionId: t.connectionId,
+        kind: t.kind,
       })),
       queryHistory: state.queryHistory,
     };
@@ -417,6 +420,18 @@ export function SqlWorkbenchProvider({ children }: { children: React.ReactNode }
       },
     });
 
+    // Avisa quem estiver ouvindo (a Sidebar, pra atualizar a árvore de
+    // schema) que um DDL rodou com sucesso — não só pelos diálogos
+    // dedicados de criar tabela/view/procedure, mas qualquer CREATE/
+    // ALTER/DROP digitado direto numa aba de query. Evento de browser em
+    // vez de contexto porque o cache de schema da Sidebar é local ao
+    // componente, não fica no estado global.
+    if (success && data.type === 'ddl') {
+      window.dispatchEvent(
+        new CustomEvent('sql-workbench:schema-changed', { detail: { connectionId, database } })
+      );
+    }
+
     dispatch({ type: 'SET_EXECUTING', payload: { isExecuting: false, activeExecutionId: null } });
 
     return success;
@@ -463,10 +478,10 @@ export function SqlWorkbenchProvider({ children }: { children: React.ReactNode }
     });
   }, []);
 
-  const newTab = useCallback((title?: string, sql?: string, connectionId?: string) => {
+  const newTab = useCallback((title?: string, sql?: string, connectionId?: string, kind?: QueryTab['kind']) => {
     dispatch({
       type: 'ADD_TAB',
-      payload: { title, sql, connectionId },
+      payload: { title, sql, connectionId, kind },
     });
   }, []);
 
