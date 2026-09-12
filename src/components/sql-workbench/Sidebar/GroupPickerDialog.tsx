@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Folder, FolderOpen, Check, Plus } from 'lucide-react';
+import { Folder, FolderOpen, Check, Plus, Pencil, Trash2, X, Loader2 } from 'lucide-react';
 
 interface FlatGroup {
   id: string;
@@ -26,6 +26,10 @@ interface GroupPickerDialogProps {
   currentGroupId: string | null | undefined;
   onSelect: (groupId: string | null) => void;
   onCreateGroup: (name: string, parentId: string | null) => Promise<void>;
+  onRenameGroup: (groupId: string, newName: string) => Promise<void>;
+  onDeleteGroup: (groupId: string) => Promise<void>;
+  /** Modo "só gerenciar" — sem opção "Sem grupo" e clicar no nome não seleciona/fecha, só edita/exclui/cria. */
+  manageOnly?: boolean;
 }
 
 /** Monta a lista com profundidade, pra indentar visualmente sem precisar de uma árvore de verdade. */
@@ -63,12 +67,51 @@ export function GroupPickerDialog({
   currentGroupId,
   onSelect,
   onCreateGroup,
+  onRenameGroup,
+  onDeleteGroup,
+  manageOnly = false,
 }: GroupPickerDialogProps) {
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupParentId, setNewGroupParentId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
+  const [savingRename, setSavingRename] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const flatGroups = flattenWithDepth(groups);
+
+  const startEditing = (group: FlatGroup) => {
+    setEditingGroupId(group.id);
+    setEditingName(group.name);
+    setConfirmDeleteId(null);
+  };
+
+  const saveRename = async () => {
+    if (!editingGroupId || !editingName.trim()) { setEditingGroupId(null); return; }
+    setSavingRename(true);
+    try {
+      await onRenameGroup(editingGroupId, editingName.trim());
+      setEditingGroupId(null);
+    } finally {
+      setSavingRename(false);
+    }
+  };
+
+  const handleDelete = async (groupId: string) => {
+    if (confirmDeleteId !== groupId) {
+      setConfirmDeleteId(groupId);
+      return;
+    }
+    setDeletingId(groupId);
+    try {
+      await onDeleteGroup(groupId);
+    } finally {
+      setDeletingId(null);
+      setConfirmDeleteId(null);
+    }
+  };
 
   const handleCreate = async () => {
     if (!newGroupName.trim()) return;
@@ -90,28 +133,82 @@ export function GroupPickerDialog({
         </DialogHeader>
 
         <div className="max-h-64 overflow-y-auto space-y-0.5">
-          <button
-            className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent text-sm text-left"
-            onClick={() => { onSelect(null); onOpenChange(false); }}
-          >
-            {!currentGroupId && <Check className="h-3.5 w-3.5 text-primary" />}
-            <span className={!currentGroupId ? '' : 'ml-[22px]'}>Sem grupo</span>
-          </button>
+          {!manageOnly && (
+            <button
+              className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent text-sm text-left"
+              onClick={() => { onSelect(null); onOpenChange(false); }}
+            >
+              {!currentGroupId && <Check className="h-3.5 w-3.5 text-primary" />}
+              <span className={!currentGroupId ? '' : 'ml-[22px]'}>Sem grupo</span>
+            </button>
+          )}
 
           {flatGroups.map(({ group, depth }) => (
-            <button
+            <div
               key={group.id}
-              className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent text-sm text-left"
+              className="group/row flex items-center gap-1 rounded hover:bg-accent"
               style={{ paddingLeft: `${8 + depth * 16}px` }}
-              onClick={() => { onSelect(group.id); onOpenChange(false); }}
             >
-              {currentGroupId === group.id ? (
-                <Check className="h-3.5 w-3.5 text-primary shrink-0" />
+              {editingGroupId === group.id ? (
+                <div className="flex-1 flex items-center gap-1 py-1 pr-2">
+                  <Input
+                    autoFocus
+                    value={editingName}
+                    onChange={(e) => setEditingName(e.target.value)}
+                    disabled={savingRename}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') saveRename();
+                      if (e.key === 'Escape') setEditingGroupId(null);
+                    }}
+                    className="h-7 text-sm"
+                  />
+                  <button onClick={saveRename} disabled={savingRename} className="p-1 hover:bg-accent rounded shrink-0" title="Salvar">
+                    {savingRename ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" /> : <Check className="h-3.5 w-3.5 text-primary" />}
+                  </button>
+                  <button onClick={() => setEditingGroupId(null)} disabled={savingRename} className="p-1 hover:bg-accent rounded shrink-0" title="Cancelar">
+                    <X className="h-3.5 w-3.5 text-muted-foreground" />
+                  </button>
+                </div>
               ) : (
-                <Folder className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <>
+                  <button
+                    className={`flex-1 flex items-center gap-2 px-2 py-1.5 text-sm text-left min-w-0 ${manageOnly ? 'cursor-default' : ''}`}
+                    onClick={manageOnly ? undefined : () => { onSelect(group.id); onOpenChange(false); }}
+                  >
+                    {!manageOnly && currentGroupId === group.id ? (
+                      <Check className="h-3.5 w-3.5 text-primary shrink-0" />
+                    ) : (
+                      <Folder className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    )}
+                    <span className="truncate">{group.name}</span>
+                  </button>
+                  <div className="flex items-center opacity-0 group-hover/row:opacity-100 transition-opacity pr-1 shrink-0">
+                    <button
+                      onClick={() => startEditing(group)}
+                      disabled={deletingId === group.id}
+                      className="p-1 hover:bg-accent rounded"
+                      title="Renomear"
+                    >
+                      <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                    </button>
+                    {deletingId === group.id ? (
+                      <span className="p-1"><Loader2 className="h-3.5 w-3.5 animate-spin text-destructive" /></span>
+                    ) : confirmDeleteId === group.id ? (
+                      <button
+                        onClick={() => handleDelete(group.id)}
+                        className="text-xs text-destructive hover:underline px-1 whitespace-nowrap"
+                      >
+                        Confirmar?
+                      </button>
+                    ) : (
+                      <button onClick={() => handleDelete(group.id)} className="p-1 hover:bg-destructive/20 rounded" title="Excluir grupo">
+                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                      </button>
+                    )}
+                  </div>
+                </>
               )}
-              <span className="truncate">{group.name}</span>
-            </button>
+            </div>
           ))}
         </div>
 

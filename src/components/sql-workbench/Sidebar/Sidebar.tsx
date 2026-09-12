@@ -56,6 +56,8 @@ export function Sidebar() {
     | { kind: 'database'; connectionId: string; databaseName: string; currentGroupId: string | null }
     | null
   >(null);
+  const [managingConnectionGroups, setManagingConnectionGroups] = useState(false);
+  const [managingDatabaseGroupsFor, setManagingDatabaseGroupsFor] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/sql/connection-groups')
@@ -114,6 +116,68 @@ export function Sidebar() {
       body: JSON.stringify({ connectionId, databaseName, targetGroupId: groupId }),
     });
     loadDatabaseGroups(connectionId);
+  };
+
+  const renameConnectionGroup = async (groupId: string, newName: string) => {
+    const res = await fetch(`/api/sql/connection-groups/${groupId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newName }),
+    });
+    if (res.ok) {
+      setConnectionGroups((prev) => prev.map((g) => (g.id === groupId ? { ...g, name: newName } : g)));
+    } else {
+      toast.error('Erro ao renomear grupo');
+    }
+  };
+
+  const deleteConnectionGroupHandler = async (groupId: string) => {
+    const res = await fetch(`/api/sql/connection-groups/${groupId}`, { method: 'DELETE' });
+    if (res.ok) {
+      // Subgrupos sobem um nível (viram filhos do avô) e conexões que
+      // estavam nesse grupo ficam sem grupo — mesma regra que o backend
+      // já aplica; só precisamos refletir isso no estado local.
+      setConnectionGroups((prev) => {
+        const deleted = prev.find((g) => g.id === groupId);
+        const parentId = deleted?.parentId ?? null;
+        return prev
+          .filter((g) => g.id !== groupId)
+          .map((g) => (g.parentId === groupId ? { ...g, parentId } : g));
+      });
+      dispatch({
+        type: 'SET_CONNECTIONS',
+        payload: state.connections.map((c) => (c.groupId === groupId ? { ...c, groupId: null } : c)),
+      });
+      toast.success('Grupo excluído');
+    } else {
+      toast.error('Erro ao excluir grupo');
+    }
+  };
+
+  const renameDatabaseGroup = async (connectionId: string, groupId: string, newName: string) => {
+    const res = await fetch(`/api/sql/database-groups/${groupId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newName }),
+    });
+    if (res.ok) {
+      setDatabaseGroupsByConnection((prev) => ({
+        ...prev,
+        [connectionId]: (prev[connectionId] || []).map((g) => (g.id === groupId ? { ...g, name: newName } : g)),
+      }));
+    } else {
+      toast.error('Erro ao renomear grupo');
+    }
+  };
+
+  const deleteDatabaseGroupHandler = async (connectionId: string, groupId: string) => {
+    const res = await fetch(`/api/sql/database-groups/${groupId}`, { method: 'DELETE' });
+    if (res.ok) {
+      loadDatabaseGroups(connectionId);
+      toast.success('Grupo excluído');
+    } else {
+      toast.error('Erro ao excluir grupo');
+    }
   };
 
   const openCreatorTab = (
@@ -448,9 +512,9 @@ export function Sidebar() {
         </button>
       </div>
 
-      {connectionGroups.length > 0 && (
-        <div className="px-2 py-1.5 border-b border-border flex items-center gap-1.5">
-          <FolderTree className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+      <div className="px-2 py-1.5 border-b border-border flex items-center gap-1.5">
+        <FolderTree className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        {connectionGroups.length > 0 ? (
           <select
             value={connectionGroupFilter || ''}
             onChange={(e) => setConnectionGroupFilter(e.target.value || null)}
@@ -461,8 +525,16 @@ export function Sidebar() {
               <option key={g.id} value={g.id}>{g.name}</option>
             ))}
           </select>
-        </div>
-      )}
+        ) : (
+          <span className="flex-1 text-xs text-muted-foreground">Nenhum grupo ainda</span>
+        )}
+        <button
+          onClick={() => setManagingConnectionGroups(true)}
+          className="text-xs text-primary hover:underline shrink-0"
+        >
+          Gerenciar grupos
+        </button>
+      </div>
 
       <div className="flex-1 overflow-auto">
         {(() => {
@@ -575,7 +647,13 @@ export function Sidebar() {
                     <div className="ml-4">
                       <div className="flex items-center gap-1 px-2 py-0.5 text-xs text-muted-foreground uppercase tracking-wider">
                         <Database className="h-3 w-3" />
-                        Bancos ({visibleDatabases.length}{dbGroupFilter ? `/${schema.databases.length}` : ''})
+                        <span className="flex-1">Bancos ({visibleDatabases.length}{dbGroupFilter ? `/${schema.databases.length}` : ''})</span>
+                        <button
+                          onClick={() => setManagingDatabaseGroupsFor(conn.id)}
+                          className="normal-case text-primary hover:underline text-[10px] shrink-0"
+                        >
+                          Gerenciar grupos
+                        </button>
                       </div>
                       {dbGroups.length > 0 && (
                         <div className="px-2 pb-1">
@@ -811,6 +889,34 @@ export function Sidebar() {
         }}
       />
 
+      <GroupPickerDialog
+        open={managingConnectionGroups}
+        onOpenChange={setManagingConnectionGroups}
+        title="Gerenciar grupos de conexão"
+        groups={connectionGroups}
+        currentGroupId={undefined}
+        manageOnly
+        onSelect={() => {}}
+        onCreateGroup={(name, parentId) => createConnectionGroup(name, parentId)}
+        onRenameGroup={renameConnectionGroup}
+        onDeleteGroup={deleteConnectionGroupHandler}
+      />
+
+      {managingDatabaseGroupsFor && (
+        <GroupPickerDialog
+          open={!!managingDatabaseGroupsFor}
+          onOpenChange={(open) => !open && setManagingDatabaseGroupsFor(null)}
+          title="Gerenciar grupos de banco"
+          groups={databaseGroupsByConnection[managingDatabaseGroupsFor] || []}
+          currentGroupId={undefined}
+          manageOnly
+          onSelect={() => {}}
+          onCreateGroup={(name, parentId) => createDatabaseGroup(managingDatabaseGroupsFor, name, parentId)}
+          onRenameGroup={(groupId, newName) => renameDatabaseGroup(managingDatabaseGroupsFor, groupId, newName)}
+          onDeleteGroup={(groupId) => deleteDatabaseGroupHandler(managingDatabaseGroupsFor, groupId)}
+        />
+      )}
+
       {groupPicker && (
         <GroupPickerDialog
           open={!!groupPicker}
@@ -834,6 +940,20 @@ export function Sidebar() {
               await createConnectionGroup(name, parentId);
             } else {
               await createDatabaseGroup(groupPicker.connectionId, name, parentId);
+            }
+          }}
+          onRenameGroup={async (groupId, newName) => {
+            if (groupPicker.kind === 'connection') {
+              await renameConnectionGroup(groupId, newName);
+            } else {
+              await renameDatabaseGroup(groupPicker.connectionId, groupId, newName);
+            }
+          }}
+          onDeleteGroup={async (groupId) => {
+            if (groupPicker.kind === 'connection') {
+              await deleteConnectionGroupHandler(groupId);
+            } else {
+              await deleteDatabaseGroupHandler(groupPicker.connectionId, groupId);
             }
           }}
         />
