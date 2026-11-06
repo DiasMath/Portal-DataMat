@@ -50,6 +50,9 @@ const MYSQL_FUNCTIONS = [
   'FORMAT', 'LOCATE', 'FIELD', 'FIND_IN_SET',
 ];
 
+const LIVE_KEYWORDS = new Set('SELECT FROM WHERE AND OR NOT IN LIKE BETWEEN IS NULL AS ON JOIN LEFT RIGHT INNER OUTER FULL CROSS USING HAVING GROUP BY ORDER ASC DESC LIMIT OFFSET UNION ALL INTERSECT EXCEPT WITH DISTINCT CASE WHEN THEN ELSE END'.split(' '));
+const LIVE_FUNCTIONS = ['COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'COALESCE', 'NULLIF', 'ABS', 'ROUND', 'LOWER', 'UPPER', 'TRIM', 'CAST', 'DATE_TRUNC', 'LENGTH', 'SUBSTRING', 'CONCAT'];
+
 const SQL_RESERVED_AFTER_TABLE = new Set([
   'WHERE', 'GROUP', 'ORDER', 'LIMIT', 'JOIN', 'ON', 'AND', 'OR', 'SET',
   'VALUES', 'HAVING', 'UNION', 'LEFT', 'RIGHT', 'INNER', 'OUTER', 'CROSS',
@@ -98,6 +101,8 @@ export function QueryEditor({ tabId, sql, connectionId, fontSize = 14 }: QueryEd
   }, [tabId, unregisterEditor]);
 
   const handleEditorMount: OnMount = (editor, monaco) => {
+    const isLive = connectionId?.startsWith('api:') === true;
+    const quote = (name: string) => isLive ? `"${name.replaceAll('"', '""')}"` : `\`${name.replaceAll('`', '``')}\``;
     editorRef.current = editor;
     registerEditor(tabId, editor);
 
@@ -169,7 +174,7 @@ export function QueryEditor({ tabId, sql, connectionId, fontSize = 14 }: QueryEd
               suggestions.push({
                 label: col.name,
                 kind: monaco.languages.CompletionItemKind.Field,
-                insertText: `\`${col.name}\``,
+                insertText: quote(col.name),
                 detail: `${col.type} — ${table.name}`,
                 range,
               });
@@ -178,7 +183,7 @@ export function QueryEditor({ tabId, sql, connectionId, fontSize = 14 }: QueryEd
           }
         }
 
-        SQL_KEYWORDS.forEach((kw) => {
+        (isLive ? SQL_KEYWORDS.filter((kw) => LIVE_KEYWORDS.has(kw)) : SQL_KEYWORDS).forEach((kw) => {
           suggestions.push({
             label: kw,
             kind: monaco.languages.CompletionItemKind.Keyword,
@@ -188,7 +193,7 @@ export function QueryEditor({ tabId, sql, connectionId, fontSize = 14 }: QueryEd
           });
         });
 
-        MYSQL_FUNCTIONS.forEach((fn) => {
+        (isLive ? LIVE_FUNCTIONS : MYSQL_FUNCTIONS).forEach((fn) => {
           suggestions.push({
             label: fn,
             kind: monaco.languages.CompletionItemKind.Function,
@@ -212,7 +217,7 @@ export function QueryEditor({ tabId, sql, connectionId, fontSize = 14 }: QueryEd
             suggestions.push({
               label: table.name,
               kind: monaco.languages.CompletionItemKind.Class,
-              insertText: `\`${table.name}\``,
+              insertText: quote(table.name),
               detail: 'Table',
               range,
               sortText: `${sortPrefix}_${table.name}`,
@@ -222,7 +227,7 @@ export function QueryEditor({ tabId, sql, connectionId, fontSize = 14 }: QueryEd
               suggestions.push({
                 label: col.name,
                 kind: monaco.languages.CompletionItemKind.Field,
-                insertText: `\`${col.name}\``,
+                insertText: quote(col.name),
                 detail: isReferenced ? `${col.type} — ${table.name}` : `${col.type}`,
                 range,
                 sortText: `${sortPrefix}_${col.name}`,
@@ -234,7 +239,7 @@ export function QueryEditor({ tabId, sql, connectionId, fontSize = 14 }: QueryEd
             suggestions.push({
               label: view.name,
               kind: monaco.languages.CompletionItemKind.Class,
-              insertText: `\`${view.name}\``,
+              insertText: quote(view.name),
               detail: 'View',
               range,
               sortText: `1_${view.name}`,

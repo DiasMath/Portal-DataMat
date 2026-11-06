@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSqlWorkbench } from '@/contexts/SqlWorkbenchContext';
 import { AddConnectionDialog } from './AddConnectionDialog';
+import { ImportApiDialog, type ApiSource, type ApiOperation } from './ImportApiDialog';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -40,9 +41,65 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
+function groupApiOperations(operations: ApiOperation[]): [string, ApiOperation[]][] {
+  const groups = new Map<string, ApiOperation[]>();
+  for (const operation of operations) {
+    const tag = operation.tags[0] || 'Outros';
+    groups.set(tag, [...(groups.get(tag) || []), operation]);
+  }
+  return [...groups];
+}
+
 export function Sidebar() {
   const { state, dispatch, newTab, executeQuery, setActiveDatabase } = useSqlWorkbench();
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showImportApi, setShowImportApi] = useState(false);
+  const [apiSources, setApiSources] = useState<ApiSource[]>([]);
+  const [apiError, setApiError] = useState('');
+  const [expandedApiSources, setExpandedApiSources] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    fetch('/api/sql/live/sources').then((res) => res.json().then((data) => ({ res, data }))).then(({ res, data }) => { if (res.ok && Array.isArray(data)) setApiSources(data); else setApiError(data.error || 'Serviço Live API indisponível'); }).catch(() => setApiError('Serviço Live API indisponível'));
+  }, []);
+
+  const openApiOperation = (source: ApiSource, op: ApiOperation) => {
+    const dataset = source.datasets.find((d) => d.operation_id === op.operation_id);
+    if (!dataset || op.method !== 'GET') return;
+    const path: Record<string, string> = {};
+    const query: Record<string, string> = {};
+    for (const param of op.parameters.filter((p) => p.in === 'path' || p.in === 'query')) {
+      const answer = window.prompt(`${param.in}: ${param.name} (${param.type || 'texto'})${param.required ? ' · obrigatório' : ' · opcional; deixe vazio para omitir'}`, '');
+      if (!answer && param.required) return;
+      if (answer) (param.in === 'path' ? path : query)[param.name] = answer;
+    }
+    const connectionId = `api:${source.id}`;
+    const sql = `SELECT * FROM ${dataset.name};`;
+    dispatch({ type: 'SET_ACTIVE_CONNECTION', payload: connectionId });
+    const schemaTables = source.datasets.map((d) => {
+      const schema = source.operations.find((o) => o.operation_id === d.operation_id)?.response_schema as { properties?: Record<string, { type?: string }>; items?: { properties?: Record<string, { type?: string }> } } | undefined;
+      const props = schema?.items?.properties || schema?.properties || {};
+      return { name: d.name, columns: Object.entries(props).map(([name, info]) => ({ name, type: info.type || 'JSON', nullable: true, key: '', extra: '' })), indexes: [] };
+    });
+    dispatch({ type: 'SET_SCHEMA', payload: { connectionId, schema: { database: source.name, databases: [], tables: schemaTables, views: [], procedures: [], functions: [], foreignKeys: [] } } });
+    newTab(dataset.name, sql, connectionId, 'query', { [dataset.name]: { path, query } });
+  };
+
+  const syncApiSource = async (source: ApiSource) => {
+    const specUrl = window.prompt('URL HTTPS da nova especificação OpenAPI');
+    if (!specUrl) return;
+    try {
+      const res = await fetch(`/api/sql/live/sources/${source.id}/sync`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ spec_url: specUrl }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || data.error || 'Falha ao sincronizar');
+      setApiSources((old) => old.map((item) => item.id === source.id ? data.source : item));
+      toast.success(`OpenAPI sincronizada: ${data.diff.added.length} novas operações`);
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Falha ao sincronizar'); }
+  };
+
+  const closeApiSession = async (source: ApiSource) => {
+    const res = await fetch(`/api/sql/live/sources/${source.id}/session`, { method: 'DELETE' });
+    if (res.ok) toast.success('Dados temporários encerrados'); else toast.error('Não foi possível encerrar a sessão');
+  };
   const [connectionToDelete, setConnectionToDelete] = useState<Connection | null>(null);
   const [editingConnection, setEditingConnection] = useState<Connection | null>(null);
 
@@ -512,6 +569,21 @@ export function Sidebar() {
         </button>
       </div>
 
+      <div className="border-b border-border p-2 text-xs">
+        <div className="flex items-center justify-between"><b>API REST · DuckDB</b><button className="text-primary" onClick={() => setShowImportApi(true)}>+ Importar OpenAPI</button></div>
+        {apiError && <div className="text-destructive py-1">{apiError}</div>}
+        {apiSources.map((source) => <div key={source.id} className="mt-1">
+          <button className="flex items-center gap-1 text-left w-full hover:bg-accent rounded p-1" onClick={() => setExpandedApiSources((old) => { const next = new Set(old); if (next.has(source.id)) next.delete(source.id); else next.add(source.id); return next; })}>
+            {expandedApiSources.has(source.id) ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}<span className="truncate">{source.name}</span>
+          </button>
+          {expandedApiSources.has(source.id) && <div className="ml-3 flex gap-2"><button className="text-primary" onClick={() => syncApiSource(source)}>Sincronizar</button><button className="text-muted-foreground" onClick={() => closeApiSession(source)}>Encerrar sessão</button></div>}
+          {expandedApiSources.has(source.id) && groupApiOperations(source.operations).map(([tag, ops]) => <div key={tag} className="ml-3"><div className="text-muted-foreground font-medium py-1">{tag}</div>{ops.map((op) => {
+            const dataset = source.datasets.find((d) => d.operation_id === op.operation_id);
+            return <button key={`${op.method}:${op.path}`} disabled={!dataset || op.method !== 'GET'} onClick={() => openApiOperation(source, op)} title={`${op.summary}\n${op.parameters.filter((p) => p.required).map((p) => `${p.in}: ${p.name}`).join(', ')}\nAutenticação: ${JSON.stringify(op.security || [])}`} className="block text-left w-full pl-2 py-0.5 hover:bg-accent disabled:opacity-50 truncate"><span className="text-primary">{op.method}</span> {op.path}{dataset ? ` → ${dataset.name}` : ''}</button>;
+          })}</div>)}
+        </div>)}
+      </div>
+
       <div className="px-2 py-1.5 border-b border-border flex items-center gap-1.5">
         <FolderTree className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
         {connectionGroups.length > 0 ? (
@@ -871,6 +943,7 @@ export function Sidebar() {
         })()}
       </div>
 
+      <ImportApiDialog open={showImportApi} onOpenChange={setShowImportApi} onSaved={(source) => setApiSources((old) => [...old, source])} />
       <AddConnectionDialog
         open={showAddDialog}
         editingConnection={editingConnection}

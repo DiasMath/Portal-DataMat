@@ -93,7 +93,7 @@ export function SqlWorkbench() {
   }, []);
 
   const handleExecute = () => {
-    if (!state.activeConnectionId) {
+    if (!activeTab?.connectionId && !state.activeConnectionId) {
       toast.error('Selecione uma conexão na barra lateral');
       return;
     }
@@ -144,6 +144,10 @@ export function SqlWorkbench() {
   };
 
   const executeTransaction = (command: 'BEGIN' | 'COMMIT' | 'ROLLBACK') => {
+    if (activeTab?.connectionId.startsWith('api:')) {
+      toast.error('Transações não são suportadas no Live SQL');
+      return;
+    }
     if (!state.activeConnectionId) {
       toast.error('Selecione uma conexão');
       return;
@@ -406,6 +410,8 @@ export function SqlWorkbench() {
               <QueryTabs />
             </div>
             <div className="flex items-center gap-1 px-2 py-1 border-t border-border flex-wrap">
+              <span className="text-xs text-muted-foreground px-1">{activeTab?.connectionId.startsWith('api:') ? 'DuckDB · API REST' : 'MySQL'}</span>
+              {activeTab?.connectionId.startsWith('api:') && <label className="text-xs text-muted-foreground flex items-center gap-1 px-1"><input type="checkbox" defaultChecked={typeof window !== 'undefined' && sessionStorage.getItem('live-api-reuse') === 'true'} onChange={(e) => sessionStorage.setItem('live-api-reuse', String(e.target.checked))} />Reutilizar dados da sessão</label>}
               {state.isExecuting ? (
                 <button
                   onClick={cancelQuery}
