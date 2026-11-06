@@ -358,11 +358,19 @@ export function SqlWorkbenchProvider({ children }: { children: React.ReactNode }
       if (data.pending && typeof data.executionId === 'string') {
         const liveExecutionId = data.executionId as string;
         dispatch({ type: 'SET_EXECUTING', payload: { isExecuting: true, activeExecutionId: liveExecutionId } });
+        let lastProgress = '';
         for (let attempt = 0; attempt < 240; attempt++) {
           await new Promise((resolve) => setTimeout(resolve, 500));
           const statusRes = await fetch(`/api/sql/live/executions/${liveExecutionId}`);
           const statusData = await statusRes.json();
           if (!statusRes.ok) throw new Error(statusData.error || 'Falha ao acompanhar execução');
+          if (statusData.progress) {
+            const progress = `${statusData.progress.dataset}: ${statusData.progress.pages} página(s), ${statusData.progress.records} registro(s)`;
+            if (progress !== lastProgress) {
+              lastProgress = progress;
+              dispatch({ type: 'UPDATE_TAB', payload: { id: s.activeTabId!, updates: { messages: [{ type: 'info', text: `Coletando ${progress}` }] } } });
+            }
+          }
           if (statusData.status === 'completed') {
             const liveResult = statusData.result;
             data = { success: true, ...liveResult, message: `${liveResult.row_count} linhas · API ${liveResult.api_ms} ms · DuckDB ${liveResult.sql_ms} ms · ${liveResult.collection.map((c: { dataset: string; pages: number; records: number }) => `${c.dataset}: ${c.records} registros/${c.pages} páginas`).join(', ')}` };
