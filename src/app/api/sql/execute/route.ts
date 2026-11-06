@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/sql/executor';
 import { validateMasterAdmin } from '@/lib/auth-helpers';
+import { liveApi } from '@/lib/sql/live-api';
 
 const MAX_SQL_SIZE = 100 * 1024;
 const MAX_STATEMENTS = 50;
@@ -46,7 +47,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { connectionId, sql, database, executionId } = await request.json();
+    const { connectionId, sql, database, executionId, liveParameters, liveReuse } = await request.json();
 
     if (!connectionId || !sql) {
       return NextResponse.json(
@@ -60,6 +61,18 @@ export async function POST(request: NextRequest) {
         { success: false, error: `Query excede o limite de ${MAX_SQL_SIZE / 1024}KB` },
         { status: 400 }
       );
+    }
+
+    if (typeof connectionId === 'string' && /^api:[0-9a-f]{32}$/.test(connectionId)) {
+      try {
+        const response = await liveApi(`/v1/sources/${connectionId.slice(4)}/execute`, currentUser.uid, 'POST', {
+          sql, parameters: liveParameters || {}, reuse: liveReuse === true,
+        });
+        if (response.status !== 200) return NextResponse.json({ success: false, error: response.data.detail || 'Falha Live SQL' }, { status: response.status });
+        return NextResponse.json({ success: true, pending: true, executionId: response.data.execution_id });
+      } catch {
+        return NextResponse.json({ success: false, error: 'Serviço Live API indisponível' }, { status: 502 });
+      }
     }
 
     const stmtCount = sql.split(';').filter(s => s.trim()).length;

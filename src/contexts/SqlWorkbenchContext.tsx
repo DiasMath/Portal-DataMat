@@ -106,6 +106,7 @@ function reducer(state: SqlWorkbenchState, action: Action): SqlWorkbenchState {
         isDirty: false,
         messages: [],
         kind: action.payload?.kind,
+        liveParameters: action.payload?.liveParameters,
       };
       const newTabs = [...state.tabs, newTab].slice(-MAX_TABS);
       return { ...state, tabs: newTabs, activeTabId: newTab.id };
@@ -190,7 +191,7 @@ interface SqlWorkbenchContextType {
   executeQuery: (sql?: string) => Promise<boolean>;
   cancelQuery: () => Promise<void>;
   formatSql: () => void;
-  newTab: (title?: string, sql?: string, connectionId?: string, kind?: QueryTab['kind']) => void;
+  newTab: (title?: string, sql?: string, connectionId?: string, kind?: QueryTab['kind'], liveParameters?: QueryTab['liveParameters']) => void;
   closeTab: (id: string) => void;
   toggleSidebar: () => void;
   toggleResults: () => void;
@@ -350,10 +351,27 @@ export function SqlWorkbenchProvider({ children }: { children: React.ReactNode }
       const res = await fetch('/api/sql/execute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ connectionId, sql: querySql, database, executionId }),
+        body: JSON.stringify({ connectionId, sql: querySql, database, executionId, liveParameters: activeTab?.liveParameters, liveReuse: sessionStorage.getItem('live-api-reuse') === 'true' }),
       });
 
       data = await res.json();
+      if (data.pending && typeof data.executionId === 'string') {
+        const liveExecutionId = data.executionId as string;
+        dispatch({ type: 'SET_EXECUTING', payload: { isExecuting: true, activeExecutionId: liveExecutionId } });
+        for (let attempt = 0; attempt < 240; attempt++) {
+          await new Promise((resolve) => setTimeout(resolve, 500));
+          const statusRes = await fetch(`/api/sql/live/executions/${liveExecutionId}`);
+          const statusData = await statusRes.json();
+          if (!statusRes.ok) throw new Error(statusData.error || 'Falha ao acompanhar execução');
+          if (statusData.status === 'completed') {
+            const liveResult = statusData.result;
+            data = { success: true, ...liveResult, message: `${liveResult.row_count} linhas · API ${liveResult.api_ms} ms · DuckDB ${liveResult.sql_ms} ms · ${liveResult.collection.map((c: { dataset: string; pages: number; records: number }) => `${c.dataset}: ${c.records} registros/${c.pages} páginas`).join(', ')}` };
+            break;
+          }
+          if (statusData.status === 'failed' || statusData.status === 'cancelled') throw new Error(statusData.error || 'Execução interrompida');
+        }
+        if (data.pending) throw new Error('Tempo limite ao acompanhar execução Live SQL');
+      }
       const executionTime = performance.now() - startTime;
 
       if (data.success) {
@@ -441,6 +459,12 @@ export function SqlWorkbenchProvider({ children }: { children: React.ReactNode }
     const executionId = stateRef.current.activeExecutionId;
     if (!executionId) return;
     try {
+      const s = stateRef.current;
+      const tab = s.tabs.find((t) => t.id === s.activeTabId);
+      if (tab?.connectionId.startsWith('api:')) {
+        await fetch(`/api/sql/live/executions/${executionId}/cancel`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+        return;
+      }
       await fetch('/api/sql/cancel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -478,10 +502,10 @@ export function SqlWorkbenchProvider({ children }: { children: React.ReactNode }
     });
   }, []);
 
-  const newTab = useCallback((title?: string, sql?: string, connectionId?: string, kind?: QueryTab['kind']) => {
+  const newTab = useCallback((title?: string, sql?: string, connectionId?: string, kind?: QueryTab['kind'], liveParameters?: QueryTab['liveParameters']) => {
     dispatch({
       type: 'ADD_TAB',
-      payload: { title, sql, connectionId, kind },
+      payload: { title, sql, connectionId, kind, liveParameters },
     });
   }, []);
 

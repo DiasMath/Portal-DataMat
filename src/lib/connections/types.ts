@@ -8,6 +8,7 @@
  * frente — os dois tipos antigos agora apenas re-exportam este.
  */
 export interface SavedConnection {
+  type?: 'mysql' | 'api';
   id: string;
   name: string;
   host: string;
