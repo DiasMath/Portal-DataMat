@@ -30,6 +30,7 @@ export interface ApiSource {
   base_url: string;
   operations: ApiOperation[];
   datasets: ApiDataset[];
+  auth?: { kind: string; key_env?: string; header_name?: string; key_prefix?: string; username_env?: string; password_env?: string; has_key?: boolean };
 }
 
 export function suggestDatasetName(op: ApiOperation): string {
@@ -53,6 +54,7 @@ export function ImportApiForm({ onSaved }: { onSaved: (source: ApiSource) => voi
   const [expandedOperationId, setExpandedOperationId] = useState<string | null>(null);
   const [authKind, setAuthKind] = useState<'none' | 'api_key' | 'basic_auth'>('none');
   const [keyEnv, setKeyEnv] = useState('');
+  const [keyValue, setKeyValue] = useState('');
   const [headerName, setHeaderName] = useState('X-API-Key');
   const [keyPrefix, setKeyPrefix] = useState('');
   const [userEnv, setUserEnv] = useState('');
@@ -91,7 +93,7 @@ export function ImportApiForm({ onSaved }: { onSaved: (source: ApiSource) => voi
     if (!spec) return;
     setBusy(true); setError('');
     try {
-      const auth = authKind === 'api_key' ? { kind: 'api_key', key_env: keyEnv, header_name: headerName, key_prefix: keyPrefix, send_as: 'header' } : authKind === 'basic_auth' ? { kind: 'basic_auth', username_env: userEnv, password_env: passwordEnv } : { kind: 'none' };
+      const auth = authKind === 'api_key' ? { kind: 'api_key', ...(keyValue ? { key_value: keyValue } : { key_env: keyEnv }), header_name: headerName, key_prefix: keyPrefix, send_as: 'header' } : authKind === 'basic_auth' ? { kind: 'basic_auth', username_env: userEnv, password_env: passwordEnv } : { kind: 'none' };
       const res = await fetch('/api/sql/live/sources', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, tenant_id: tenantId, base_url: baseUrl, spec, auth, datasets: Object.values(datasets) }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || data.error || 'Falha ao cadastrar fonte');
@@ -105,6 +107,9 @@ export function ImportApiForm({ onSaved }: { onSaved: (source: ApiSource) => voi
       <label>Nome<Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Minha API" /></label>
       <label>Tenant ID<Input value={tenantId} onChange={(e) => setTenantId(e.target.value)} /></label>
       <label>URL base HTTPS<Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://api.exemplo.com" /></label>
+      <label className="col-span-2">Autenticação<select className="block w-full bg-background border rounded p-2" value={authKind} onChange={(e) => setAuthKind(e.target.value as typeof authKind)}><option value="none">Nenhuma</option><option value="api_key">API Key em header</option><option value="basic_auth">Basic Auth</option></select></label>
+      {authKind === 'api_key' && <><label>API Key<Input type="password" autoComplete="off" value={keyValue} onChange={(e) => setKeyValue(e.target.value)} placeholder="Chave da API" /></label><label>Ou nome da variável de ambiente<Input value={keyEnv} onChange={(e) => setKeyEnv(e.target.value)} disabled={!!keyValue} /></label><label>Nome do header<Input value={headerName} onChange={(e) => setHeaderName(e.target.value)} /></label><label>Prefixo (opcional)<Input value={keyPrefix} onChange={(e) => setKeyPrefix(e.target.value)} placeholder="Bearer " /></label></>}
+      {authKind === 'basic_auth' && <><label>Variável de usuário<Input value={userEnv} onChange={(e) => setUserEnv(e.target.value)} /></label><label>Variável de senha<Input value={passwordEnv} onChange={(e) => setPasswordEnv(e.target.value)} /></label></>}
       <label className="col-span-2">OpenAPI por URL<Input value={specUrl} onChange={(e) => setSpecUrl(e.target.value)} placeholder="https://api.exemplo.com/openapi.json" /></label>
       <label className="col-span-2">Ou arquivo JSON/YAML<Input type="file" accept=".json,.yaml,.yml" onChange={async (e) => { const file = e.target.files?.[0]; if (file) { setSpecText(await file.text()); setSpecUrl(''); } }} /></label>
     </div>
@@ -114,11 +119,6 @@ export function ImportApiForm({ onSaved }: { onSaved: (source: ApiSource) => voi
     </Button>
     {spec && <>
       <p className="text-sm text-muted-foreground">{operations.length} GET(s) encontrado(s); {Object.keys(datasets).length} consultável(is) configurado(s) automaticamente. Os demais aparecem na árvore com a limitação identificada.</p>
-      <div className="text-sm">Autenticação
-        <select className="ml-2 bg-background border rounded p-1" value={authKind} onChange={(e) => setAuthKind(e.target.value as typeof authKind)}><option value="none">Nenhuma</option><option value="api_key">API Key em header</option><option value="basic_auth">Basic Auth</option></select>
-      </div>
-      {authKind === 'api_key' && <div className="grid grid-cols-3 gap-2"><label>Variável de ambiente da chave<Input value={keyEnv} onChange={(e) => setKeyEnv(e.target.value)} /></label><label>Nome do header<Input value={headerName} onChange={(e) => setHeaderName(e.target.value)} /></label><label>Prefixo (opcional)<Input value={keyPrefix} onChange={(e) => setKeyPrefix(e.target.value)} placeholder="Bearer " /></label></div>}
-      {authKind === 'basic_auth' && <div className="grid grid-cols-2 gap-2"><label>Variável de usuário<Input value={userEnv} onChange={(e) => setUserEnv(e.target.value)} /></label><label>Variável de senha<Input value={passwordEnv} onChange={(e) => setPasswordEnv(e.target.value)} /></label></div>}
       <p className="text-xs text-muted-foreground">Os GETs compatíveis estarão prontos assim que a API for cadastrada. Abra “Ajustar” apenas se precisar corrigir os metadados da OpenAPI.</p>
       <div className="space-y-2 max-h-72 overflow-y-auto">
         {operations.map((op) => <div key={op.operation_id} className="border border-border rounded p-2 text-xs">

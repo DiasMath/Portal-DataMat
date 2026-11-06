@@ -7,7 +7,7 @@ export function liveApiFailureMessage(error: unknown): string {
   return 'Serviço Live API indisponível. Inicie o FastAPI na URL configurada em LIVE_API_URL.';
 }
 
-export async function liveApi(path: string, userId: string, method: 'GET' | 'POST' | 'DELETE', body?: unknown) {
+export async function liveApi(path: string, userId: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE', body?: unknown) {
   const key = process.env.LIVE_API_INTERNAL_KEY;
   if (!key) throw new Error('LIVE_API_INTERNAL_KEY não configurada no Portal');
   const response = await fetch(`${LIVE_API_URL}${path}`, {

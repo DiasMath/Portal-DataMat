@@ -4,13 +4,13 @@ import { liveApi, liveApiFailureMessage } from '@/lib/sql/live-api';
 
 const allowed = /^(?:sources(?:\/[0-9a-f]{32}(?:\/(?:execute|sync|endpoints|datasets|auto-map|session))?)?|openapi\/preview|executions\/[0-9a-f]{32}(?:\/cancel)?)$/;
 
-async function forward(request: NextRequest, method: 'GET' | 'POST' | 'DELETE', path: string[]) {
+async function forward(request: NextRequest, method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: string[]) {
   const user = await validateMasterAdmin(request);
   if (!user) return NextResponse.json({ error: 'Acesso negado' }, { status: 403 });
   const joined = path.join('/');
   if (!allowed.test(joined)) return NextResponse.json({ error: 'Rota inválida' }, { status: 404 });
   try {
-    const body = method === 'POST' ? await request.json() : undefined;
+    const body = method === 'POST' || method === 'PUT' ? await request.json() : undefined;
     const result = await liveApi(`/v1/${joined}`, user.uid, method, body);
     if (method === 'POST' && result.status === 404 && /\/sources\/[0-9a-f]{32}\/(?:datasets|auto-map)$/.test(`/v1/${joined}`)) {
       return NextResponse.json({ error: 'Serviço Live API desatualizado. Reinicie o FastAPI e o Portal.' }, { status: 503 });
@@ -27,6 +27,10 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pat
 
 export async function POST(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   return forward(request, 'POST', (await context.params).path);
+}
+
+export async function PUT(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
+  return forward(request, 'PUT', (await context.params).path);
 }
 
 export async function DELETE(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {

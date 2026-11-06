@@ -5,6 +5,7 @@ import { useSqlWorkbench } from '@/contexts/SqlWorkbenchContext';
 import { AddConnectionDialog } from './AddConnectionDialog';
 import { type ApiSource, type ApiOperation } from './ImportApiDialog';
 import { ConfigureApiEndpointDialog } from './ConfigureApiEndpointDialog';
+import { EditApiSourceDialog } from './EditApiSourceDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -64,6 +65,7 @@ export function Sidebar() {
   const [expandedApiSources, setExpandedApiSources] = useState<Set<string>>(new Set());
   const [expandedApiGroups, setExpandedApiGroups] = useState<Set<string>>(new Set());
   const [mappingTarget, setMappingTarget] = useState<{ source: ApiSource; operation: ApiOperation } | null>(null);
+  const [editApiTarget, setEditApiTarget] = useState<ApiSource | null>(null);
   const [syncTarget, setSyncTarget] = useState<ApiSource | null>(null);
   const [syncUrl, setSyncUrl] = useState('');
   const [syncBusy, setSyncBusy] = useState(false);
@@ -80,9 +82,20 @@ export function Sidebar() {
 
   useEffect(() => { loadApiSources(); }, []);
 
-  const openApiOperation = (source: ApiSource, op: ApiOperation) => {
+  const openApiOperation = async (source: ApiSource, op: ApiOperation) => {
     if (op.method !== 'GET') return;
-    const dataset = source.datasets.find((d) => d.operation_id === op.operation_id);
+    let dataset = source.datasets.find((d) => d.operation_id === op.operation_id);
+    if (!dataset) {
+      try {
+        const response = await fetch(`/api/sql/live/sources/${source.id}`);
+        if (response.ok) {
+          const fresh = await response.json() as ApiSource;
+          setApiSources((old) => old.map((item) => item.id === fresh.id ? fresh : item));
+          source = fresh;
+          dataset = fresh.datasets.find((d) => d.operation_id === op.operation_id);
+        }
+      } catch { /* The mapping dialog can still handle a genuinely unmapped endpoint. */ }
+    }
     if (!dataset) { setMappingTarget({ source, operation: op }); return; }
     const connectionId = `api:${source.id}`;
     const predicates = op.parameters.filter((param) => param.required && (param.in === 'path' || param.in === 'query')).map((param) => {
@@ -604,6 +617,7 @@ export function Sidebar() {
             {expandedApiSources.has(source.id) ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}<span className="truncate">{source.name}</span>
           </button>
           {expandedApiSources.has(source.id) && <div className="ml-3 flex flex-wrap gap-1 py-1">
+            <Button type="button" size="sm" variant="ghost" className="h-7 gap-1 px-2 text-xs" onClick={() => setEditApiTarget(source)} title="Editar conexão e tabelas SQL"><Pencil className="h-3.5 w-3.5" /> Editar</Button>
             <Button type="button" size="sm" variant="ghost" className="h-7 gap-1 px-2 text-xs" onClick={() => { setSyncTarget(source); setSyncUrl(''); setSyncError(''); }} title="Atualizar a especificação OpenAPI"><RefreshCw className="h-3.5 w-3.5" /> Sincronizar</Button>
             <Button type="button" size="sm" variant="ghost" className="h-7 gap-1 px-2 text-xs" onClick={() => setSessionTarget(source)} title="Descartar dados temporários da sessão"><LogOut className="h-3.5 w-3.5" /> Encerrar sessão</Button>
           </div>}
@@ -992,6 +1006,12 @@ export function Sidebar() {
           openApiOperation(updatedSource, operation);
         }}
       />
+
+      <EditApiSourceDialog source={editApiTarget} onOpenChange={(open) => { if (!open) setEditApiTarget(null); }} onSaved={(updated) => {
+        setApiSources((old) => old.map((item) => item.id === updated.id ? updated : item));
+        setEditApiTarget(null);
+        toast.success('Conexão de API atualizada');
+      }} />
 
       <Dialog open={!!syncTarget} onOpenChange={(open) => { if (!open && !syncBusy) setSyncTarget(null); }}>
         <DialogContent>
