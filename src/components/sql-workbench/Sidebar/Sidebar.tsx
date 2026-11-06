@@ -61,7 +61,7 @@ export function Sidebar() {
     fetch('/api/sql/live/sources').then((res) => res.json().then((data) => ({ res, data }))).then(({ res, data }) => {
       if (res.ok && Array.isArray(data)) { setApiSources(data); setApiError(''); }
       else setApiError(data.error || 'Serviço Live API indisponível');
-    }).catch(() => setApiError('Serviço Live API indisponível. Verifique se o FastAPI está ativo na porta 8001.'));
+    }).catch(() => setApiError('Serviço Live API indisponível. Verifique se o FastAPI está ativo na URL configurada.'));
   };
 
   useEffect(() => { loadApiSources(); }, []);

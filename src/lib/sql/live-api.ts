@@ -4,7 +4,7 @@ export function liveApiFailureMessage(error: unknown): string {
   if (error instanceof Error && error.message === 'LIVE_API_INTERNAL_KEY não configurada no Portal') {
     return 'Configure LIVE_API_INTERNAL_KEY no Portal e reinicie o Next.js.';
   }
-  return 'Serviço Live API indisponível. Inicie o FastAPI em 127.0.0.1:8001 e confira LIVE_API_URL.';
+  return 'Serviço Live API indisponível. Inicie o FastAPI na URL configurada em LIVE_API_URL.';
 }
 
 export async function liveApi(path: string, userId: string, method: 'GET' | 'POST' | 'DELETE', body?: unknown) {
