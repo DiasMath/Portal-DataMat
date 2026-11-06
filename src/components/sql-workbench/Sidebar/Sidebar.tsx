@@ -4,6 +4,10 @@ import { useState, useEffect } from 'react';
 import { useSqlWorkbench } from '@/contexts/SqlWorkbenchContext';
 import { AddConnectionDialog } from './AddConnectionDialog';
 import { type ApiSource, type ApiOperation } from './ImportApiDialog';
+import { ConfigureApiEndpointDialog } from './ConfigureApiEndpointDialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -38,16 +42,18 @@ import {
   FilePlus,
   Pencil,
   Copy,
+  RefreshCw,
+  LogOut,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 function groupApiOperations(operations: ApiOperation[]): [string, ApiOperation[]][] {
   const groups = new Map<string, ApiOperation[]>();
-  for (const operation of operations) {
-    const tag = operation.tags[0] || 'Outros';
-    groups.set(tag, [...(groups.get(tag) || []), operation]);
+  for (const operation of operations.filter((op) => op.method === 'GET')) {
+    const parent = operation.path.split('/').filter(Boolean)[0] || 'root';
+    groups.set(parent, [...(groups.get(parent) || []), operation]);
   }
-  return [...groups];
+  return [...groups].sort(([a], [b]) => a.localeCompare(b)).map(([name, items]) => [name, items.sort((a, b) => a.path.localeCompare(b.path))]);
 }
 
 export function Sidebar() {
@@ -56,6 +62,14 @@ export function Sidebar() {
   const [apiSources, setApiSources] = useState<ApiSource[]>([]);
   const [apiError, setApiError] = useState('');
   const [expandedApiSources, setExpandedApiSources] = useState<Set<string>>(new Set());
+  const [expandedApiGroups, setExpandedApiGroups] = useState<Set<string>>(new Set());
+  const [mappingTarget, setMappingTarget] = useState<{ source: ApiSource; operation: ApiOperation } | null>(null);
+  const [syncTarget, setSyncTarget] = useState<ApiSource | null>(null);
+  const [syncUrl, setSyncUrl] = useState('');
+  const [syncBusy, setSyncBusy] = useState(false);
+  const [syncError, setSyncError] = useState('');
+  const [sessionTarget, setSessionTarget] = useState<ApiSource | null>(null);
+  const [sessionBusy, setSessionBusy] = useState(false);
 
   const loadApiSources = () => {
     fetch('/api/sql/live/sources').then((res) => res.json().then((data) => ({ res, data }))).then(({ res, data }) => {
@@ -67,42 +81,52 @@ export function Sidebar() {
   useEffect(() => { loadApiSources(); }, []);
 
   const openApiOperation = (source: ApiSource, op: ApiOperation) => {
+    if (op.method !== 'GET') return;
     const dataset = source.datasets.find((d) => d.operation_id === op.operation_id);
-    if (!dataset || op.method !== 'GET') return;
-    const path: Record<string, string> = {};
-    const query: Record<string, string> = {};
-    for (const param of op.parameters.filter((p) => p.in === 'path' || p.in === 'query')) {
-      const answer = window.prompt(`${param.in}: ${param.name} (${param.type || 'texto'})${param.required ? ' · obrigatório' : ' · opcional; deixe vazio para omitir'}`, '');
-      if (!answer && param.required) return;
-      if (answer) (param.in === 'path' ? path : query)[param.name] = answer;
-    }
+    if (!dataset) { setMappingTarget({ source, operation: op }); return; }
     const connectionId = `api:${source.id}`;
-    const sql = `SELECT * FROM ${dataset.name};`;
+    const predicates = op.parameters.filter((param) => param.required && (param.in === 'path' || param.in === 'query')).map((param) => {
+      const name = /^[A-Za-z_][A-Za-z_0-9]*$/.test(param.name) ? param.name : `"${param.name.replace(/"/g, '""')}"`;
+      return `${name} = ''`;
+    });
+    const sql = `SELECT * FROM ${dataset.name}${predicates.length ? `\nWHERE ${predicates.join('\n  AND ')}` : ''};`;
     dispatch({ type: 'SET_ACTIVE_CONNECTION', payload: connectionId });
     const schemaTables = source.datasets.map((d) => {
-      const schema = source.operations.find((o) => o.operation_id === d.operation_id)?.response_schema as { properties?: Record<string, { type?: string }>; items?: { properties?: Record<string, { type?: string }> } } | undefined;
+      const operation = source.operations.find((o) => o.operation_id === d.operation_id);
+      const schema = operation?.response_schema as { properties?: Record<string, { type?: string }>; items?: { properties?: Record<string, { type?: string }> } } | undefined;
       const props = schema?.items?.properties || schema?.properties || {};
-      return { name: d.name, columns: Object.entries(props).map(([name, info]) => ({ name, type: info.type || 'JSON', nullable: true, key: '', extra: '' })), indexes: [] };
+      const columns = new Map(Object.entries(props).map(([name, info]) => [name, info.type || 'JSON']));
+      for (const param of operation?.parameters || []) if ((param.in === 'path' || param.in === 'query') && !columns.has(param.name)) columns.set(param.name, param.type || 'VARCHAR');
+      return { name: d.name, columns: [...columns].map(([name, type]) => ({ name, type, nullable: true, key: '', extra: '' })), indexes: [] };
     });
     dispatch({ type: 'SET_SCHEMA', payload: { connectionId, schema: { database: source.name, databases: [], tables: schemaTables, views: [], procedures: [], functions: [], foreignKeys: [] } } });
-    newTab(dataset.name, sql, connectionId, 'query', { [dataset.name]: { path, query } });
+    newTab(dataset.name, sql, connectionId, 'query');
   };
 
-  const syncApiSource = async (source: ApiSource) => {
-    const specUrl = window.prompt('URL HTTPS da nova especificação OpenAPI');
-    if (!specUrl) return;
+  const syncApiSource = async () => {
+    if (!syncTarget || !syncUrl.trim()) return;
+    setSyncBusy(true); setSyncError('');
     try {
-      const res = await fetch(`/api/sql/live/sources/${source.id}/sync`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ spec_url: specUrl }) });
+      const res = await fetch(`/api/sql/live/sources/${syncTarget.id}/sync`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ spec_url: syncUrl.trim() }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || data.error || 'Falha ao sincronizar');
-      setApiSources((old) => old.map((item) => item.id === source.id ? data.source : item));
+      setApiSources((old) => old.map((item) => item.id === syncTarget.id ? data.source : item));
+      setSyncTarget(null);
       toast.success(`OpenAPI sincronizada: ${data.diff.added.length} novas operações`);
-    } catch (e) { toast.error(e instanceof Error ? e.message : 'Falha ao sincronizar'); }
+    } catch (e) { setSyncError(e instanceof Error ? e.message : 'Falha ao sincronizar'); }
+    finally { setSyncBusy(false); }
   };
 
-  const closeApiSession = async (source: ApiSource) => {
-    const res = await fetch(`/api/sql/live/sources/${source.id}/session`, { method: 'DELETE' });
-    if (res.ok) toast.success('Dados temporários encerrados'); else toast.error('Não foi possível encerrar a sessão');
+  const closeApiSession = async () => {
+    if (!sessionTarget) return;
+    setSessionBusy(true);
+    try {
+      const res = await fetch(`/api/sql/live/sources/${sessionTarget.id}/session`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Não foi possível encerrar a sessão');
+      toast.success('Dados temporários encerrados');
+      setSessionTarget(null);
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível encerrar a sessão'); }
+    finally { setSessionBusy(false); }
   };
   const [connectionToDelete, setConnectionToDelete] = useState<Connection | null>(null);
   const [editingConnection, setEditingConnection] = useState<Connection | null>(null);
@@ -579,11 +603,23 @@ export function Sidebar() {
           <button className="flex items-center gap-1 text-left w-full hover:bg-accent rounded p-1" onClick={() => setExpandedApiSources((old) => { const next = new Set(old); if (next.has(source.id)) next.delete(source.id); else next.add(source.id); return next; })}>
             {expandedApiSources.has(source.id) ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}<span className="truncate">{source.name}</span>
           </button>
-          {expandedApiSources.has(source.id) && <div className="ml-3 flex gap-2"><button className="text-primary" onClick={() => syncApiSource(source)}>Sincronizar</button><button className="text-muted-foreground" onClick={() => closeApiSession(source)}>Encerrar sessão</button></div>}
-          {expandedApiSources.has(source.id) && groupApiOperations(source.operations).map(([tag, ops]) => <div key={tag} className="ml-3"><div className="text-muted-foreground font-medium py-1">{tag}</div>{ops.map((op) => {
-            const dataset = source.datasets.find((d) => d.operation_id === op.operation_id);
-            return <button key={`${op.method}:${op.path}`} disabled={!dataset || op.method !== 'GET'} onClick={() => openApiOperation(source, op)} title={`${op.summary}\n${op.parameters.filter((p) => p.required).map((p) => `${p.in}: ${p.name}`).join(', ')}\nAutenticação: ${JSON.stringify(op.security || [])}`} className="block text-left w-full pl-2 py-0.5 hover:bg-accent disabled:opacity-50 truncate"><span className="text-primary">{op.method}</span> {op.path}{dataset ? ` → ${dataset.name}` : ''}</button>;
-          })}</div>)}
+          {expandedApiSources.has(source.id) && <div className="ml-3 flex flex-wrap gap-1 py-1">
+            <Button type="button" size="sm" variant="ghost" className="h-7 gap-1 px-2 text-xs" onClick={() => { setSyncTarget(source); setSyncUrl(''); setSyncError(''); }} title="Atualizar a especificação OpenAPI"><RefreshCw className="h-3.5 w-3.5" /> Sincronizar</Button>
+            <Button type="button" size="sm" variant="ghost" className="h-7 gap-1 px-2 text-xs" onClick={() => setSessionTarget(source)} title="Descartar dados temporários da sessão"><LogOut className="h-3.5 w-3.5" /> Encerrar sessão</Button>
+          </div>}
+          {expandedApiSources.has(source.id) && groupApiOperations(source.operations).map(([parent, ops]) => {
+            const key = `${source.id}:${parent}`;
+            const expanded = expandedApiGroups.has(key);
+            return <div key={key} className="ml-3">
+              <button type="button" aria-expanded={expanded} onClick={() => setExpandedApiGroups((old) => { const next = new Set(old); if (expanded) next.delete(key); else next.add(key); return next; })} className="flex w-full items-center gap-1 rounded px-1 py-1 text-left font-medium hover:bg-accent">
+                {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />} {parent} <span className="text-muted-foreground">({ops.length})</span>
+              </button>
+              {expanded && ops.map((op) => {
+                const dataset = source.datasets.find((d) => d.operation_id === op.operation_id);
+                return <button type="button" key={`${op.method}:${op.path}`} onClick={() => openApiOperation(source, op)} title={`${op.summary}\n${op.parameters.filter((p) => p.required).map((p) => `${p.in}: ${p.name}`).join(', ')}\nAutenticação: ${JSON.stringify(op.security || [])}`} className="block w-full truncate rounded py-1 pl-4 text-left hover:bg-accent"><span className="text-primary">GET</span> {op.path}{dataset ? ` → ${dataset.name}` : ' · configurar'}</button>;
+              })}
+            </div>;
+          })}
         </div>)}
       </div>}
 
@@ -945,6 +981,39 @@ export function Sidebar() {
         );
         })()}
       </div>
+
+      <ConfigureApiEndpointDialog
+        source={mappingTarget?.source || null}
+        operation={mappingTarget?.operation || null}
+        onOpenChange={(open) => { if (!open) setMappingTarget(null); }}
+        onSaved={(updatedSource, operation) => {
+          setApiSources((old) => old.map((item) => item.id === updatedSource.id ? updatedSource : item));
+          setMappingTarget(null);
+          openApiOperation(updatedSource, operation);
+        }}
+      />
+
+      <Dialog open={!!syncTarget} onOpenChange={(open) => { if (!open && !syncBusy) setSyncTarget(null); }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Sincronizar OpenAPI</DialogTitle><DialogDescription>Atualize a documentação de {syncTarget?.name}. Os datasets configurados serão preservados.</DialogDescription></DialogHeader>
+          <label className="text-sm">URL HTTPS da especificação<Input value={syncUrl} onChange={(event) => setSyncUrl(event.target.value)} placeholder="https://api.exemplo.com/openapi.json" /></label>
+          {syncError && <p role="alert" className="text-sm text-destructive">{syncError}</p>}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSyncTarget(null)} disabled={syncBusy}>Cancelar</Button>
+            <Button onClick={syncApiSource} disabled={syncBusy || !syncUrl.trim()} className="gap-2">{syncBusy && <Loader2 className="h-4 w-4 animate-spin" />}Sincronizar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!sessionTarget} onOpenChange={(open) => { if (!open && !sessionBusy) setSessionTarget(null); }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Encerrar sessão Live API?</DialogTitle><DialogDescription>Os dados temporários de {sessionTarget?.name} serão descartados. As conexões e consultas salvas continuarão disponíveis.</DialogDescription></DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSessionTarget(null)} disabled={sessionBusy}>Cancelar</Button>
+            <Button onClick={closeApiSession} disabled={sessionBusy} className="gap-2">{sessionBusy && <Loader2 className="h-4 w-4 animate-spin" />}Encerrar sessão</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AddConnectionDialog
         open={showAddDialog}

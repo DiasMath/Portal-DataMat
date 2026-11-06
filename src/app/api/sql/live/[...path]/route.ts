@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { validateMasterAdmin } from '@/lib/auth-helpers';
 import { liveApi, liveApiFailureMessage } from '@/lib/sql/live-api';
 
-const allowed = /^(?:sources(?:\/[0-9a-f]{32}(?:\/(?:execute|sync|endpoints|session))?)?|openapi\/preview|executions\/[0-9a-f]{32}(?:\/cancel)?)$/;
+const allowed = /^(?:sources(?:\/[0-9a-f]{32}(?:\/(?:execute|sync|endpoints|datasets|session))?)?|openapi\/preview|executions\/[0-9a-f]{32}(?:\/cancel)?)$/;
 
 async function forward(request: NextRequest, method: 'GET' | 'POST' | 'DELETE', path: string[]) {
   const user = await validateMasterAdmin(request);

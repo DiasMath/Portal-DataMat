@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Loader2 } from 'lucide-react';
 
 export interface ApiOperation {
   operation_id: string;
@@ -31,6 +32,14 @@ export interface ApiSource {
   datasets: ApiDataset[];
 }
 
+export function suggestDatasetName(op: ApiOperation): string {
+  return op.path.split('/').filter(Boolean).map((segment) => {
+    const parameter = segment.startsWith('{') && segment.endsWith('}');
+    const name = parameter ? `by_${segment.slice(1, -1)}` : segment;
+    return name.replace(/([a-z0-9])([A-Z])/g, '$1_$2').replace(/[^A-Za-z0-9_]/g, '_').toLowerCase();
+  }).join('_').replace(/^[^A-Za-z_]/, '_') || 'api_result';
+}
+
 export function ImportApiForm({ onSaved }: { onSaved: (source: ApiSource) => void }) {
   const [name, setName] = useState('');
   const [tenantId, setTenantId] = useState('default');
@@ -47,24 +56,25 @@ export function ImportApiForm({ onSaved }: { onSaved: (source: ApiSource) => voi
   const [userEnv, setUserEnv] = useState('');
   const [passwordEnv, setPasswordEnv] = useState('');
   const [busy, setBusy] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
   const [error, setError] = useState('');
 
   const preview = async () => {
-    setBusy(true); setError('');
+    setPreviewing(true); setError('');
     try {
       const res = await fetch('/api/sql/live/openapi/preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(specText ? { spec_text: specText } : { spec_url: specUrl }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || data.error || 'Falha ao importar');
-      setSpec(data.spec); setOperations(data.operations); setDatasets({});
+      setSpec(data.spec); setOperations(data.operations.filter((op: ApiOperation) => op.method === 'GET')); setDatasets({});
     } catch (e) { setError(e instanceof Error ? e.message : 'Falha ao importar'); }
-    finally { setBusy(false); }
+    finally { setPreviewing(false); }
   };
 
   const choose = (op: ApiOperation, selected: boolean) => {
     setDatasets((old) => {
       const next = { ...old };
       if (!selected) delete next[op.operation_id];
-      else next[op.operation_id] = { name: op.operation_id.replace(/[^A-Za-z0-9_]/g, '_').replace(/^[^A-Za-z_]/, '_'), operation_id: op.operation_id, data_path: null, pagination: { mode: 'none', page_param: 'page', size_param: 'limit', size: 100, start_page: 1 } };
+      else next[op.operation_id] = { name: suggestDatasetName(op), operation_id: op.operation_id, data_path: null, pagination: { mode: 'none', page_param: 'page', size_param: 'limit', size: 100, start_page: 1 } };
       return next;
     });
   };
@@ -90,8 +100,12 @@ export function ImportApiForm({ onSaved }: { onSaved: (source: ApiSource) => voi
       <label className="col-span-2">OpenAPI por URL<Input value={specUrl} onChange={(e) => setSpecUrl(e.target.value)} placeholder="https://api.exemplo.com/openapi.json" /></label>
       <label className="col-span-2">Ou arquivo JSON/YAML<Input type="file" accept=".json,.yaml,.yml" onChange={async (e) => { const file = e.target.files?.[0]; if (file) { setSpecText(await file.text()); setSpecUrl(''); } }} /></label>
     </div>
-    <Button onClick={preview} disabled={busy || (!specText && !specUrl)}>Analisar documentação</Button>
+    <Button onClick={preview} disabled={previewing || busy || (!specText && !specUrl)} aria-busy={previewing} className="gap-2">
+      {previewing ? 'Analisando documentação' : 'Analisar documentação'}
+      {previewing && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+    </Button>
     {spec && <>
+      <p className="text-sm text-muted-foreground">{operations.length} operação(ões) GET encontrada(s). Todos os GETs ficam visíveis na árvore; configure os que deseja consultar.</p>
       <div className="text-sm">Autenticação
         <select className="ml-2 bg-background border rounded p-1" value={authKind} onChange={(e) => setAuthKind(e.target.value as typeof authKind)}><option value="none">Nenhuma</option><option value="api_key">API Key em header</option><option value="basic_auth">Basic Auth</option></select>
       </div>
@@ -100,7 +114,7 @@ export function ImportApiForm({ onSaved }: { onSaved: (source: ApiSource) => voi
       <p className="text-xs text-muted-foreground">Selecione explicitamente as operações GET consultáveis. Configure o caminho dos registros e a paginação conforme o contrato da API.</p>
       <div className="space-y-2 max-h-72 overflow-y-auto">
         {operations.map((op) => <div key={op.operation_id} className="border border-border rounded p-2 text-xs">
-          <label className="flex gap-2 items-center"><input type="checkbox" disabled={op.method !== 'GET'} checked={!!datasets[op.operation_id]} onChange={(e) => choose(op, e.target.checked)} /><b>{op.method}</b> {op.path} <span className="text-muted-foreground">{op.summary}</span></label>
+          <label className="flex gap-2 items-center"><input type="checkbox" checked={!!datasets[op.operation_id]} onChange={(e) => choose(op, e.target.checked)} /><b>{op.method}</b> {op.path} <span className="text-muted-foreground">{op.summary}</span></label>
           {datasets[op.operation_id] && <div className="grid grid-cols-3 gap-2 mt-2">
             <label>Nome SQL<Input value={datasets[op.operation_id].name} onChange={(e) => setDatasets((old) => ({ ...old, [op.operation_id]: { ...old[op.operation_id], name: e.target.value } }))} /></label>
             <label>Caminho dos registros<Input placeholder="data.items (vazio = raiz)" value={datasets[op.operation_id].data_path || ''} onChange={(e) => setDatasets((old) => ({ ...old, [op.operation_id]: { ...old[op.operation_id], data_path: e.target.value || null } }))} /></label>
