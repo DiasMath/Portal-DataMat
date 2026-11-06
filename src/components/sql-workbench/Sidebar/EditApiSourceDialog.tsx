@@ -5,7 +5,7 @@ import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import type { ApiDataset, ApiSource } from './ImportApiDialog';
+import { suggestDatasetName, type ApiDataset, type ApiOperation, type ApiSource } from './ImportApiDialog';
 
 export function EditApiSourceDialog({ source, onOpenChange, onSaved }: {
   source: ApiSource | null;
@@ -41,6 +41,19 @@ export function EditApiSourceDialog({ source, onOpenChange, onSaved }: {
     setDatasets((old) => old.map((item) => item.operation_id === operationId ? { ...item, ...patch } : item));
   };
 
+  const configure = (operation: ApiOperation) => {
+    setDatasets((old) => {
+      if (old.some((item) => item.operation_id === operation.operation_id)) return old;
+      const base = suggestDatasetName(operation);
+      let name = base;
+      let suffix = 2;
+      while (old.some((item) => item.name.toLowerCase() === name.toLowerCase())) name = `${base}_${suffix++}`;
+      return [...old, { name, operation_id: operation.operation_id, data_path: null,
+        pagination: { mode: 'none', page_param: 'page', size_param: 'limit', size: 100, start_page: 1 } }];
+    });
+    setExpanded(operation.operation_id);
+  };
+
   const save = async () => {
     if (!source) return;
     setBusy(true); setError('');
@@ -72,12 +85,16 @@ export function EditApiSourceDialog({ source, onOpenChange, onSaved }: {
         </>}
         {authKind === 'basic_auth' && <><label>Variável de usuário<Input value={usernameEnv} onChange={(e) => setUsernameEnv(e.target.value)} /></label><label>Variável de senha<Input value={passwordEnv} onChange={(e) => setPasswordEnv(e.target.value)} /></label></>}
       </div>
-      <div className="space-y-2"><h3 className="text-sm font-medium">Endpoints e tabelas SQL ({datasets.length})</h3>
-        {datasets.map((dataset) => {
-          const operation = source?.operations.find((item) => item.operation_id === dataset.operation_id);
-          return <div key={dataset.operation_id} className="rounded border p-2 text-sm">
-            <button type="button" className="w-full text-left text-primary" aria-expanded={expanded === dataset.operation_id} onClick={() => setExpanded(expanded === dataset.operation_id ? null : dataset.operation_id)}>{operation?.path || dataset.operation_id} → {dataset.name}</button>
-            {expanded === dataset.operation_id && <div className="mt-2 grid grid-cols-2 gap-2">
+      <div className="space-y-2"><h3 className="text-sm font-medium">Endpoints GET ({source?.operations.filter((item) => item.method === 'GET').length || 0}) · tabelas SQL ({datasets.length})</h3>
+        {source?.operations.filter((item) => item.method === 'GET').map((operation) => {
+          const dataset = datasets.find((item) => item.operation_id === operation.operation_id);
+          return <div key={operation.operation_id} className="rounded border p-2 text-sm">
+            <div className="flex items-center gap-2">
+              <span className="min-w-0 flex-1 truncate" title={operation.path}><span className="text-primary">GET</span> {operation.path} {dataset ? `→ ${dataset.name}` : '· sem tabela SQL'}</span>
+              {dataset ? <button type="button" className="shrink-0 text-primary hover:underline" aria-expanded={expanded === operation.operation_id} onClick={() => setExpanded(expanded === operation.operation_id ? null : operation.operation_id)}>{expanded === operation.operation_id ? 'Recolher' : 'Editar'}</button>
+                : <button type="button" className="shrink-0 text-primary hover:underline" onClick={() => configure(operation)}>Configurar</button>}
+            </div>
+            {dataset && expanded === operation.operation_id && <div className="mt-2 grid grid-cols-2 gap-2">
               <label>Nome SQL<Input value={dataset.name} onChange={(e) => change(dataset.operation_id, { name: e.target.value })} /></label>
               <label>Caminho dos registros<Input value={dataset.data_path || ''} onChange={(e) => change(dataset.operation_id, { data_path: e.target.value || null })} placeholder="data.items" /></label>
               <label>Paginação<select className="block w-full rounded border bg-background p-2" value={dataset.pagination.mode} onChange={(e) => change(dataset.operation_id, { pagination: { ...dataset.pagination, mode: e.target.value as 'none' | 'page' } })}><option value="none">Sem paginação</option><option value="page">Por página</option></select></label>

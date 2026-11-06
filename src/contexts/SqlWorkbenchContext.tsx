@@ -270,6 +270,7 @@ export function SqlWorkbenchProvider({ children }: { children: React.ReactNode }
             sql: t.sql || '',
             connectionId: t.connectionId || '',
             isDirty: false,
+            savedSql: t.savedSql,
             messages: [],
             kind: t.kind,
           }));
@@ -316,6 +317,7 @@ export function SqlWorkbenchProvider({ children }: { children: React.ReactNode }
         id: t.id,
         title: t.title,
         sql: t.sql,
+        savedSql: t.savedSql,
         connectionId: t.connectionId,
         kind: t.kind,
       })),
@@ -601,6 +603,7 @@ export function SqlWorkbenchProvider({ children }: { children: React.ReactNode }
               body: JSON.stringify({ type: 'savedQuery', data: { name: queryName, sql: tab.sql, connectionId: tab.connectionId } }),
             });
             const result = await res.json();
+            if (result.id) dispatch({ type: 'UPDATE_TAB', payload: { id: tab.id, updates: { savedSql: tab.sql, isDirty: false } } });
             return result.id || null;
           } catch { return null; }
         }, []),

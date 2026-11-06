@@ -81,6 +81,7 @@ export interface QueryTab {
   connectionId: string;
   liveParameters?: Record<string, { path?: Record<string, string>; query?: Record<string, string> }>;
   isDirty: boolean;
+  savedSql?: string;
   results?: QueryResult;
   messages: QueryMessage[];
   /**

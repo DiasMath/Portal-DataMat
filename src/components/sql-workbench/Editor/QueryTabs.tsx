@@ -13,32 +13,25 @@ const TAB_KIND_ICONS: Record<string, typeof TableProperties> = {
 };
 
 export function QueryTabs() {
-  const { state, dispatch, newTab, enableSplitHorizontal, enableSplitVertical, disableSplit } = useSqlWorkbench();
+  const { state, dispatch, newTab, closeTab, enableSplitHorizontal, enableSplitVertical, disableSplit } = useSqlWorkbench();
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const dragIdxRef = useRef<number | null>(null);
   const [closingTabId, setClosingTabId] = useState<string | null>(null);
 
+  const doCloseTab = useCallback((tabId: string) => {
+    closeTab(tabId);
+    if (state.tabs.length === 1) newTab(undefined, undefined, state.tabs[0].connectionId);
+    setClosingTabId(null);
+  }, [state.tabs, closeTab, newTab]);
+
   const confirmCloseTab = useCallback((tabId: string) => {
     const tab = state.tabs.find(t => t.id === tabId);
-    if (tab && tab.sql.trim()) {
+    if (tab && tab.sql.trim() && tab.sql !== tab.savedSql) {
       setClosingTabId(tabId);
     } else {
       doCloseTab(tabId);
     }
-  }, [state.tabs]);
-
-  const doCloseTab = useCallback((tabId: string) => {
-    if (state.tabs.length <= 1) return;
-    const tabIndex = state.tabs.findIndex((t) => t.id === tabId);
-    const newTabs = state.tabs.filter((t) => t.id !== tabId);
-    let newActiveId = state.activeTabId;
-    if (state.activeTabId === tabId) {
-      newActiveId = newTabs[Math.min(tabIndex, newTabs.length - 1)]?.id || null;
-    }
-    dispatch({ type: 'SET_TABS', payload: newTabs });
-    dispatch({ type: 'SET_ACTIVE_TAB', payload: newActiveId });
-    setClosingTabId(null);
-  }, [state.tabs, state.activeTabId, dispatch]);
+  }, [state.tabs, doCloseTab]);
 
   const handleTabClick = useCallback((tabId: string) => {
     dispatch({ type: 'SET_ACTIVE_TAB', payload: tabId });
@@ -93,16 +86,21 @@ export function QueryTabs() {
 
   return (
     <div className="flex items-center gap-1">
-      <div className="flex items-center gap-0.5 overflow-x-auto">
+      <div role="tablist" aria-label="Consultas abertas" className="flex items-center gap-0.5 overflow-x-auto">
         {state.tabs.map((tab, idx) => (
-          <button
+          <div
             key={tab.id}
+            role="tab"
+            tabIndex={0}
+            aria-selected={state.activeTabId === tab.id}
             draggable
             onDragStart={(e) => handleDragStart(e, idx)}
             onDragOver={(e) => handleDragOver(e, idx)}
             onDrop={(e) => handleDrop(e, idx)}
             onDragEnd={handleDragEnd}
             onClick={() => handleTabClick(tab.id)}
+            onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); handleTabClick(tab.id); } }}
+            onContextMenu={(event) => { event.preventDefault(); confirmCloseTab(tab.id); }}
             className={`flex items-center gap-1.5 px-3 py-1 text-sm rounded-t-md transition-colors max-w-[200px] ${
               state.activeTabId === tab.id
                 ? 'bg-background text-foreground border-b-2 border-primary'
@@ -116,9 +114,9 @@ export function QueryTabs() {
               {tab.title}
               {tab.isDirty && <span className="text-primary ml-1">•</span>}
             </span>
-            {state.tabs.length > 1 && (
-              <span
-                role="button"
+            <button
+                type="button"
+                aria-label={`Fechar ${tab.title}`}
                 onClick={(e) => {
                   e.stopPropagation();
                   confirmCloseTab(tab.id);
@@ -126,9 +124,8 @@ export function QueryTabs() {
                 className="p-0.5 hover:bg-accent rounded transition-colors flex-shrink-0 cursor-pointer"
               >
                 <X className="h-3 w-3" />
-              </span>
-            )}
-          </button>
+            </button>
+          </div>
         ))}
       </div>
 
@@ -159,9 +156,9 @@ export function QueryTabs() {
       <Dialog open={!!closingTabId} onOpenChange={(open) => { if (!open) setClosingTabId(null); }}>
         <DialogContent className="bg-card border-border max-w-sm">
           <DialogHeader>
-            <DialogTitle className="text-sm">Fechar aba?</DialogTitle>
+            <DialogTitle className="text-sm">Descartar consulta não salva?</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">A aba possui queries não salvas. Deseja fechar?</p>
+          <p className="text-sm text-muted-foreground">A consulta desta aba ainda não foi salva. Deseja descartá-la e fechar a aba?</p>
           <div className="flex justify-end gap-2 pt-2">
             <button
               onClick={() => setClosingTabId(null)}
@@ -173,7 +170,7 @@ export function QueryTabs() {
               onClick={() => closingTabId && doCloseTab(closingTabId)}
               className="px-3 py-1.5 text-sm rounded bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors"
             >
-              Fechar
+              Descartar e fechar
             </button>
           </div>
         </DialogContent>

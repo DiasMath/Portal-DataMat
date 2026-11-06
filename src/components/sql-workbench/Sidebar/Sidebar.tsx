@@ -613,14 +613,14 @@ export function Sidebar() {
       {apiSources.length > 0 && <div className="border-b border-border p-2 text-xs">
         <div className="font-medium">API REST · DuckDB</div>
         {apiSources.map((source) => <div key={source.id} className="mt-1">
-          <button className="flex items-center gap-1 text-left w-full hover:bg-accent rounded p-1" onClick={() => setExpandedApiSources((old) => { const next = new Set(old); if (next.has(source.id)) next.delete(source.id); else next.add(source.id); return next; })}>
-            {expandedApiSources.has(source.id) ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}<span className="truncate">{source.name}</span>
-          </button>
-          {expandedApiSources.has(source.id) && <div className="ml-3 flex flex-wrap gap-1 py-1">
-            <Button type="button" size="sm" variant="ghost" className="h-7 gap-1 px-2 text-xs" onClick={() => setEditApiTarget(source)} title="Editar conexão e tabelas SQL"><Pencil className="h-3.5 w-3.5" /> Editar</Button>
-            <Button type="button" size="sm" variant="ghost" className="h-7 gap-1 px-2 text-xs" onClick={() => { setSyncTarget(source); setSyncUrl(''); setSyncError(''); }} title="Atualizar a especificação OpenAPI"><RefreshCw className="h-3.5 w-3.5" /> Sincronizar</Button>
-            <Button type="button" size="sm" variant="ghost" className="h-7 gap-1 px-2 text-xs" onClick={() => setSessionTarget(source)} title="Descartar dados temporários da sessão"><LogOut className="h-3.5 w-3.5" /> Encerrar sessão</Button>
-          </div>}
+          <div className="flex items-center gap-0.5 rounded hover:bg-accent">
+            <button className="flex min-w-0 flex-1 items-center gap-1 p-1 text-left" aria-expanded={expandedApiSources.has(source.id)} onClick={() => setExpandedApiSources((old) => { const next = new Set(old); if (next.has(source.id)) next.delete(source.id); else next.add(source.id); return next; })}>
+              {expandedApiSources.has(source.id) ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}<span className="truncate" title={source.name}>{source.name}</span>
+            </button>
+            <Button type="button" size="icon" variant="ghost" className="h-6 w-6 shrink-0" onClick={() => setEditApiTarget(source)} title="Editar conexão e tabelas SQL" aria-label={`Editar ${source.name}`}><Pencil className="h-3.5 w-3.5" /></Button>
+            <Button type="button" size="icon" variant="ghost" className="h-6 w-6 shrink-0" onClick={() => { setSyncTarget(source); setSyncUrl(''); setSyncError(''); }} title="Sincronizar OpenAPI" aria-label={`Sincronizar ${source.name}`}><RefreshCw className="h-3.5 w-3.5" /></Button>
+            <Button type="button" size="icon" variant="ghost" className="h-6 w-6 shrink-0" onClick={() => setSessionTarget(source)} title="Encerrar sessão" aria-label={`Encerrar sessão de ${source.name}`}><LogOut className="h-3.5 w-3.5" /></Button>
+          </div>
           {expandedApiSources.has(source.id) && groupApiOperations(source.operations).map(([parent, ops]) => {
             const key = `${source.id}:${parent}`;
             const expanded = expandedApiGroups.has(key);
