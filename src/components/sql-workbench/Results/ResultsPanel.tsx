@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { exportTabularData } from '@/lib/export/tabular-export';
-import { Download, AlertCircle, CheckCircle2, Info, Play, Trash2, FileCode, Highlighter, Check, Minus, Copy, Filter, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Search, WrapText, X, FileText, Braces, FileSpreadsheet, Database } from 'lucide-react';
+import { Download, AlertCircle, CheckCircle2, Info, Play, Trash2, FileCode, Highlighter, Check, Minus, Copy, Filter, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Search, X, FileText, Braces, FileSpreadsheet, Database } from 'lucide-react';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { SnippetsToolbar } from '../History/SnippetsToolbar';
 import { TableVirtuoso, type TableComponents } from 'react-virtuoso';
@@ -116,7 +116,6 @@ export function ResultsPanel() {
     );
   }, [sortedRows, gridSearch]);
 
-  const [wrapText, setWrapText] = useState(false);
 
   const duplicateMap = useMemo(() => {
     if (!highlightEnabled || !results?.rows || !results?.columns) return null;
@@ -225,13 +224,20 @@ export function ResultsPanel() {
     document.addEventListener('mouseup', onUp);
   }, []);
 
-  const resetResize = useCallback((col: string) => {
-    setColWidths((prev) => {
-      const next = { ...prev };
-      delete next[col];
-      return next;
-    });
-  }, []);
+  const fitColumnToContent = useCallback((col: string) => {
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    if (!context) return;
+    context.font = '12px monospace';
+    let width = 150;
+    for (const row of results?.rows || []) {
+      const value = row[col] === null || row[col] === undefined ? 'NULL' : typeof row[col] === 'object' ? JSON.stringify(row[col]) : String(row[col]);
+      width = Math.max(width, Math.ceil(context.measureText(value).width) + 28);
+    }
+    context.font = '600 12px sans-serif';
+    width = Math.max(width, Math.ceil(context.measureText(col).width) + 48);
+    setColWidths((prev) => ({ ...prev, [col]: width }));
+  }, [results?.rows]);
 
   const exportAs = async (format: 'csv' | 'json' | 'sql' | 'xlsx') => {
     if (!results?.rows || filteredRows.length === 0) return;
@@ -267,7 +273,13 @@ export function ResultsPanel() {
 
   const virtuosoComponents: TableComponents<Record<string, unknown>> = useMemo(() => ({
     Table: (props) => (
-      <table {...props} className="border-collapse text-sm" style={{ ...props.style, minWidth: gridTotalWidth }} />
+      <table {...props} className="border-collapse text-sm" style={{ ...props.style, width: gridTotalWidth, minWidth: gridTotalWidth, tableLayout: 'fixed' }}>
+        <colgroup>
+          <col style={{ width: SELECTION_COL_WIDTH }} />
+          {results?.columns.map((col) => <col key={col} style={{ width: colWidths[col] || DEFAULT_GRID_COL_WIDTH }} />)}
+        </colgroup>
+        {props.children}
+      </table>
     ),
     TableHead: React.forwardRef((props, ref) => <thead {...props} ref={ref} className="sticky top-0 z-10" />),
     TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref} />),
@@ -307,7 +319,7 @@ export function ResultsPanel() {
         />
       );
     },
-  }), [selectedRows, gridTotalWidth]);
+  }), [selectedRows, gridTotalWidth, results?.columns, colWidths]);
 
   const closeCellContextMenu = useCallback(() => setCellContextMenu(null), []);
 
@@ -388,7 +400,7 @@ export function ResultsPanel() {
             <tr className="bg-card border-b border-border">
               <th
                 className="px-2 py-2 text-center text-xs font-semibold text-white border-r border-border w-10 cursor-pointer select-none"
-                style={{ background: 'var(--card)' }}
+                style={{ background: 'var(--card)', width: SELECTION_COL_WIDTH, minWidth: SELECTION_COL_WIDTH, maxWidth: SELECTION_COL_WIDTH }}
                 onClick={toggleAllRows}
               >
                 <div className="flex items-center justify-center">
@@ -405,24 +417,26 @@ export function ResultsPanel() {
                   className="px-3 py-2 text-center text-xs font-semibold text-white whitespace-nowrap border-r border-border last:border-r-0 cursor-pointer hover:bg-accent/50 select-none relative"
                   style={{
                     background: 'var(--card)',
-                    ...(colWidths[col] ? { width: colWidths[col], minWidth: 50 } : { minWidth: 50 }),
+                    width: colWidths[col] || DEFAULT_GRID_COL_WIDTH,
                   }}
                   onClick={() => handleSort(col)}
                 >
-                  {col}
-                  {sortColumn === col ? (
-                    sortDirection === 'asc' ? (
-                      <ArrowUp className="ml-1 h-3 w-3 inline text-primary" />
+                  <span className="flex min-w-0 items-center justify-center gap-1">
+                    <span className="truncate" title={col}>{col}</span>
+                    {sortColumn === col ? (
+                      sortDirection === 'asc' ? (
+                        <ArrowUp className="h-3 w-3 shrink-0 text-primary" />
+                      ) : (
+                        <ArrowDown className="h-3 w-3 shrink-0 text-primary" />
+                      )
                     ) : (
-                      <ArrowDown className="ml-1 h-3 w-3 inline text-primary" />
-                    )
-                  ) : (
-                    <ArrowUpDown className="ml-1 h-3 w-3 inline text-muted-foreground/50" />
-                  )}
+                      <ArrowUpDown className="h-3 w-3 shrink-0 text-muted-foreground/50" />
+                    )}
+                  </span>
                   <div
                     className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-primary/50 z-10"
                     onMouseDown={(e) => startResize(e, col)}
-                    onDoubleClick={(e) => { e.stopPropagation(); resetResize(col); }}
+                    onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); fitColumnToContent(col); }}
                     onClick={(e) => e.stopPropagation()}
                   />
                 </th>
@@ -443,9 +457,9 @@ export function ResultsPanel() {
                 return (
                   <td
                     key={col}
-                    className={`px-3 py-1.5 font-mono text-xs border-r border-border/30 last:border-r-0 ${wrapText ? 'whitespace-pre-wrap break-words' : 'whitespace-nowrap overflow-hidden text-ellipsis'}`}
+                    className="px-3 py-1.5 font-mono text-xs border-r border-border/30 last:border-r-0 overflow-hidden"
                     style={{
-                      ...(colWidths[col] ? { width: colWidths[col], minWidth: 50 } : { minWidth: 50 }),
+                      width: colWidths[col] || DEFAULT_GRID_COL_WIDTH,
                       ...(hlBg ? { backgroundColor: hlBg } : isNull ? { backgroundColor: 'rgba(255,176,63,0.08)' } : {}),
                     }}
                     onClick={(e) => toggleRowSelection(rowIdx, e)}
@@ -455,7 +469,7 @@ export function ResultsPanel() {
                       setCellContextMenu({ x: e.clientX, y: e.clientY, column: col, value: row[col], row });
                     }}
                   >
-                    <span className={isNull ? 'text-muted-foreground italic' : ''}>
+                    <span className={`block truncate ${isNull ? 'text-muted-foreground italic' : ''}`} title={formatCellValue(row[col])}>
                       {formatCellValue(row[col])}
                     </span>
                   </td>
@@ -583,13 +597,6 @@ export function ResultsPanel() {
             {results.executionTime > 0 && (
               <span className="text-xs text-muted-foreground mr-2">{results.executionTime.toFixed(0)}ms</span>
             )}
-            <button
-              onClick={() => setWrapText((w) => !w)}
-              className={`p-1.5 rounded transition-colors ${wrapText ? 'bg-primary/20 text-primary' : 'hover:bg-accent text-muted-foreground'}`}
-              title="Quebrar texto longo nas células (em vez de truncar)"
-            >
-              <WrapText className="h-3.5 w-3.5" />
-            </button>
             <button
               onClick={copyAllAsTsv}
               className="p-1.5 rounded hover:bg-accent text-muted-foreground transition-colors"

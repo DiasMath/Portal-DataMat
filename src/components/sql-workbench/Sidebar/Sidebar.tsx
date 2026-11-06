@@ -44,7 +44,6 @@ import {
   Copy,
   RefreshCw,
   LogOut,
-  WandSparkles,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -65,7 +64,6 @@ export function Sidebar() {
   const [expandedApiSources, setExpandedApiSources] = useState<Set<string>>(new Set());
   const [expandedApiGroups, setExpandedApiGroups] = useState<Set<string>>(new Set());
   const [mappingTarget, setMappingTarget] = useState<{ source: ApiSource; operation: ApiOperation } | null>(null);
-  const [autoMappingSourceId, setAutoMappingSourceId] = useState<string | null>(null);
   const [syncTarget, setSyncTarget] = useState<ApiSource | null>(null);
   const [syncUrl, setSyncUrl] = useState('');
   const [syncBusy, setSyncBusy] = useState(false);
@@ -103,33 +101,6 @@ export function Sidebar() {
     });
     dispatch({ type: 'SET_SCHEMA', payload: { connectionId, schema: { database: source.name, databases: [], tables: schemaTables, views: [], procedures: [], functions: [], foreignKeys: [] } } });
     newTab(dataset.name, sql, connectionId, 'query');
-  };
-
-  const autoMapApiSource = async (source: ApiSource): Promise<ApiSource | null> => {
-    setAutoMappingSourceId(source.id);
-    try {
-      const res = await fetch(`/api/sql/live/sources/${source.id}/auto-map`, { method: 'POST' });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || data.error || 'Não foi possível preparar os GETs');
-      setApiSources((old) => old.map((item) => item.id === source.id ? data.source : item));
-      if (data.added.length) toast.success(`${data.added.length} GET(s) preparado(s) para consulta`);
-      else toast.info('Nenhum novo GET pôde ser preparado automaticamente');
-      return data.source;
-    } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : 'Não foi possível preparar os GETs');
-      return null;
-    } finally { setAutoMappingSourceId(null); }
-  };
-
-  const activateApiOperation = async (source: ApiSource, operation: ApiOperation) => {
-    if (source.datasets.some((dataset) => dataset.operation_id === operation.operation_id)) {
-      openApiOperation(source, operation);
-      return;
-    }
-    const updated = await autoMapApiSource(source);
-    if (!updated) return;
-    if (updated.datasets.some((dataset) => dataset.operation_id === operation.operation_id)) openApiOperation(updated, operation);
-    else setMappingTarget({ source: updated, operation });
   };
 
   const syncApiSource = async () => {
@@ -633,7 +604,6 @@ export function Sidebar() {
             {expandedApiSources.has(source.id) ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}<span className="truncate">{source.name}</span>
           </button>
           {expandedApiSources.has(source.id) && <div className="ml-3 flex flex-wrap gap-1 py-1">
-            <Button type="button" size="sm" variant="ghost" className="h-7 gap-1 px-2 text-xs" onClick={() => autoMapApiSource(source)} disabled={autoMappingSourceId === source.id} title="Preparar automaticamente os GETs compatíveis">{autoMappingSourceId === source.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <WandSparkles className="h-3.5 w-3.5" />} Preparar GETs</Button>
             <Button type="button" size="sm" variant="ghost" className="h-7 gap-1 px-2 text-xs" onClick={() => { setSyncTarget(source); setSyncUrl(''); setSyncError(''); }} title="Atualizar a especificação OpenAPI"><RefreshCw className="h-3.5 w-3.5" /> Sincronizar</Button>
             <Button type="button" size="sm" variant="ghost" className="h-7 gap-1 px-2 text-xs" onClick={() => setSessionTarget(source)} title="Descartar dados temporários da sessão"><LogOut className="h-3.5 w-3.5" /> Encerrar sessão</Button>
           </div>}
@@ -646,7 +616,7 @@ export function Sidebar() {
               </button>
               {expanded && ops.map((op) => {
                 const dataset = source.datasets.find((d) => d.operation_id === op.operation_id);
-                return <button type="button" key={`${op.method}:${op.path}`} onClick={() => activateApiOperation(source, op)} disabled={autoMappingSourceId === source.id} title={`${op.summary}\n${op.parameters.filter((p) => p.required).map((p) => `${p.in}: ${p.name}`).join(', ')}\nAutenticação: ${JSON.stringify(op.security || [])}`} className="block w-full truncate rounded py-1 pl-4 text-left hover:bg-accent disabled:opacity-50"><span className="text-primary">GET</span> {op.path}{dataset ? ` → ${dataset.name}` : ' · preparar'}</button>;
+                return <button type="button" key={`${op.method}:${op.path}`} onClick={() => openApiOperation(source, op)} title={`${op.summary}\n${op.parameters.filter((p) => p.required).map((p) => `${p.in}: ${p.name}`).join(', ')}\nAutenticação: ${JSON.stringify(op.security || [])}`} className="block w-full truncate rounded py-1 pl-4 text-left hover:bg-accent"><span className="text-primary">GET</span> {op.path}{dataset ? ` → ${dataset.name}` : ' · requer configuração'}</button>;
               })}
             </div>;
           })}
