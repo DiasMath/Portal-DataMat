@@ -49,6 +49,7 @@ export function ImportApiForm({ onSaved }: { onSaved: (source: ApiSource) => voi
   const [spec, setSpec] = useState<Record<string, unknown> | null>(null);
   const [operations, setOperations] = useState<ApiOperation[]>([]);
   const [datasets, setDatasets] = useState<Record<string, ApiDataset>>({});
+  const [skipped, setSkipped] = useState<Record<string, string>>({});
   const [authKind, setAuthKind] = useState<'none' | 'api_key' | 'basic_auth'>('none');
   const [keyEnv, setKeyEnv] = useState('');
   const [headerName, setHeaderName] = useState('X-API-Key');
@@ -65,7 +66,11 @@ export function ImportApiForm({ onSaved }: { onSaved: (source: ApiSource) => voi
       const res = await fetch('/api/sql/live/openapi/preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(specText ? { spec_text: specText } : { spec_url: specUrl }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || data.error || 'Falha ao importar');
-      setSpec(data.spec); setOperations(data.operations.filter((op: ApiOperation) => op.method === 'GET')); setDatasets({});
+      if (!Array.isArray(data.suggested_datasets)) throw new Error('O serviço Live API está desatualizado. Reinicie o FastAPI e o Portal.');
+      setSpec(data.spec);
+      setOperations(data.operations.filter((op: ApiOperation) => op.method === 'GET'));
+      setDatasets(Object.fromEntries((data.suggested_datasets as ApiDataset[]).map((dataset) => [dataset.operation_id, dataset])));
+      setSkipped(Object.fromEntries((data.skipped as { operation_id: string; reason: string }[]).map((item) => [item.operation_id, item.reason])));
     } catch (e) { setError(e instanceof Error ? e.message : 'Falha ao importar'); }
     finally { setPreviewing(false); }
   };
@@ -105,16 +110,17 @@ export function ImportApiForm({ onSaved }: { onSaved: (source: ApiSource) => voi
       {previewing && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
     </Button>
     {spec && <>
-      <p className="text-sm text-muted-foreground">{operations.length} operação(ões) GET encontrada(s). Todos os GETs ficam visíveis na árvore; configure os que deseja consultar.</p>
+      <p className="text-sm text-muted-foreground">{operations.length} GET(s) encontrado(s); {Object.keys(datasets).length} preparado(s) para consulta. Revise os caminhos e a paginação antes de cadastrar. Os demais GETs continuam visíveis na árvore.</p>
       <div className="text-sm">Autenticação
         <select className="ml-2 bg-background border rounded p-1" value={authKind} onChange={(e) => setAuthKind(e.target.value as typeof authKind)}><option value="none">Nenhuma</option><option value="api_key">API Key em header</option><option value="basic_auth">Basic Auth</option></select>
       </div>
       {authKind === 'api_key' && <div className="grid grid-cols-3 gap-2"><label>Variável de ambiente da chave<Input value={keyEnv} onChange={(e) => setKeyEnv(e.target.value)} /></label><label>Nome do header<Input value={headerName} onChange={(e) => setHeaderName(e.target.value)} /></label><label>Prefixo (opcional)<Input value={keyPrefix} onChange={(e) => setKeyPrefix(e.target.value)} placeholder="Bearer " /></label></div>}
       {authKind === 'basic_auth' && <div className="grid grid-cols-2 gap-2"><label>Variável de usuário<Input value={userEnv} onChange={(e) => setUserEnv(e.target.value)} /></label><label>Variável de senha<Input value={passwordEnv} onChange={(e) => setPasswordEnv(e.target.value)} /></label></div>}
-      <p className="text-xs text-muted-foreground">Selecione explicitamente as operações GET consultáveis. Configure o caminho dos registros e a paginação conforme o contrato da API.</p>
+      <p className="text-xs text-muted-foreground">Os GETs com resposta JSON e sem paginação ambígua foram selecionados automaticamente. Você pode ajustar a seleção e a configuração antes de salvar.</p>
       <div className="space-y-2 max-h-72 overflow-y-auto">
         {operations.map((op) => <div key={op.operation_id} className="border border-border rounded p-2 text-xs">
           <label className="flex gap-2 items-center"><input type="checkbox" checked={!!datasets[op.operation_id]} onChange={(e) => choose(op, e.target.checked)} /><b>{op.method}</b> {op.path} <span className="text-muted-foreground">{op.summary}</span></label>
+          {skipped[op.operation_id] && !datasets[op.operation_id] && <p className="mt-1 text-amber-600">Configuração manual: {skipped[op.operation_id]}</p>}
           {datasets[op.operation_id] && <div className="grid grid-cols-3 gap-2 mt-2">
             <label>Nome SQL<Input value={datasets[op.operation_id].name} onChange={(e) => setDatasets((old) => ({ ...old, [op.operation_id]: { ...old[op.operation_id], name: e.target.value } }))} /></label>
             <label>Caminho dos registros<Input placeholder="data.items (vazio = raiz)" value={datasets[op.operation_id].data_path || ''} onChange={(e) => setDatasets((old) => ({ ...old, [op.operation_id]: { ...old[op.operation_id], data_path: e.target.value || null } }))} /></label>

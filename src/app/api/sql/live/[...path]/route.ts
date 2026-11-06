@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { validateMasterAdmin } from '@/lib/auth-helpers';
 import { liveApi, liveApiFailureMessage } from '@/lib/sql/live-api';
 
-const allowed = /^(?:sources(?:\/[0-9a-f]{32}(?:\/(?:execute|sync|endpoints|datasets|session))?)?|openapi\/preview|executions\/[0-9a-f]{32}(?:\/cancel)?)$/;
+const allowed = /^(?:sources(?:\/[0-9a-f]{32}(?:\/(?:execute|sync|endpoints|datasets|auto-map|session))?)?|openapi\/preview|executions\/[0-9a-f]{32}(?:\/cancel)?)$/;
 
 async function forward(request: NextRequest, method: 'GET' | 'POST' | 'DELETE', path: string[]) {
   const user = await validateMasterAdmin(request);
@@ -12,6 +12,9 @@ async function forward(request: NextRequest, method: 'GET' | 'POST' | 'DELETE', 
   try {
     const body = method === 'POST' ? await request.json() : undefined;
     const result = await liveApi(`/v1/${joined}`, user.uid, method, body);
+    if (method === 'POST' && result.status === 404 && /\/sources\/[0-9a-f]{32}\/(?:datasets|auto-map)$/.test(`/v1/${joined}`)) {
+      return NextResponse.json({ error: 'Serviço Live API desatualizado. Reinicie o FastAPI e o Portal.' }, { status: 503 });
+    }
     return NextResponse.json(result.data, { status: result.status });
   } catch (error) {
     return NextResponse.json({ error: liveApiFailureMessage(error) }, { status: 502 });
