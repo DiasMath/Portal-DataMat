@@ -9,8 +9,10 @@ anteriores.
 
 Configure `.env.local` com `LIVE_API_URL=http://127.0.0.1:8001` e
 `LIVE_API_INTERNAL_KEY` igual ao valor de `_PY/.env.live`. Inicie com
-`npm ci` e `npm run dev`, a partir da raiz do Portal. O backend deve estar
-iniciado em `127.0.0.1:8001` com um worker.
+`npm run dev`, a partir da raiz do Portal. O backend deve estar
+iniciado em `127.0.0.1:8001` com um worker. No checkout local com alterações
+em `package.json` e `package-lock.json`, preserve o `node_modules` existente;
+não rode `npm ci` antes de revisar essas alterações.
 
 As instruções completas de importação, orçamento, sintaxe SQL, credenciais,
 testes e encerramento estão em `../_PY/docs/live-api-sql.md` nos checkouts
