@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
@@ -32,7 +31,7 @@ export interface ApiSource {
   datasets: ApiDataset[];
 }
 
-export function ImportApiDialog({ open, onOpenChange, onSaved }: { open: boolean; onOpenChange: (open: boolean) => void; onSaved: (source: ApiSource) => void }) {
+export function ImportApiForm({ onSaved }: { onSaved: (source: ApiSource) => void }) {
   const [name, setName] = useState('');
   const [tenantId, setTenantId] = useState('default');
   const [baseUrl, setBaseUrl] = useState('');
@@ -78,13 +77,12 @@ export function ImportApiDialog({ open, onOpenChange, onSaved }: { open: boolean
       const res = await fetch('/api/sql/live/sources', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, tenant_id: tenantId, base_url: baseUrl, spec, auth, datasets: Object.values(datasets) }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || data.error || 'Falha ao cadastrar fonte');
-      onSaved(data); onOpenChange(false);
+      onSaved(data);
     } catch (e) { setError(e instanceof Error ? e.message : 'Falha ao cadastrar'); }
     finally { setBusy(false); }
   };
 
-  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto bg-card border-border">
-    <DialogHeader><DialogTitle>Importar API REST</DialogTitle></DialogHeader>
+  return <div className="space-y-4">
     <div className="grid grid-cols-2 gap-2 text-sm">
       <label>Nome<Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Minha API" /></label>
       <label>Tenant ID<Input value={tenantId} onChange={(e) => setTenantId(e.target.value)} /></label>
@@ -114,5 +112,5 @@ export function ImportApiDialog({ open, onOpenChange, onSaved }: { open: boolean
       <Button onClick={save} disabled={busy || !name || !baseUrl || Object.keys(datasets).length === 0}>Cadastrar fonte</Button>
     </>}
     {error && <p role="alert" className="text-destructive text-sm">{error}</p>}
-  </DialogContent></Dialog>;
+  </div>;
 }

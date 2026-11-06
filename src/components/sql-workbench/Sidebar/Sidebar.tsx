@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSqlWorkbench } from '@/contexts/SqlWorkbenchContext';
 import { AddConnectionDialog } from './AddConnectionDialog';
-import { ImportApiDialog, type ApiSource, type ApiOperation } from './ImportApiDialog';
+import { type ApiSource, type ApiOperation } from './ImportApiDialog';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -53,14 +53,18 @@ function groupApiOperations(operations: ApiOperation[]): [string, ApiOperation[]
 export function Sidebar() {
   const { state, dispatch, newTab, executeQuery, setActiveDatabase } = useSqlWorkbench();
   const [showAddDialog, setShowAddDialog] = useState(false);
-  const [showImportApi, setShowImportApi] = useState(false);
   const [apiSources, setApiSources] = useState<ApiSource[]>([]);
   const [apiError, setApiError] = useState('');
   const [expandedApiSources, setExpandedApiSources] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
-    fetch('/api/sql/live/sources').then((res) => res.json().then((data) => ({ res, data }))).then(({ res, data }) => { if (res.ok && Array.isArray(data)) setApiSources(data); else setApiError(data.error || 'Serviço Live API indisponível'); }).catch(() => setApiError('Serviço Live API indisponível'));
-  }, []);
+  const loadApiSources = () => {
+    fetch('/api/sql/live/sources').then((res) => res.json().then((data) => ({ res, data }))).then(({ res, data }) => {
+      if (res.ok && Array.isArray(data)) { setApiSources(data); setApiError(''); }
+      else setApiError(data.error || 'Serviço Live API indisponível');
+    }).catch(() => setApiError('Serviço Live API indisponível. Verifique se o FastAPI está ativo na porta 8001.'));
+  };
+
+  useEffect(() => { loadApiSources(); }, []);
 
   const openApiOperation = (source: ApiSource, op: ApiOperation) => {
     const dataset = source.datasets.find((d) => d.operation_id === op.operation_id);
@@ -569,9 +573,8 @@ export function Sidebar() {
         </button>
       </div>
 
-      <div className="border-b border-border p-2 text-xs">
-        <div className="flex items-center justify-between"><b>API REST · DuckDB</b><button className="text-primary" onClick={() => setShowImportApi(true)}>+ Importar OpenAPI</button></div>
-        {apiError && <div className="text-destructive py-1">{apiError}</div>}
+      {apiSources.length > 0 && <div className="border-b border-border p-2 text-xs">
+        <div className="font-medium">API REST · DuckDB</div>
         {apiSources.map((source) => <div key={source.id} className="mt-1">
           <button className="flex items-center gap-1 text-left w-full hover:bg-accent rounded p-1" onClick={() => setExpandedApiSources((old) => { const next = new Set(old); if (next.has(source.id)) next.delete(source.id); else next.add(source.id); return next; })}>
             {expandedApiSources.has(source.id) ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}<span className="truncate">{source.name}</span>
@@ -582,7 +585,7 @@ export function Sidebar() {
             return <button key={`${op.method}:${op.path}`} disabled={!dataset || op.method !== 'GET'} onClick={() => openApiOperation(source, op)} title={`${op.summary}\n${op.parameters.filter((p) => p.required).map((p) => `${p.in}: ${p.name}`).join(', ')}\nAutenticação: ${JSON.stringify(op.security || [])}`} className="block text-left w-full pl-2 py-0.5 hover:bg-accent disabled:opacity-50 truncate"><span className="text-primary">{op.method}</span> {op.path}{dataset ? ` → ${dataset.name}` : ''}</button>;
           })}</div>)}
         </div>)}
-      </div>
+      </div>}
 
       <div className="px-2 py-1.5 border-b border-border flex items-center gap-1.5">
         <FolderTree className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
@@ -616,7 +619,7 @@ export function Sidebar() {
           return visibleConnections.length === 0 ? (
           <div className="p-4 text-center text-sm text-muted-foreground">
             {connectionGroupFilter ? 'Nenhuma conexão neste grupo.' : (
-              <>Nenhuma conexão.{' '}
+              <>Nenhuma conexão MySQL.{' '}
               <button onClick={() => setShowAddDialog(true)} className="text-primary hover:underline">
                 Adicionar
               </button></>
@@ -943,10 +946,16 @@ export function Sidebar() {
         })()}
       </div>
 
-      <ImportApiDialog open={showImportApi} onOpenChange={setShowImportApi} onSaved={(source) => setApiSources((old) => [...old, source])} />
       <AddConnectionDialog
         open={showAddDialog}
         editingConnection={editingConnection}
+        apiError={apiError}
+        onApiRetry={loadApiSources}
+        onApiSaved={(source) => {
+          setApiSources((old) => [...old, source]);
+          setApiError('');
+          setShowAddDialog(false);
+        }}
         onOpenChange={(open) => {
           setShowAddDialog(open);
           if (!open) setEditingConnection(null);

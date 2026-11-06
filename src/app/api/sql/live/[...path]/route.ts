@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateMasterAdmin } from '@/lib/auth-helpers';
-import { liveApi } from '@/lib/sql/live-api';
+import { liveApi, liveApiFailureMessage } from '@/lib/sql/live-api';
 
 const allowed = /^(?:sources(?:\/[0-9a-f]{32}(?:\/(?:execute|sync|endpoints|session))?)?|openapi\/preview|executions\/[0-9a-f]{32}(?:\/cancel)?)$/;
 
@@ -13,8 +13,8 @@ async function forward(request: NextRequest, method: 'GET' | 'POST' | 'DELETE', 
     const body = method === 'POST' ? await request.json() : undefined;
     const result = await liveApi(`/v1/${joined}`, user.uid, method, body);
     return NextResponse.json(result.data, { status: result.status });
-  } catch {
-    return NextResponse.json({ error: 'Serviço Live API indisponível' }, { status: 502 });
+  } catch (error) {
+    return NextResponse.json({ error: liveApiFailureMessage(error) }, { status: 502 });
   }
 }
 

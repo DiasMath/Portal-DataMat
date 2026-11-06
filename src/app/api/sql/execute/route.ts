@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/sql/executor';
 import { validateMasterAdmin } from '@/lib/auth-helpers';
-import { liveApi } from '@/lib/sql/live-api';
+import { liveApi, liveApiFailureMessage } from '@/lib/sql/live-api';
 
 const MAX_SQL_SIZE = 100 * 1024;
 const MAX_STATEMENTS = 50;
@@ -70,8 +70,8 @@ export async function POST(request: NextRequest) {
         });
         if (response.status !== 200) return NextResponse.json({ success: false, error: response.data.detail || 'Falha Live SQL' }, { status: response.status });
         return NextResponse.json({ success: true, pending: true, executionId: response.data.execution_id });
-      } catch {
-        return NextResponse.json({ success: false, error: 'Serviço Live API indisponível' }, { status: 502 });
+      } catch (error) {
+        return NextResponse.json({ success: false, error: liveApiFailureMessage(error) }, { status: 502 });
       }
     }
 

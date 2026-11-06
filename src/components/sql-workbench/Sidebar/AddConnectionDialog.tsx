@@ -7,12 +7,14 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
+import { ImportApiForm, type ApiSource } from './ImportApiDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, TestTube } from 'lucide-react';
+import { Database, Globe2, Loader2, TestTube } from 'lucide-react';
 import { toast } from 'sonner';
 
 const CONNECTION_COLORS = [
@@ -44,12 +46,16 @@ interface AddConnectionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (connection: Connection) => void;
+  onApiSaved: (source: ApiSource) => void;
+  apiError?: string;
+  onApiRetry?: () => void;
   /** Quando presente, o dialog abre em modo de edição pré-preenchido. */
   editingConnection?: Connection | null;
 }
 
-export function AddConnectionDialog({ open, onOpenChange, onSave, editingConnection }: AddConnectionDialogProps) {
+export function AddConnectionDialog({ open, onOpenChange, onSave, onApiSaved, apiError, onApiRetry, editingConnection }: AddConnectionDialogProps) {
   const isEditing = !!editingConnection;
+  const [mode, setMode] = useState<'mysql' | 'api'>('mysql');
   const [form, setForm] = useState<ConnectionFormState>(EMPTY_FORM);
   const [testing, setTesting] = useState(false);
   const [testingResult, setTestingResult] = useState<{ success: boolean; message: string } | null>(null);
@@ -61,6 +67,7 @@ export function AddConnectionDialog({ open, onOpenChange, onSave, editingConnect
   // for reaberto sem desmontar).
   useEffect(() => {
     if (!open) return;
+    setMode('mysql');
     if (editingConnection) {
       setForm({
         name: editingConnection.name,
@@ -184,11 +191,21 @@ export function AddConnectionDialog({ open, onOpenChange, onSave, editingConnect
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className={`${mode === 'api' ? 'sm:max-w-3xl' : 'sm:max-w-[500px]'} max-h-[85vh] overflow-y-auto`}>
         <DialogHeader>
           <DialogTitle>{isEditing ? 'Editar Conexão' : 'Adicionar Conexão'}</DialogTitle>
+          <DialogDescription>{isEditing ? 'Atualize os dados da conexão MySQL.' : 'Escolha o tipo de conexão que deseja criar.'}</DialogDescription>
         </DialogHeader>
 
+        {!isEditing && <div className="grid grid-cols-2 gap-2" role="group" aria-label="Tipo de conexão">
+          <button type="button" aria-pressed={mode === 'mysql'} onClick={() => setMode('mysql')} className={`flex items-center justify-center gap-2 rounded-md border p-3 text-sm ${mode === 'mysql' ? 'border-primary bg-primary/10' : 'border-border hover:bg-accent'}`}><Database className="h-4 w-4" /> MySQL</button>
+          <button type="button" aria-pressed={mode === 'api'} onClick={() => setMode('api')} className={`flex items-center justify-center gap-2 rounded-md border p-3 text-sm ${mode === 'api' ? 'border-primary bg-primary/10' : 'border-border hover:bg-accent'}`}><Globe2 className="h-4 w-4" /> API REST · DuckDB</button>
+        </div>}
+
+        {mode === 'api' && !isEditing ? <>
+          {apiError && <div role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{apiError} {onApiRetry && <button type="button" className="underline" onClick={onApiRetry}>Tentar novamente</button>}</div>}
+          <ImportApiForm onSaved={onApiSaved} />
+        </> : <>
         <div className="grid gap-4 py-4">
           <div className="grid gap-2">
             <Label htmlFor="name">Nome da conexão</Label>
@@ -305,6 +322,7 @@ export function AddConnectionDialog({ open, onOpenChange, onSave, editingConnect
             {isEditing ? 'Salvar alterações' : 'Salvar'}
           </Button>
         </DialogFooter>
+        </>}
       </DialogContent>
     </Dialog>
   );
