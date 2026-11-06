@@ -50,7 +50,7 @@ import { toast } from 'sonner';
 function groupApiOperations(operations: ApiOperation[]): [string, ApiOperation[]][] {
   const groups = new Map<string, ApiOperation[]>();
   for (const operation of operations.filter((op) => op.method === 'GET')) {
-    const parent = operation.path.split('/').filter(Boolean)[0] || 'root';
+    const parent = operation.tags[0] || operation.path.split('/').filter(Boolean)[0] || 'root';
     groups.set(parent, [...(groups.get(parent) || []), operation]);
   }
   return [...groups].sort(([a], [b]) => a.localeCompare(b)).map(([name, items]) => [name, items.sort((a, b) => a.path.localeCompare(b.path))]);
