@@ -148,7 +148,8 @@ export function Sidebar() {
       const literal = sqlLiteral(param.default) || "''";
       return `${sqlParameterName(param)} = ${literal}`;
     });
-    const comments = op.parameters.length ? [`-- GET ${op.path}`, ...op.parameters.map(parameterComment), ...(predicates.some((item) => item.endsWith("= ''")) ? ['-- Preencha os valores vazios antes de executar.'] : [])].join('\n') + '\n' : '';
+    const dynamicFields = Boolean((op.response_schema as { additionalProperties?: unknown } | undefined)?.additionalProperties);
+    const comments = op.parameters.length || dynamicFields ? [`-- GET ${op.path}`, ...op.parameters.map(parameterComment), ...(dynamicFields ? ['-- Campos dinâmicos desta resposta aparecem no autocomplete após a primeira execução.'] : []), ...(predicates.some((item) => item.endsWith("= ''")) ? ['-- Preencha os valores vazios antes de executar.'] : [])].join('\n') + '\n' : '';
     const sql = `${comments}SELECT * FROM ${dataset.name}${predicates.length ? `\nWHERE ${predicates.join('\n  AND ')}` : ''};`;
     dispatch({ type: 'SET_ACTIVE_CONNECTION', payload: connectionId });
     const schemaTables = source.datasets.map((d) => {

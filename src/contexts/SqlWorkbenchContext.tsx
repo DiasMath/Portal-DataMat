@@ -392,6 +392,21 @@ export function SqlWorkbenchProvider({ children }: { children: React.ReactNode }
 
       if (data.success) {
         success = true;
+        if (connectionId.startsWith('api:') && s.schemas[connectionId] && data.dataset_columns && typeof data.dataset_columns === 'object') {
+          const learned = data.dataset_columns as Record<string, Array<{ name: string; type: string }>>;
+          const schema = s.schemas[connectionId];
+          const tables = schema.tables.map((table) => {
+            const fields = learned[table.name];
+            if (!Array.isArray(fields)) return table;
+            const columns = new Map(table.columns.map((column) => [column.name, column]));
+            for (const field of fields) {
+              if (typeof field.name !== 'string' || columns.has(field.name)) continue;
+              columns.set(field.name, { name: field.name, type: field.type || 'JSON', nullable: true, key: '', extra: '' });
+            }
+            return { ...table, columns: [...columns.values()] };
+          });
+          dispatch({ type: 'SET_SCHEMA', payload: { connectionId, schema: { ...schema, tables } } });
+        }
         rowCount = (data.rows as unknown[])?.length ?? (data.affectedRows as number) ?? 0;
         const result: QueryResult = {
           columns: (data.columns as string[]) || [],
