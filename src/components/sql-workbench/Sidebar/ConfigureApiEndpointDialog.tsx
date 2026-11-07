@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { suggestDatasetName, type ApiDataset, type ApiOperation, type ApiSource } from './ImportApiDialog';
+import scrollbarStyles from '../WorkbenchScrollbars.module.css';
 
 export function ConfigureApiEndpointDialog({ source, operation, onOpenChange, onSaved }: {
   source: ApiSource | null;
@@ -57,7 +58,7 @@ export function ConfigureApiEndpointDialog({ source, operation, onOpenChange, on
   };
 
   return <Dialog open={!!source && !!operation} onOpenChange={onOpenChange}>
-    <DialogContent className="sm:max-w-xl max-h-[85vh] overflow-y-auto">
+    <DialogContent className={`${scrollbarStyles.scrollArea} sm:max-w-xl max-h-[85vh] overflow-y-auto`}>
       <DialogHeader>
         <DialogTitle>Configurar endpoint GET</DialogTitle>
         <DialogDescription>{operation?.path} será consultado como um dataset SQL. Confira o formato da resposta e a paginação antes de salvar.</DialogDescription>

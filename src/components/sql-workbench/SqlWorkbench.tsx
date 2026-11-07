@@ -14,6 +14,7 @@ import { SplitPane } from './SplitPane';
 import { ShortcutSettings } from './Settings/ShortcutSettings';
 import { DEFAULT_SHORTCUTS, loadShortcuts, matchesShortcut, type ShortcutAction } from './shortcuts';
 import { QueryVariablesDialog } from './QueryVariablesDialog';
+import styles from './WorkbenchScrollbars.module.css';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { extractVariables, substituteVariables } from '@/lib/sql/query-variables';
 import { toast } from 'sonner';
@@ -391,7 +392,7 @@ export function SqlWorkbench() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-42px)] mt-[42px] bg-background">
+    <div className={`${styles.workbench} flex flex-col h-[calc(100vh-42px)] mt-[42px] bg-background`}>
       <div className="flex flex-1 overflow-y-hidden">
           <>
             <div

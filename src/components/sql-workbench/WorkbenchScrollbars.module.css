@@ -1,0 +1,45 @@
+.workbench,
+.workbench *,
+.scrollArea,
+.scrollArea * {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--muted-foreground) 42%, transparent) transparent;
+}
+
+.workbench *::-webkit-scrollbar,
+.scrollArea::-webkit-scrollbar,
+.scrollArea *::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+.workbench *::-webkit-scrollbar-button,
+.scrollArea::-webkit-scrollbar-button,
+.scrollArea *::-webkit-scrollbar-button {
+  display: none;
+}
+
+.workbench *::-webkit-scrollbar-track,
+.workbench *::-webkit-scrollbar-corner,
+.scrollArea::-webkit-scrollbar-track,
+.scrollArea::-webkit-scrollbar-corner,
+.scrollArea *::-webkit-scrollbar-track,
+.scrollArea *::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.workbench *::-webkit-scrollbar-thumb,
+.scrollArea::-webkit-scrollbar-thumb,
+.scrollArea *::-webkit-scrollbar-thumb {
+  background: color-mix(in oklab, var(--muted-foreground) 46%, transparent);
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+.workbench *::-webkit-scrollbar-thumb:hover,
+.scrollArea::-webkit-scrollbar-thumb:hover,
+.scrollArea *::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklab, var(--muted-foreground) 75%, transparent);
+  background-clip: padding-box;
+}

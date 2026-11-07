@@ -289,8 +289,11 @@ export function QueryEditor({ tabId, sql, connectionId, fontSize = 14 }: QueryEd
           wordWrap: 'on',
           padding: { top: 8 },
           scrollbar: {
-            verticalScrollbarSize: 10,
-            horizontalScrollbarSize: 10,
+            verticalScrollbarSize: 7,
+            horizontalScrollbarSize: 7,
+            verticalSliderSize: 7,
+            horizontalSliderSize: 7,
+            useShadows: false,
           },
         }}
       />

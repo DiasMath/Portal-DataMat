@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Database, Globe2, Loader2, TestTube } from 'lucide-react';
 import { toast } from 'sonner';
+import scrollbarStyles from '../WorkbenchScrollbars.module.css';
 
 const CONNECTION_COLORS = [
   '#6366f1', '#0ea5e9', '#10b981', '#f59e0b',
@@ -191,7 +192,7 @@ export function AddConnectionDialog({ open, onOpenChange, onSave, onApiSaved, ap
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className={`${mode === 'api' ? 'sm:max-w-3xl' : 'sm:max-w-[500px]'} max-h-[85vh] overflow-y-auto`}>
+      <DialogContent className={`${scrollbarStyles.scrollArea} ${mode === 'api' ? 'sm:max-w-3xl' : 'sm:max-w-[500px]'} max-h-[85vh] overflow-y-auto`}>
         <DialogHeader>
           <DialogTitle>{isEditing ? 'Editar Conexão' : 'Adicionar Conexão'}</DialogTitle>
           <DialogDescription>{isEditing ? 'Atualize os dados da conexão MySQL.' : 'Escolha o tipo de conexão que deseja criar.'}</DialogDescription>

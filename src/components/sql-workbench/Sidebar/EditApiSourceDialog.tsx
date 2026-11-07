@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { suggestDatasetName, type ApiDataset, type ApiOperation, type ApiSource } from './ImportApiDialog';
+import scrollbarStyles from '../WorkbenchScrollbars.module.css';
 
 export function EditApiSourceDialog({ source, onOpenChange, onSaved }: {
   source: ApiSource | null;
@@ -70,7 +71,7 @@ export function EditApiSourceDialog({ source, onOpenChange, onSaved }: {
   };
 
   return <Dialog open={!!source} onOpenChange={(open) => { if (!busy) onOpenChange(open); }}>
-    <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+    <DialogContent className={`${scrollbarStyles.scrollArea} sm:max-w-2xl max-h-[85vh] overflow-y-auto`}>
       <DialogHeader><DialogTitle>Editar conexão de API</DialogTitle><DialogDescription>Altere a conexão e os nomes das tabelas SQL. As alterações ficam salvas para as próximas sessões.</DialogDescription></DialogHeader>
       <div className="grid grid-cols-2 gap-3 text-sm">
         <label>Nome<Input value={name} onChange={(e) => setName(e.target.value)} /></label>

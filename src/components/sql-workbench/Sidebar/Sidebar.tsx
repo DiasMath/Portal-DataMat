@@ -6,6 +6,7 @@ import { AddConnectionDialog } from './AddConnectionDialog';
 import { type ApiSource, type ApiOperation } from './ImportApiDialog';
 import { ConfigureApiEndpointDialog } from './ConfigureApiEndpointDialog';
 import { EditApiSourceDialog } from './EditApiSourceDialog';
+import scrollbarStyles from '../WorkbenchScrollbars.module.css';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -58,6 +59,26 @@ function groupApiOperations(operations: ApiOperation[]): [string, ApiOperation[]
   return [...groups].sort(([a], [b]) => a.localeCompare(b)).map(([name, items]) => [name, items.sort((a, b) => a.path.localeCompare(b.path))]);
 }
 
+function sqlParameterName(parameter: ApiOperation['parameters'][number]): string {
+  const name = parameter.type === 'array' ? `param_${parameter.name}` : parameter.name;
+  return /^[A-Za-z_][A-Za-z_0-9]*$/.test(name) ? name : `"${name.replace(/"/g, '""')}"`;
+}
+
+function sqlLiteral(value: unknown): string | null {
+  if (typeof value === 'string') return `'${value.replace(/'/g, "''")}'`;
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  if (typeof value === 'boolean') return value ? 'TRUE' : 'FALSE';
+  return null;
+}
+
+function parameterComment(parameter: ApiOperation['parameters'][number]): string {
+  const type = parameter.type === 'array' ? `lista de ${parameter.items_type || 'valores'}` : (parameter.type || 'tipo não informado');
+  const values = Array.isArray(parameter.enum) && parameter.enum.length ? `; valores: ${parameter.enum.map(String).join(', ')}` : '';
+  const defaultValue = parameter.default !== undefined && parameter.default !== null ? `; padrão: ${JSON.stringify(parameter.default)}` : '';
+  const example = parameter.example !== undefined && parameter.example !== null ? `; exemplo: ${JSON.stringify(parameter.example)}` : '';
+  return `-- ${parameter.name} (${parameter.in}, ${type}, ${parameter.required ? 'obrigatório' : 'opcional'})${values}${defaultValue}${example}`.replace(/[\r\n]+/g, ' ').slice(0, 300);
+}
+
 export function Sidebar() {
   const { state, dispatch, newTab, executeQuery, setActiveDatabase } = useSqlWorkbench();
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -86,26 +107,24 @@ export function Sidebar() {
 
   const openApiOperation = async (source: ApiSource, op: ApiOperation) => {
     if (op.method !== 'GET') return;
-    let dataset = source.datasets.find((d) => d.operation_id === op.operation_id);
-    if (!dataset) {
-      try {
-        const response = await fetch(`/api/sql/live/sources/${source.id}`);
-        if (response.ok) {
-          const fresh = await response.json() as ApiSource;
-          setApiSources((old) => old.map((item) => item.id === fresh.id ? fresh : item));
-          source = fresh;
-          dataset = fresh.datasets.find((d) => d.operation_id === op.operation_id);
-        }
-      } catch { /* The mapping dialog can still handle a genuinely unmapped endpoint. */ }
-    }
+    try {
+      const response = await fetch(`/api/sql/live/sources/${source.id}`);
+      if (response.ok) {
+        const fresh = await response.json() as ApiSource;
+        setApiSources((old) => old.map((item) => item.id === fresh.id ? fresh : item));
+        source = fresh;
+        op = fresh.operations.find((item) => item.operation_id === op.operation_id) || op;
+      }
+    } catch { /* Keep the cached source available if the refresh fails. */ }
+    const dataset = source.datasets.find((d) => d.operation_id === op.operation_id);
     if (!dataset) { setMappingTarget({ source, operation: op }); return; }
     const connectionId = `api:${source.id}`;
     const predicates = op.parameters.filter((param) => param.required && (param.in === 'path' || param.in === 'query')).map((param) => {
-      const sqlName = param.type === 'array' ? `param_${param.name}` : param.name;
-      const name = /^[A-Za-z_][A-Za-z_0-9]*$/.test(sqlName) ? sqlName : `"${sqlName.replace(/"/g, '""')}"`;
-      return `${name} = ''`;
+      const literal = sqlLiteral(param.default) || "''";
+      return `${sqlParameterName(param)} = ${literal}`;
     });
-    const sql = `${predicates.length ? '-- Preencha os valores vazios dos parâmetros obrigatórios antes de executar.\n' : ''}SELECT * FROM ${dataset.name}${predicates.length ? `\nWHERE ${predicates.join('\n  AND ')}` : ''};`;
+    const comments = op.parameters.length ? [`-- GET ${op.path}`, ...op.parameters.map(parameterComment), ...(predicates.some((item) => item.endsWith("= ''")) ? ['-- Preencha os valores vazios antes de executar.'] : [])].join('\n') + '\n' : '';
+    const sql = `${comments}SELECT * FROM ${dataset.name}${predicates.length ? `\nWHERE ${predicates.join('\n  AND ')}` : ''};`;
     dispatch({ type: 'SET_ACTIVE_CONNECTION', payload: connectionId });
     const schemaTables = source.datasets.map((d) => {
       const operation = source.operations.find((o) => o.operation_id === d.operation_id);
@@ -120,6 +139,18 @@ export function Sidebar() {
     });
     dispatch({ type: 'SET_SCHEMA', payload: { connectionId, schema: { database: source.name, databases: [], tables: schemaTables, views: [], procedures: [], functions: [], foreignKeys: [] } } });
     newTab(dataset.name, sql, connectionId, 'query');
+  };
+
+  const openParameterInfo = async (source: ApiSource, op: ApiOperation) => {
+    try {
+      const response = await fetch(`/api/sql/live/sources/${source.id}`);
+      if (response.ok) {
+        const fresh = await response.json() as ApiSource;
+        setApiSources((old) => old.map((item) => item.id === fresh.id ? fresh : item));
+        op = fresh.operations.find((item) => item.operation_id === op.operation_id) || op;
+      }
+    } catch { /* Show the cached metadata when temporarily offline. */ }
+    setParameterTarget(op);
   };
 
   const syncApiSource = async () => {
@@ -638,7 +669,7 @@ export function Sidebar() {
                 const dataset = source.datasets.find((d) => d.operation_id === op.operation_id);
                 return <div key={`${op.method}:${op.path}`} className="flex items-center gap-1 pl-4">
                   <button type="button" onClick={() => openApiOperation(source, op)} title={op.summary} className="min-w-0 flex-1 truncate rounded py-1 text-left hover:bg-accent"><span className="text-primary">GET</span> {op.path}{dataset ? ` → ${dataset.name}` : ' · requer configuração'}</button>
-                  <button type="button" onClick={() => setParameterTarget(op)} title={`Parâmetros de ${op.path}`} aria-label={`Ver parâmetros de ${op.path}`} className="shrink-0 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"><Info className="h-3.5 w-3.5" /></button>
+                  <button type="button" onClick={() => openParameterInfo(source, op)} title={`Parâmetros de ${op.path}`} aria-label={`Ver parâmetros de ${op.path}`} className="shrink-0 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"><Info className="h-3.5 w-3.5" /></button>
                 </div>;
               })}
             </div>;
@@ -1023,18 +1054,18 @@ export function Sidebar() {
       }} />
 
       <Dialog open={!!parameterTarget} onOpenChange={(open) => { if (!open) setParameterTarget(null); }}>
-        <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
+        <DialogContent className={`${scrollbarStyles.scrollArea} sm:max-w-lg max-h-[80vh] overflow-y-auto`}>
           <DialogHeader><DialogTitle>Parâmetros do GET {parameterTarget?.path}</DialogTitle><DialogDescription>{parameterTarget?.summary || 'Parâmetros definidos na documentação OpenAPI.'}</DialogDescription></DialogHeader>
           {parameterTarget?.parameters.length ? <div className="space-y-2 text-sm">
             {parameterTarget.parameters.map((param, index) => {
-              const sqlName = param.type === 'array' ? `param_${param.name}` : param.name;
-              const sqlValue = param.type === 'integer' || param.type === 'number' ? '123' : "'valor'";
+              const sqlName = sqlParameterName(param);
+              const sqlValue = sqlLiteral(param.default) || (param.type === 'integer' || param.type === 'number' ? '123' : "'valor'");
               return <div key={`${param.in}:${param.name}:${index}`} className="rounded border p-2">
                 <div className="font-medium">{param.name} <span className="font-normal text-muted-foreground">· {param.in} · {param.type === 'array' ? `lista de ${param.items_type || 'valores'}` : (param.type || 'tipo não informado')} · {param.required ? 'obrigatório' : 'opcional'}</span></div>
                 {param.description && <p className="mt-1 text-muted-foreground">{param.description}</p>}
                 {param.in === 'path' || param.in === 'query' ? <p className="mt-1">Filtro SQL: <code className="rounded bg-muted px-1">WHERE {sqlName} = {sqlValue}</code></p> : <p className="mt-1 text-muted-foreground">Este parâmetro não é preenchido pelo WHERE.</p>}
                 {param.type === 'array' && <p className="mt-1 text-muted-foreground">Use um valor por consulta no filtro SQL. O prefixo param_ evita conflito com uma coluna da resposta.</p>}
-                {Array.isArray(param.enum) && param.enum.length > 0 ? <p className="mt-1">Valores documentados: {param.enum.map(String).join(', ')}</p> : <p className="mt-1 text-muted-foreground">A documentação não lista valores permitidos.</p>}
+                {Array.isArray(param.enum) && param.enum.length > 0 ? <p className="mt-1">Valores documentados: {param.enum.map(String).join(', ')}</p> : <p className="mt-1 text-muted-foreground">{param.enum === undefined ? 'Metadados de valores indisponíveis nesta versão do serviço.' : 'A documentação não lista valores permitidos.'}</p>}
                 {param.example !== undefined && param.example !== null && <p className="mt-1">Exemplo: <code>{JSON.stringify(param.example)}</code></p>}
                 {param.default !== undefined && param.default !== null && <p className="mt-1">Padrão: <code>{JSON.stringify(param.default)}</code></p>}
               </div>;
