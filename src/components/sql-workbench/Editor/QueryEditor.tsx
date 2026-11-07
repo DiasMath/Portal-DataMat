@@ -139,6 +139,7 @@ export function QueryEditor({ tabId, sql, connectionId, fontSize = 14 }: QueryEd
     completionDisposableRef.current = monaco.languages.registerCompletionItemProvider('sql', {
       triggerCharacters: [' ', '.', '(', ','],
       provideCompletionItems: (model: Monaco.editor.ITextModel, position: Monaco.Position) => {
+        if (model !== editor.getModel()) return { suggestions: [] };
         const word = model.getWordUntilPosition(position);
         const range = {
           startLineNumber: position.lineNumber,
