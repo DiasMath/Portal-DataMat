@@ -131,13 +131,16 @@ export function Sidebar() {
     if (op.method !== 'GET') return;
     try {
       const response = await fetch(`/api/sql/live/sources/${source.id}`);
-      if (response.ok) {
-        const fresh = await response.json() as ApiSource;
-        setApiSources((old) => old.map((item) => item.id === fresh.id ? fresh : item));
-        source = fresh;
-        op = fresh.operations.find((item) => item.operation_id === op.operation_id) || op;
+      if (!response.ok) throw new Error(`Não foi possível atualizar os metadados da API (HTTP ${response.status}).`);
+      const fresh = await response.json() as ApiSource;
+      const refreshedOperation = fresh.operations.find((item) => item.operation_id === op.operation_id);
+      if (!refreshedOperation || refreshedOperation.parameters.some((param) => !Array.isArray(param.enum))) {
+        throw new Error('Metadados de parâmetros desatualizados. Reinicie o FastAPI e o Portal.');
       }
-    } catch { /* Keep the cached source available if the refresh fails. */ }
+      setApiSources((old) => old.map((item) => item.id === fresh.id ? fresh : item));
+      source = fresh;
+      op = refreshedOperation;
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar os metadados da API'); return; }
     const dataset = source.datasets.find((d) => d.operation_id === op.operation_id);
     if (!dataset) { setMappingTarget({ source, operation: op }); return; }
     const connectionId = `api:${source.id}`;
@@ -164,12 +167,15 @@ export function Sidebar() {
   const openParameterInfo = async (source: ApiSource, op: ApiOperation) => {
     try {
       const response = await fetch(`/api/sql/live/sources/${source.id}`);
-      if (response.ok) {
-        const fresh = await response.json() as ApiSource;
-        setApiSources((old) => old.map((item) => item.id === fresh.id ? fresh : item));
-        op = fresh.operations.find((item) => item.operation_id === op.operation_id) || op;
+      if (!response.ok) throw new Error(`Não foi possível atualizar os metadados da API (HTTP ${response.status}).`);
+      const fresh = await response.json() as ApiSource;
+      const refreshedOperation = fresh.operations.find((item) => item.operation_id === op.operation_id);
+      if (!refreshedOperation || refreshedOperation.parameters.some((param) => !Array.isArray(param.enum))) {
+        throw new Error('Metadados de parâmetros desatualizados. Reinicie o FastAPI e o Portal.');
       }
-    } catch { /* Show the cached metadata when temporarily offline. */ }
+      setApiSources((old) => old.map((item) => item.id === fresh.id ? fresh : item));
+      op = refreshedOperation;
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar os metadados da API'); return; }
     setParameterTarget(op);
   };
 

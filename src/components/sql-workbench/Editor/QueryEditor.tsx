@@ -105,7 +105,7 @@ export function QueryEditor({ tabId, sql, connectionId, fontSize = 14 }: QueryEd
 
   const handleEditorMount: OnMount = (editor, monaco) => {
     const isLive = connectionId?.startsWith('api:') === true;
-    const quote = (name: string) => isLive ? `"${name.replaceAll('"', '""')}"` : `\`${name.replaceAll('`', '``')}\``;
+    const quote = (name: string) => /^[A-Za-z_][A-Za-z_0-9]*$/.test(name) ? name : isLive ? `"${name.replaceAll('"', '""')}"` : `\`${name.replaceAll('`', '``')}\``;
     editorRef.current = editor;
     registerEditor(tabId, editor);
 
