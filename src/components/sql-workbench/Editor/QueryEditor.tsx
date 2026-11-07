@@ -123,7 +123,8 @@ export function QueryEditor({ tabId, sql, connectionId, fontSize = 14 }: QueryEd
         { token: 'number', foreground: 'B5CEA8' },
         { token: 'number.sql', foreground: 'B5CEA8' },
         { token: 'comment', foreground: '6A9955', fontStyle: 'italic' },
-        { token: 'operator.sql', foreground: 'D4D4D4' },
+        // O tokenizer SQL do Monaco classifica AND/OR/NOT como operadores.
+        { token: 'operator.sql', foreground: 'FFB03F', fontStyle: 'bold' },
         { token: 'identifier.sql', foreground: 'D4D4D4' },
       ],
       colors: {

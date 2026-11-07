@@ -165,7 +165,8 @@ export function Sidebar() {
     const dataset = source.datasets.find((d) => d.operation_id === op.operation_id);
     if (!dataset) { setMappingTarget({ source, operation: op }); return; }
     const connectionId = `api:${source.id}`;
-    const predicates = op.parameters.filter((param) => param.required && (param.in === 'path' || param.in === 'query')).map((param) => {
+    const paginationParameters = dataset.pagination.mode === 'page' ? new Set([dataset.pagination.page_param, dataset.pagination.size_param]) : new Set<string>();
+    const predicates = op.parameters.filter((param) => param.required && (param.in === 'path' || param.in === 'query') && !(param.in === 'query' && paginationParameters.has(param.name))).map((param) => {
       const literal = sqlLiteral(param.default) || "''";
       return `${sqlParameterName(param)} = ${literal}`;
     });
