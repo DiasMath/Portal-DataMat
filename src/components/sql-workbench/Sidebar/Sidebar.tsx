@@ -79,6 +79,28 @@ function parameterComment(parameter: ApiOperation['parameters'][number]): string
   return `-- ${parameter.name} (${parameter.in}, ${type}, ${parameter.required ? 'obrigatório' : 'opcional'})${values}${defaultValue}${example}`.replace(/[\r\n]+/g, ' ').slice(0, 300);
 }
 
+type ApiSchemaNode = { type?: string; properties?: Record<string, ApiSchemaNode>; items?: ApiSchemaNode };
+
+function apiResponseColumns(operation: ApiOperation | undefined, dataPath: string | null | undefined): Map<string, string> {
+  let node = operation?.response_schema as ApiSchemaNode | undefined;
+  for (const segment of dataPath?.split('.').filter(Boolean) || []) {
+    if (node?.type === 'array') node = node.items;
+    node = node?.properties?.[segment];
+  }
+  if (node?.type === 'array') node = node.items;
+  const columns = new Map<string, string>();
+  const visit = (value: ApiSchemaNode | undefined, prefix: string, depth: number) => {
+    if (!value || depth > 6) return;
+    if (value.type === 'object' && value.properties && Object.keys(value.properties).length) {
+      for (const [name, child] of Object.entries(value.properties)) visit(child, prefix ? `${prefix}_${name}` : name, depth + 1);
+    } else if (prefix) {
+      columns.set(prefix, value.type || 'JSON');
+    }
+  };
+  visit(node, '', 0);
+  return columns;
+}
+
 export function Sidebar() {
   const { state, dispatch, newTab, executeQuery, setActiveDatabase } = useSqlWorkbench();
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -128,9 +150,7 @@ export function Sidebar() {
     dispatch({ type: 'SET_ACTIVE_CONNECTION', payload: connectionId });
     const schemaTables = source.datasets.map((d) => {
       const operation = source.operations.find((o) => o.operation_id === d.operation_id);
-      const schema = operation?.response_schema as { properties?: Record<string, { type?: string }>; items?: { properties?: Record<string, { type?: string }> } } | undefined;
-      const props = schema?.items?.properties || schema?.properties || {};
-      const columns = new Map(Object.entries(props).map(([name, info]) => [name, info.type || 'JSON']));
+      const columns = apiResponseColumns(operation, d.data_path);
       for (const param of operation?.parameters || []) {
         const sqlName = param.type === 'array' ? `param_${param.name}` : param.name;
         if ((param.in === 'path' || param.in === 'query') && !columns.has(sqlName)) columns.set(sqlName, param.type === 'array' ? (param.items_type || 'VARCHAR') : (param.type || 'VARCHAR'));
@@ -157,7 +177,10 @@ export function Sidebar() {
     if (!syncTarget || !syncUrl.trim()) return;
     setSyncBusy(true); setSyncError('');
     try {
-      const res = await fetch(`/api/sql/live/sources/${syncTarget.id}/sync`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ spec_url: syncUrl.trim() }) });
+      const base = syncTarget.base_url.replace(/\/+$/, '');
+      const requestedUrl = syncUrl.trim();
+      const documentationUrl = requestedUrl.replace(/\/+$/, '') === base ? `${base}/openapi.json` : requestedUrl;
+      const res = await fetch(`/api/sql/live/sources/${syncTarget.id}/sync`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ spec_url: documentationUrl }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || data.error || 'Falha ao sincronizar');
       setApiSources((old) => old.map((item) => item.id === syncTarget.id ? data.source : item));
@@ -655,7 +678,7 @@ export function Sidebar() {
               {expandedApiSources.has(source.id) ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}<span className="truncate" title={source.name}>{source.name}</span>
             </button>
             <Button type="button" size="icon" variant="ghost" className="h-6 w-6 shrink-0" onClick={() => setEditApiTarget(source)} title="Editar conexão e tabelas SQL" aria-label={`Editar ${source.name}`}><Pencil className="h-3.5 w-3.5" /></Button>
-            <Button type="button" size="icon" variant="ghost" className="h-6 w-6 shrink-0" onClick={() => { setSyncTarget(source); setSyncUrl(''); setSyncError(''); }} title="Sincronizar OpenAPI" aria-label={`Sincronizar ${source.name}`}><RefreshCw className="h-3.5 w-3.5" /></Button>
+            <Button type="button" size="icon" variant="ghost" className="h-6 w-6 shrink-0" onClick={() => { setSyncTarget(source); setSyncUrl(source.spec_url || `${source.base_url.replace(/\/+$/, '')}/openapi.json`); setSyncError(''); }} title="Sincronizar OpenAPI" aria-label={`Sincronizar ${source.name}`}><RefreshCw className="h-3.5 w-3.5" /></Button>
             <Button type="button" size="icon" variant="ghost" className="h-6 w-6 shrink-0" onClick={() => setSessionTarget(source)} title="Encerrar sessão" aria-label={`Encerrar sessão de ${source.name}`}><LogOut className="h-3.5 w-3.5" /></Button>
           </div>
           {expandedApiSources.has(source.id) && groupApiOperations(source.operations).map(([parent, ops]) => {
@@ -1076,8 +1099,9 @@ export function Sidebar() {
 
       <Dialog open={!!syncTarget} onOpenChange={(open) => { if (!open && !syncBusy) setSyncTarget(null); }}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Sincronizar OpenAPI</DialogTitle><DialogDescription>Atualize a documentação de {syncTarget?.name}. Os datasets configurados serão preservados.</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>Sincronizar OpenAPI</DialogTitle><DialogDescription>Informe a URL do arquivo OpenAPI JSON/YAML de {syncTarget?.name}. A URL base da API é diferente da URL da documentação. Os datasets configurados serão preservados.</DialogDescription></DialogHeader>
           <label className="text-sm">URL HTTPS da especificação<Input value={syncUrl} onChange={(event) => setSyncUrl(event.target.value)} placeholder="https://api.exemplo.com/openapi.json" /></label>
+          {!syncTarget?.spec_url && <p className="text-xs text-muted-foreground">A URL sugerida foi deduzida da URL base. Confirme se ela aponta para a especificação.</p>}
           {syncError && <p role="alert" className="text-sm text-destructive">{syncError}</p>}
           <DialogFooter>
             <Button variant="outline" onClick={() => setSyncTarget(null)} disabled={syncBusy}>Cancelar</Button>

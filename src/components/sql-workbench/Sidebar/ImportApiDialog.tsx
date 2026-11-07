@@ -28,6 +28,7 @@ export interface ApiSource {
   name: string;
   tenant_id: string;
   base_url: string;
+  spec_url?: string | null;
   operations: ApiOperation[];
   datasets: ApiDataset[];
   auth?: { kind: string; key_env?: string; header_name?: string; key_prefix?: string; username_env?: string; password_env?: string; has_key?: boolean };
@@ -94,7 +95,7 @@ export function ImportApiForm({ onSaved }: { onSaved: (source: ApiSource) => voi
     setBusy(true); setError('');
     try {
       const auth = authKind === 'api_key' ? { kind: 'api_key', ...(keyValue ? { key_value: keyValue } : { key_env: keyEnv }), header_name: headerName, key_prefix: keyPrefix, send_as: 'header' } : authKind === 'basic_auth' ? { kind: 'basic_auth', username_env: userEnv, password_env: passwordEnv } : { kind: 'none' };
-      const res = await fetch('/api/sql/live/sources', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, tenant_id: tenantId, base_url: baseUrl, spec, auth, datasets: Object.values(datasets) }) });
+      const res = await fetch('/api/sql/live/sources', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, tenant_id: tenantId, base_url: baseUrl, spec, spec_url: specText ? null : specUrl, auth, datasets: Object.values(datasets) }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || data.error || 'Falha ao cadastrar fonte');
       onSaved(data);

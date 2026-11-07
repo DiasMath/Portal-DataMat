@@ -51,7 +51,8 @@ const MYSQL_FUNCTIONS = [
 ];
 
 const LIVE_KEYWORDS = new Set('SELECT FROM WHERE AND OR NOT IN LIKE BETWEEN IS NULL AS ON JOIN LEFT RIGHT INNER OUTER FULL CROSS USING HAVING GROUP BY ORDER ASC DESC LIMIT OFFSET UNION ALL INTERSECT EXCEPT WITH DISTINCT CASE WHEN THEN ELSE END'.split(' '));
-const LIVE_FUNCTIONS = ['COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'COALESCE', 'NULLIF', 'ABS', 'ROUND', 'LOWER', 'UPPER', 'TRIM', 'CAST', 'DATE_TRUNC', 'LENGTH', 'SUBSTRING', 'CONCAT'];
+const LIVE_PHRASES = ['GROUP BY', 'ORDER BY', 'LEFT JOIN', 'RIGHT JOIN', 'INNER JOIN', 'FULL JOIN', 'IS NULL', 'IS NOT NULL', 'UNION ALL'];
+const LIVE_FUNCTIONS = ['COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'COALESCE', 'NULLIF', 'ABS', 'ROUND', 'LOWER', 'UPPER', 'TRIM', 'CAST', 'TRY_CAST', 'DATE_TRUNC', 'EXTRACT', 'LENGTH', 'SUBSTRING', 'CONCAT', 'IF', 'ROW_NUMBER'];
 
 const SQL_RESERVED_AFTER_TABLE = new Set([
   'WHERE', 'GROUP', 'ORDER', 'LIMIT', 'JOIN', 'ON', 'AND', 'OR', 'SET',
@@ -85,6 +86,8 @@ export function QueryEditor({ tabId, sql, connectionId, fontSize = 14 }: QueryEd
   const editorRef = useRef<any>(null);
   const sqlRef = useRef(sql);
   sqlRef.current = sql;
+  const schemasRef = useRef(state.schemas);
+  schemasRef.current = state.schemas;
   const completionDisposableRef = useRef<{ dispose: () => void } | null>(null);
 
   // Cada instância do QueryEditor é remontada quando você troca de aba
@@ -146,7 +149,8 @@ export function QueryEditor({ tabId, sql, connectionId, fontSize = 14 }: QueryEd
 
         const suggestions: any[] = [];
         const fullSql = model.getValue();
-        const referencedTables = connectionId && state.schemas[connectionId] ? parseReferencedTables(fullSql) : [];
+        const currentSchema = connectionId ? schemasRef.current[connectionId] : undefined;
+        const referencedTables = currentSchema ? parseReferencedTables(fullSql) : [];
         const referencedTableNames = new Set(referencedTables.map((t) => t.table.toLowerCase()));
 
         // Se o texto antes do cursor termina em "algo." (ex: "p." ou
@@ -161,9 +165,9 @@ export function QueryEditor({ tabId, sql, connectionId, fontSize = 14 }: QueryEd
         });
         const dotMatch = textBeforeCursor.match(/([a-zA-Z_][a-zA-Z0-9_]*)\.\s*$/);
 
-        if (dotMatch && connectionId && state.schemas[connectionId]) {
+        if (dotMatch && currentSchema) {
           const prefix = dotMatch[1].toLowerCase();
-          const schema = state.schemas[connectionId];
+          const schema = currentSchema;
           const resolvedTable =
             referencedTables.find((t) => (t.alias || t.table).toLowerCase() === prefix)?.table ||
             schema.tables.find((t) => t.name.toLowerCase() === prefix)?.name;
@@ -193,6 +197,14 @@ export function QueryEditor({ tabId, sql, connectionId, fontSize = 14 }: QueryEd
           });
         });
 
+        if (isLive) LIVE_PHRASES.forEach((phrase) => suggestions.push({
+          label: phrase,
+          kind: monaco.languages.CompletionItemKind.Keyword,
+          insertText: phrase,
+          range,
+          sortText: `2_${phrase}`,
+        }));
+
         (isLive ? LIVE_FUNCTIONS : MYSQL_FUNCTIONS).forEach((fn) => {
           suggestions.push({
             label: fn,
@@ -204,8 +216,8 @@ export function QueryEditor({ tabId, sql, connectionId, fontSize = 14 }: QueryEd
           });
         });
 
-        if (connectionId && state.schemas[connectionId]) {
-          const schema = state.schemas[connectionId];
+        if (currentSchema) {
+          const schema = currentSchema;
 
           schema.tables.forEach((table) => {
             const isReferenced = referencedTableNames.has(table.name.toLowerCase());
@@ -287,6 +299,8 @@ export function QueryEditor({ tabId, sql, connectionId, fontSize = 14 }: QueryEd
           automaticLayout: true,
           tabSize: 2,
           wordWrap: 'on',
+          quickSuggestions: { other: true, comments: false, strings: false },
+          suggestOnTriggerCharacters: true,
           padding: { top: 8 },
           scrollbar: {
             verticalScrollbarSize: 7,
