@@ -45,6 +45,7 @@ import {
   Copy,
   RefreshCw,
   LogOut,
+  Info,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -66,6 +67,7 @@ export function Sidebar() {
   const [expandedApiGroups, setExpandedApiGroups] = useState<Set<string>>(new Set());
   const [mappingTarget, setMappingTarget] = useState<{ source: ApiSource; operation: ApiOperation } | null>(null);
   const [editApiTarget, setEditApiTarget] = useState<ApiSource | null>(null);
+  const [parameterTarget, setParameterTarget] = useState<ApiOperation | null>(null);
   const [syncTarget, setSyncTarget] = useState<ApiSource | null>(null);
   const [syncUrl, setSyncUrl] = useState('');
   const [syncBusy, setSyncBusy] = useState(false);
@@ -99,7 +101,8 @@ export function Sidebar() {
     if (!dataset) { setMappingTarget({ source, operation: op }); return; }
     const connectionId = `api:${source.id}`;
     const predicates = op.parameters.filter((param) => param.required && (param.in === 'path' || param.in === 'query')).map((param) => {
-      const name = /^[A-Za-z_][A-Za-z_0-9]*$/.test(param.name) ? param.name : `"${param.name.replace(/"/g, '""')}"`;
+      const sqlName = param.type === 'array' ? `param_${param.name}` : param.name;
+      const name = /^[A-Za-z_][A-Za-z_0-9]*$/.test(sqlName) ? sqlName : `"${sqlName.replace(/"/g, '""')}"`;
       return `${name} = ''`;
     });
     const sql = `${predicates.length ? '-- Preencha os valores vazios dos parâmetros obrigatórios antes de executar.\n' : ''}SELECT * FROM ${dataset.name}${predicates.length ? `\nWHERE ${predicates.join('\n  AND ')}` : ''};`;
@@ -109,7 +112,10 @@ export function Sidebar() {
       const schema = operation?.response_schema as { properties?: Record<string, { type?: string }>; items?: { properties?: Record<string, { type?: string }> } } | undefined;
       const props = schema?.items?.properties || schema?.properties || {};
       const columns = new Map(Object.entries(props).map(([name, info]) => [name, info.type || 'JSON']));
-      for (const param of operation?.parameters || []) if ((param.in === 'path' || param.in === 'query') && !columns.has(param.name)) columns.set(param.name, param.type || 'VARCHAR');
+      for (const param of operation?.parameters || []) {
+        const sqlName = param.type === 'array' ? `param_${param.name}` : param.name;
+        if ((param.in === 'path' || param.in === 'query') && !columns.has(sqlName)) columns.set(sqlName, param.type === 'array' ? (param.items_type || 'VARCHAR') : (param.type || 'VARCHAR'));
+      }
       return { name: d.name, columns: [...columns].map(([name, type]) => ({ name, type, nullable: true, key: '', extra: '' })), indexes: [] };
     });
     dispatch({ type: 'SET_SCHEMA', payload: { connectionId, schema: { database: source.name, databases: [], tables: schemaTables, views: [], procedures: [], functions: [], foreignKeys: [] } } });
@@ -630,7 +636,10 @@ export function Sidebar() {
               </button>
               {expanded && ops.map((op) => {
                 const dataset = source.datasets.find((d) => d.operation_id === op.operation_id);
-                return <button type="button" key={`${op.method}:${op.path}`} onClick={() => openApiOperation(source, op)} title={`${op.summary}\n${op.parameters.filter((p) => p.required).map((p) => `${p.in}: ${p.name}`).join(', ')}\nAutenticação: ${JSON.stringify(op.security || [])}`} className="block w-full truncate rounded py-1 pl-4 text-left hover:bg-accent"><span className="text-primary">GET</span> {op.path}{dataset ? ` → ${dataset.name}` : ' · requer configuração'}</button>;
+                return <div key={`${op.method}:${op.path}`} className="flex items-center gap-1 pl-4">
+                  <button type="button" onClick={() => openApiOperation(source, op)} title={op.summary} className="min-w-0 flex-1 truncate rounded py-1 text-left hover:bg-accent"><span className="text-primary">GET</span> {op.path}{dataset ? ` → ${dataset.name}` : ' · requer configuração'}</button>
+                  <button type="button" onClick={() => setParameterTarget(op)} title={`Parâmetros de ${op.path}`} aria-label={`Ver parâmetros de ${op.path}`} className="shrink-0 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"><Info className="h-3.5 w-3.5" /></button>
+                </div>;
               })}
             </div>;
           })}
@@ -1012,6 +1021,27 @@ export function Sidebar() {
         setEditApiTarget(null);
         toast.success('Conexão de API atualizada');
       }} />
+
+      <Dialog open={!!parameterTarget} onOpenChange={(open) => { if (!open) setParameterTarget(null); }}>
+        <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Parâmetros do GET {parameterTarget?.path}</DialogTitle><DialogDescription>{parameterTarget?.summary || 'Parâmetros definidos na documentação OpenAPI.'}</DialogDescription></DialogHeader>
+          {parameterTarget?.parameters.length ? <div className="space-y-2 text-sm">
+            {parameterTarget.parameters.map((param, index) => {
+              const sqlName = param.type === 'array' ? `param_${param.name}` : param.name;
+              const sqlValue = param.type === 'integer' || param.type === 'number' ? '123' : "'valor'";
+              return <div key={`${param.in}:${param.name}:${index}`} className="rounded border p-2">
+                <div className="font-medium">{param.name} <span className="font-normal text-muted-foreground">· {param.in} · {param.type === 'array' ? `lista de ${param.items_type || 'valores'}` : (param.type || 'tipo não informado')} · {param.required ? 'obrigatório' : 'opcional'}</span></div>
+                {param.description && <p className="mt-1 text-muted-foreground">{param.description}</p>}
+                {param.in === 'path' || param.in === 'query' ? <p className="mt-1">Filtro SQL: <code className="rounded bg-muted px-1">WHERE {sqlName} = {sqlValue}</code></p> : <p className="mt-1 text-muted-foreground">Este parâmetro não é preenchido pelo WHERE.</p>}
+                {param.type === 'array' && <p className="mt-1 text-muted-foreground">Use um valor por consulta no filtro SQL. O prefixo param_ evita conflito com uma coluna da resposta.</p>}
+                {Array.isArray(param.enum) && param.enum.length > 0 ? <p className="mt-1">Valores documentados: {param.enum.map(String).join(', ')}</p> : <p className="mt-1 text-muted-foreground">A documentação não lista valores permitidos.</p>}
+                {param.example !== undefined && param.example !== null && <p className="mt-1">Exemplo: <code>{JSON.stringify(param.example)}</code></p>}
+                {param.default !== undefined && param.default !== null && <p className="mt-1">Padrão: <code>{JSON.stringify(param.default)}</code></p>}
+              </div>;
+            })}
+          </div> : <p className="text-sm text-muted-foreground">Este GET não declara parâmetros na OpenAPI.</p>}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!syncTarget} onOpenChange={(open) => { if (!open && !syncBusy) setSyncTarget(null); }}>
         <DialogContent>

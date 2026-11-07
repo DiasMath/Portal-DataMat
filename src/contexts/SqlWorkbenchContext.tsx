@@ -99,7 +99,7 @@ function reducer(state: SqlWorkbenchState, action: Action): SqlWorkbenchState {
 
     case 'ADD_TAB': {
       const newTab: QueryTab = {
-        id: uuidv4(),
+        id: action.payload?.id || uuidv4(),
         title: action.payload?.title || `Query ${state.tabs.length + 1}`,
         sql: action.payload?.sql || NEW_TAB_LINES,
         connectionId: action.payload?.connectionId || state.activeConnectionId || '',
@@ -108,7 +108,11 @@ function reducer(state: SqlWorkbenchState, action: Action): SqlWorkbenchState {
         kind: action.payload?.kind,
         liveParameters: action.payload?.liveParameters,
       };
-      const newTabs = [...state.tabs, newTab].slice(-MAX_TABS);
+      const newTabs = [...state.tabs, newTab];
+      while (newTabs.length > MAX_TABS) {
+        const removable = newTabs.findIndex((tab) => !tab.pinned && tab.id !== newTab.id);
+        newTabs.splice(removable >= 0 ? removable : 0, 1);
+      }
       return { ...state, tabs: newTabs, activeTabId: newTab.id };
     }
 
@@ -271,6 +275,7 @@ export function SqlWorkbenchProvider({ children }: { children: React.ReactNode }
             connectionId: t.connectionId || '',
             isDirty: false,
             savedSql: t.savedSql,
+            pinned: t.pinned,
             messages: [],
             kind: t.kind,
           }));
@@ -318,6 +323,7 @@ export function SqlWorkbenchProvider({ children }: { children: React.ReactNode }
         title: t.title,
         sql: t.sql,
         savedSql: t.savedSql,
+        pinned: t.pinned,
         connectionId: t.connectionId,
         kind: t.kind,
       })),

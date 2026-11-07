@@ -14,6 +14,7 @@ import { SplitPane } from './SplitPane';
 import { ShortcutSettings } from './Settings/ShortcutSettings';
 import { DEFAULT_SHORTCUTS, loadShortcuts, matchesShortcut, type ShortcutAction } from './shortcuts';
 import { QueryVariablesDialog } from './QueryVariablesDialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { extractVariables, substituteVariables } from '@/lib/sql/query-variables';
 import { toast } from 'sonner';
 import {
@@ -50,6 +51,7 @@ export function SqlWorkbench() {
   } = useSqlWorkbench();
   const containerRef = useRef<HTMLDivElement>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showReuseInfo, setShowReuseInfo] = useState(false);
 
   const FONT_SIZE_STORAGE_KEY = 'sql_workbench_font_size';
   const MIN_FONT_SIZE = 10;
@@ -411,7 +413,7 @@ export function SqlWorkbench() {
             </div>
             <div className="flex items-center gap-1 px-2 py-1 border-t border-border flex-wrap">
               <span className="text-xs text-muted-foreground px-1">{activeTab?.connectionId.startsWith('api:') ? 'DuckDB · API REST' : 'MySQL'}</span>
-              {activeTab?.connectionId.startsWith('api:') && <label className="text-xs text-muted-foreground flex items-center gap-1 px-1"><input type="checkbox" defaultChecked={typeof window !== 'undefined' && sessionStorage.getItem('live-api-reuse') === 'true'} onChange={(e) => sessionStorage.setItem('live-api-reuse', String(e.target.checked))} />Reutilizar dados da sessão</label>}
+              {activeTab?.connectionId.startsWith('api:') && <div className="flex items-center gap-1 px-1 text-xs text-muted-foreground"><label className="flex items-center gap-1"><input type="checkbox" defaultChecked={typeof window !== 'undefined' && sessionStorage.getItem('live-api-reuse') === 'true'} onChange={(e) => sessionStorage.setItem('live-api-reuse', String(e.target.checked))} />Reutilizar dados da sessão</label><button type="button" onClick={() => setShowReuseInfo(true)} aria-label="O que significa reutilizar dados da sessão?" className="rounded p-0.5 hover:bg-accent"><HelpCircle className="h-3.5 w-3.5" /></button></div>}
               {state.isExecuting ? (
                 <button
                   onClick={cancelQuery}
@@ -555,6 +557,12 @@ export function SqlWorkbench() {
         onCancel={() => setPendingExecution(null)}
         onSubmit={handleVariablesSubmit}
       />
+      <Dialog open={showReuseInfo} onOpenChange={setShowReuseInfo}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Reutilizar dados da sessão</DialogTitle><DialogDescription>Quando ativado, uma nova consulta pode usar os dados que a mesma fonte de API já coletou, sem chamar novamente os GETs cujos parâmetros não mudaram.</DialogDescription></DialogHeader>
+          <p className="text-sm text-muted-foreground">Use para explorar várias consultas com mais rapidez. Desative para buscar dados atualizados. Os dados ficam apenas na memória do serviço, expiram após 30 minutos de inatividade e podem ser removidos em “Encerrar sessão”.</p>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

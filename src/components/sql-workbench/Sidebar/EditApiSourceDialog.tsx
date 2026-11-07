@@ -85,7 +85,8 @@ export function EditApiSourceDialog({ source, onOpenChange, onSaved }: {
         </>}
         {authKind === 'basic_auth' && <><label>Variável de usuário<Input value={usernameEnv} onChange={(e) => setUsernameEnv(e.target.value)} /></label><label>Variável de senha<Input value={passwordEnv} onChange={(e) => setPasswordEnv(e.target.value)} /></label></>}
       </div>
-      <div className="space-y-2"><h3 className="text-sm font-medium">Endpoints GET ({source?.operations.filter((item) => item.method === 'GET').length || 0}) · tabelas SQL ({datasets.length})</h3>
+      <div className="min-h-0 space-y-2"><h3 className="text-sm font-medium">Endpoints GET ({source?.operations.filter((item) => item.method === 'GET').length || 0}) · tabelas SQL ({datasets.length})</h3>
+        <div className="max-h-64 space-y-2 overflow-y-auto pr-2" role="region" aria-label="Lista de endpoints GET">
         {source?.operations.filter((item) => item.method === 'GET').map((operation) => {
           const dataset = datasets.find((item) => item.operation_id === operation.operation_id);
           return <div key={operation.operation_id} className="rounded border p-2 text-sm">
@@ -108,6 +109,7 @@ export function EditApiSourceDialog({ source, onOpenChange, onSaved }: {
             </div>}
           </div>;
         })}
+        </div>
       </div>
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       <DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>Cancelar</Button><Button onClick={save} disabled={busy || !name.trim() || !baseUrl.trim()} className="gap-2">{busy && <Loader2 className="h-4 w-4 animate-spin" />}Salvar alterações</Button></DialogFooter>

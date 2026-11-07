@@ -11,7 +11,7 @@ export interface ApiOperation {
   path: string;
   summary: string;
   tags: string[];
-  parameters: { name: string; in: string; required: boolean; type?: string }[];
+  parameters: { name: string; in: string; required: boolean; type?: string; items_type?: string | null; description?: string; enum?: unknown[]; example?: unknown; default?: unknown; style?: string | null; explode?: boolean | null }[];
   security?: Record<string, string[]>[];
   response_schema?: Record<string, unknown>;
 }
