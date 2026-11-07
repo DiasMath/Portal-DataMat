@@ -127,6 +127,27 @@ export function Sidebar() {
 
   useEffect(() => { loadApiSources(); }, []);
 
+  useEffect(() => {
+    for (const tab of state.tabs) {
+      if (!tab.connectionId.startsWith('api:') || !tab.sql.startsWith('-- GET /')) continue;
+      const source = apiSources.find((item) => `api:${item.id}` === tab.connectionId);
+      const path = tab.sql.split('\n', 1)[0].slice('-- GET '.length);
+      const operation = source?.operations.find((item) => item.method === 'GET' && item.path === path);
+      if (!operation || operation.parameters.some((parameter) => !Array.isArray(parameter.enum))) continue;
+      const lines = tab.sql.split('\n');
+      const refreshed = lines.map((line) => {
+        const parameter = operation.parameters.find((item) => line.startsWith(`-- ${item.name} (`));
+        return parameter ? parameterComment(parameter) : line;
+      }).join('\n');
+      if (refreshed !== tab.sql) {
+        dispatch({ type: 'UPDATE_TAB', payload: { id: tab.id, updates: {
+          sql: refreshed,
+          ...(tab.savedSql === tab.sql ? { savedSql: refreshed } : {}),
+        } } });
+      }
+    }
+  }, [apiSources, state.tabs, dispatch]);
+
   const openApiOperation = async (source: ApiSource, op: ApiOperation) => {
     if (op.method !== 'GET') return;
     try {
