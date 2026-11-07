@@ -99,13 +99,19 @@ export function EditApiSourceDialog({ source, onOpenChange, onSaved }: {
             {dataset && expanded === operation.operation_id && <div className="mt-2 grid grid-cols-2 gap-2">
               <label>Nome SQL<Input value={dataset.name} onChange={(e) => change(dataset.operation_id, { name: e.target.value })} /></label>
               <label>Caminho dos registros<Input value={dataset.data_path || ''} onChange={(e) => change(dataset.operation_id, { data_path: e.target.value || null })} placeholder="data.items" /></label>
-              <label>Paginação<select className="block w-full rounded border bg-background p-2" value={dataset.pagination.mode} onChange={(e) => change(dataset.operation_id, { pagination: { ...dataset.pagination, mode: e.target.value as 'none' | 'page' } })}><option value="none">Sem paginação</option><option value="page">Por página</option></select></label>
+              <label>Paginação<select className="block w-full rounded border bg-background p-2" value={dataset.pagination.mode} onChange={(e) => change(dataset.operation_id, { pagination: { ...dataset.pagination, mode: e.target.value as 'none' | 'page' | 'cursor' } })}><option value="none">Sem paginação</option><option value="page">Por página</option><option value="cursor">Por cursor</option></select></label>
               {dataset.pagination.mode === 'page' && <>
                 <label>Parâmetro da página<Input value={dataset.pagination.page_param} onChange={(e) => change(dataset.operation_id, { pagination: { ...dataset.pagination, page_param: e.target.value } })} /></label>
                 <label>Parâmetro do tamanho<Input value={dataset.pagination.size_param} onChange={(e) => change(dataset.operation_id, { pagination: { ...dataset.pagination, size_param: e.target.value } })} /></label>
                 <label>Tamanho da página<Input type="number" min={1} max={1000} value={dataset.pagination.size} onChange={(e) => change(dataset.operation_id, { pagination: { ...dataset.pagination, size: Number(e.target.value) } })} /></label>
                 <label>Total na resposta<Input value={dataset.pagination.total_path || ''} onChange={(e) => change(dataset.operation_id, { pagination: { ...dataset.pagination, total_path: e.target.value || null } })} /></label>
                 <label>Há mais páginas<Input value={dataset.pagination.has_more_path || ''} onChange={(e) => change(dataset.operation_id, { pagination: { ...dataset.pagination, has_more_path: e.target.value || null } })} /></label>
+              </>}
+              {dataset.pagination.mode === 'cursor' && <>
+                <label>Parâmetro cursor<Input value={dataset.pagination.cursor_param || 'after'} onChange={(e) => change(dataset.operation_id, { pagination: { ...dataset.pagination, cursor_param: e.target.value } })} /></label>
+                <label>Caminho do próximo cursor<Input value={dataset.pagination.cursor_path || 'paging.cursors.after'} onChange={(e) => change(dataset.operation_id, { pagination: { ...dataset.pagination, cursor_path: e.target.value } })} /></label>
+                <label>Parâmetro tamanho<Input value={dataset.pagination.size_param} onChange={(e) => change(dataset.operation_id, { pagination: { ...dataset.pagination, size_param: e.target.value } })} /></label>
+                <label>Tamanho<Input type="number" min={1} max={1000} value={dataset.pagination.size} onChange={(e) => change(dataset.operation_id, { pagination: { ...dataset.pagination, size: Number(e.target.value) } })} /></label>
               </>}
             </div>}
           </div>;
