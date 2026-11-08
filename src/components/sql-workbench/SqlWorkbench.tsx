@@ -32,7 +32,17 @@ import {
   Loader2,
   ZoomIn,
   ZoomOut,
+  Eye,
 } from 'lucide-react';
+
+type LivePreview = {
+  endpoints: { dataset: string; path: string; pagination: string; max_pages: number; http_parameters: string[]; missing_required: string[] }[];
+  child_tables: string[];
+  max_pages: number;
+  max_http_attempts: number;
+  reuse_requested: boolean;
+  limit_pushdown: number | null;
+};
 
 export function SqlWorkbench() {
   const {
@@ -53,6 +63,10 @@ export function SqlWorkbench() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showReuseInfo, setShowReuseInfo] = useState(false);
+  const [showLivePreview, setShowLivePreview] = useState(false);
+  const [livePreview, setLivePreview] = useState<LivePreview | null>(null);
+  const [livePreviewError, setLivePreviewError] = useState('');
+  const [livePreviewBusy, setLivePreviewBusy] = useState(false);
 
   const FONT_SIZE_STORAGE_KEY = 'sql_workbench_font_size';
   const MIN_FONT_SIZE = 10;
@@ -109,6 +123,29 @@ export function SqlWorkbench() {
     // ignorava a seleção e sempre rodava a aba inteira.
     const selected = getSelectedSql(activeTab.id);
     runWithVariables(selected || activeTab.sql);
+  };
+
+  const handleLivePreview = async () => {
+    const connectionId = activeTab?.connectionId || state.activeConnectionId;
+    const sql = activeTab ? getSelectedSql(activeTab.id) || activeTab.sql : '';
+    if (!connectionId?.startsWith('api:') || !sql.trim()) return;
+    setLivePreview(null);
+    setLivePreviewError('');
+    setShowLivePreview(true);
+    setLivePreviewBusy(true);
+    try {
+      const response = await fetch(`/api/sql/live/sources/${connectionId.slice(4)}/preview`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sql, parameters: activeTab?.liveParameters || {}, reuse: sessionStorage.getItem('live-api-reuse') === 'true' }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || data.error || 'Não foi possível calcular a prévia');
+      setLivePreview(data as LivePreview);
+    } catch (error) {
+      setLivePreviewError(error instanceof Error ? error.message : 'Não foi possível calcular a prévia');
+    } finally {
+      setLivePreviewBusy(false);
+    }
   };
 
   // Variáveis de query (`:nome_da_variavel`, preenchidas antes de
@@ -436,6 +473,12 @@ export function SqlWorkbench() {
                 </button>
               )}
 
+              {activeTab?.connectionId.startsWith('api:') && <button
+                type="button" onClick={handleLivePreview} disabled={state.isExecuting}
+                className="flex items-center gap-1.5 rounded px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
+                title="Mostrar endpoints e limite de chamadas antes de executar"
+              ><Eye className="h-3.5 w-3.5" />Prévia de chamadas</button>}
+
               <button
                 onClick={() => executeTransaction('BEGIN')}
                 className="p-1.5 hover:bg-accent rounded transition-colors"
@@ -562,6 +605,26 @@ export function SqlWorkbench() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>Reutilizar dados da sessão</DialogTitle><DialogDescription>Quando ativado, uma nova consulta pode usar os dados que a mesma fonte de API já coletou, sem chamar novamente os GETs cujos parâmetros não mudaram.</DialogDescription></DialogHeader>
           <p className="text-sm text-muted-foreground">Use para explorar várias consultas com mais rapidez. Desative para buscar dados atualizados. Os dados ficam apenas na memória do serviço, expiram após 30 minutos de inatividade e podem ser removidos em “Encerrar sessão”.</p>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={showLivePreview} onOpenChange={setShowLivePreview}>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Prévia de chamadas da API</DialogTitle><DialogDescription>Planejamento sem executar a consulta nem acessar a API externa.</DialogDescription></DialogHeader>
+          {livePreviewBusy && <p className="flex items-center gap-2 text-sm"><Loader2 className="h-4 w-4 animate-spin" />Calculando...</p>}
+          {livePreviewError && <p role="alert" className="text-sm text-destructive">{livePreviewError}</p>}
+          {livePreview && <div className="space-y-3 text-sm">
+            <p>Até {livePreview.max_pages} página(s) HTTP; até {livePreview.max_http_attempts} tentativa(s) incluindo novas tentativas por falha.</p>
+            {livePreview.endpoints.map((endpoint) => <div key={endpoint.dataset} className="rounded border border-border p-2">
+              <div className="font-medium">GET {endpoint.path} → {endpoint.dataset}</div>
+              <div className="text-muted-foreground">Paginação: {endpoint.pagination} · até {endpoint.max_pages} página(s)</div>
+              <div className="text-muted-foreground">Parâmetros enviados: {endpoint.http_parameters.join(', ') || 'nenhum'}</div>
+              {endpoint.missing_required.length > 0 && <div className="text-amber-500">Preencher no WHERE: {endpoint.missing_required.join(', ')}</div>}
+            </div>)}
+            {livePreview.child_tables.length > 0 && <p>Tabelas filhas derivadas da mesma coleta: {livePreview.child_tables.join(', ')}.</p>}
+            {livePreview.limit_pushdown && <p>LIMIT {livePreview.limit_pushdown}: a coleta pode parar após alcançar essa quantidade.</p>}
+            {livePreview.reuse_requested && <p>Dados da sessão poderão evitar chamadas se os parâmetros coincidirem.</p>}
+            <p className="text-xs text-muted-foreground">Outros filtros SQL são aplicados localmente após a coleta. A quantidade real de páginas depende da resposta da API.</p>
+          </div>}
         </DialogContent>
       </Dialog>
     </div>

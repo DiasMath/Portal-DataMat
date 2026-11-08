@@ -23,6 +23,13 @@ export interface ApiDataset {
   pagination: { mode: 'none' | 'page' | 'cursor'; page_param: string; size_param: string; cursor_param?: string; cursor_path?: string; size: number; start_page: number; total_path?: string | null; has_more_path?: string | null };
 }
 
+export interface ApiChildTable {
+  name: string;
+  parent_dataset: string;
+  field: string;
+  columns: { name: string; type: string }[];
+}
+
 export interface ApiSource {
   id: string;
   name: string;
@@ -31,6 +38,7 @@ export interface ApiSource {
   spec_url?: string | null;
   operations: ApiOperation[];
   datasets: ApiDataset[];
+  child_tables?: ApiChildTable[];
   auth?: { kind: string; key_env?: string; header_name?: string; key_prefix?: string; username_env?: string; password_env?: string; has_key?: boolean };
 }
 

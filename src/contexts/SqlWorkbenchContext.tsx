@@ -400,8 +400,11 @@ export function SqlWorkbenchProvider({ children }: { children: React.ReactNode }
             if (!Array.isArray(fields)) return table;
             const columns = new Map(table.columns.map((column) => [column.name, column]));
             for (const field of fields) {
-              if (typeof field.name !== 'string' || columns.has(field.name)) continue;
-              columns.set(field.name, { name: field.name, type: field.type || 'JSON', nullable: true, key: '', extra: '' });
+              if (typeof field.name !== 'string') continue;
+              const previous = columns.get(field.name);
+              columns.set(field.name, previous
+                ? { ...previous, type: field.type || previous.type }
+                : { name: field.name, type: field.type || 'JSON', nullable: true, key: '', extra: '' });
             }
             return { ...table, columns: [...columns.values()] };
           });
@@ -419,11 +422,16 @@ export function SqlWorkbenchProvider({ children }: { children: React.ReactNode }
           sourceSql: querySql,
         };
 
-        const tabMessages = (data.messages as Array<{ type: string; text: string }>)?.map((m) => ({
+        const tabMessages: QueryMessage[] = (data.messages as Array<{ type: string; text: string }>)?.map((m) => ({
           type: m.type as 'success' | 'error',
           text: m.text,
           executionTime,
         })) || [{ type: 'success' as const, text: (data.message as string) || `${(data.rows as unknown[])?.length || 0} row(s) returned`, executionTime }];
+        if (Array.isArray(data.schema_warnings)) {
+          for (const warning of data.schema_warnings) {
+            if (typeof warning === 'string') tabMessages.push({ type: 'info', text: warning, executionTime });
+          }
+        }
 
         dispatch({
           type: 'UPDATE_TAB',

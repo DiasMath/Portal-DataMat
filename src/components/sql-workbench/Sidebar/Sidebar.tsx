@@ -148,7 +148,7 @@ export function Sidebar() {
     }
   }, [apiSources, state.tabs, dispatch]);
 
-  const openApiOperation = async (source: ApiSource, op: ApiOperation) => {
+  const openApiOperation = async (source: ApiSource, op: ApiOperation, childTableName?: string) => {
     if (op.method !== 'GET') return;
     try {
       const response = await fetch(`/api/sql/live/sources/${source.id}`);
@@ -172,7 +172,8 @@ export function Sidebar() {
     });
     const dynamicFields = Boolean((op.response_schema as { additionalProperties?: unknown } | undefined)?.additionalProperties);
     const comments = op.parameters.length || dynamicFields ? [`-- GET ${op.path}`, ...op.parameters.map(parameterComment), ...(dynamicFields ? ['-- Campos dinâmicos desta resposta aparecem no autocomplete após a primeira execução.'] : []), ...(predicates.some((item) => item.endsWith("= ''")) ? ['-- Preencha os valores vazios antes de executar.'] : [])].join('\n') + '\n' : '';
-    const sql = `${comments}SELECT * FROM ${dataset.name}${predicates.length ? `\nWHERE ${predicates.join('\n  AND ')}` : ''};`;
+    const tableName = childTableName || dataset.name;
+    const sql = `${comments}SELECT * FROM ${tableName}${predicates.length ? `\nWHERE ${predicates.join('\n  AND ')}` : ''};`;
     dispatch({ type: 'SET_ACTIVE_CONNECTION', payload: connectionId });
     const schemaTables = source.datasets.map((d) => {
       const operation = source.operations.find((o) => o.operation_id === d.operation_id);
@@ -183,8 +184,13 @@ export function Sidebar() {
       }
       return { name: d.name, columns: [...columns].map(([name, type]) => ({ name, type, nullable: true, key: '', extra: '' })), indexes: [] };
     });
+    schemaTables.push(...(source.child_tables || []).map((child) => ({
+      name: child.name,
+      columns: child.columns.map((column) => ({ name: column.name, type: column.type, nullable: true, key: '', extra: '' })),
+      indexes: [],
+    })));
     dispatch({ type: 'SET_SCHEMA', payload: { connectionId, schema: { database: source.name, databases: [], tables: schemaTables, views: [], procedures: [], functions: [], foreignKeys: [] } } });
-    newTab(dataset.name, sql, connectionId, 'query');
+    newTab(tableName, sql, connectionId, 'query');
   };
 
   const openParameterInfo = async (source: ApiSource, op: ApiOperation) => {
@@ -719,9 +725,14 @@ export function Sidebar() {
               </button>
               {expanded && ops.map((op) => {
                 const dataset = source.datasets.find((d) => d.operation_id === op.operation_id);
-                return <div key={`${op.method}:${op.path}`} className="flex items-center gap-1 pl-4">
-                  <button type="button" onClick={() => openApiOperation(source, op)} title={op.summary} className="min-w-0 flex-1 truncate rounded py-1 text-left hover:bg-accent"><span className="text-primary">GET</span> {op.path}{dataset ? ` → ${dataset.name}` : ' · requer configuração'}</button>
-                  <button type="button" onClick={() => openParameterInfo(source, op)} title={`Parâmetros de ${op.path}`} aria-label={`Ver parâmetros de ${op.path}`} className="shrink-0 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"><Info className="h-3.5 w-3.5" /></button>
+                return <div key={`${op.method}:${op.path}`} className="pl-4">
+                  <div className="flex items-center gap-1">
+                    <button type="button" onClick={() => openApiOperation(source, op)} title={op.summary} className="min-w-0 flex-1 truncate rounded py-1 text-left hover:bg-accent"><span className="text-primary">GET</span> {op.path}{dataset ? ` → ${dataset.name}` : ' · requer configuração'}</button>
+                    <button type="button" onClick={() => openParameterInfo(source, op)} title={`Parâmetros de ${op.path}`} aria-label={`Ver parâmetros de ${op.path}`} className="shrink-0 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"><Info className="h-3.5 w-3.5" /></button>
+                  </div>
+                  {dataset && (source.child_tables || []).filter((child) => child.parent_dataset === dataset.name).map((child) =>
+                    <button key={child.name} type="button" onClick={() => openApiOperation(source, op, child.name)} className="block w-full truncate rounded py-0.5 pl-3 text-left text-muted-foreground hover:bg-accent hover:text-foreground" title={`Tabela filha de ${dataset.name}: ${child.field}`}>↳ {child.name}</button>
+                  )}
                 </div>;
               })}
             </div>;
