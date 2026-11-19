@@ -192,7 +192,7 @@ interface SqlWorkbenchContextType {
   dispatch: React.Dispatch<Action>;
   activeTab: QueryTab | undefined;
   secondaryTab: QueryTab | undefined;
-  executeQuery: (sql?: string) => Promise<boolean>;
+  executeQuery: (sql?: string, options?: { liveReuse?: boolean }) => Promise<boolean>;
   cancelQuery: () => Promise<void>;
   formatSql: () => void;
   newTab: (title?: string, sql?: string, connectionId?: string, kind?: QueryTab['kind'], liveParameters?: QueryTab['liveParameters']) => void;
@@ -337,7 +337,7 @@ export function SqlWorkbenchProvider({ children }: { children: React.ReactNode }
     }
   }, [state.sidebarCollapsed, state.sidebarWidth, state.resultsHeight, state.splitMode, state.splitSize, state.activeTabId, state.secondaryTabId, state.tabs, state.queryHistory]);
 
-  const executeQuery = useCallback(async (sql?: string) => {
+  const executeQuery = useCallback(async (sql?: string, options?: { liveReuse?: boolean }) => {
     const s = stateRef.current;
     const activeTab = s.tabs.find((t) => t.id === s.activeTabId);
     const querySql = sql || activeTab?.sql;
@@ -359,7 +359,7 @@ export function SqlWorkbenchProvider({ children }: { children: React.ReactNode }
       const res = await fetch('/api/sql/execute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ connectionId, sql: querySql, database, executionId, liveParameters: activeTab?.liveParameters, liveReuse: sessionStorage.getItem('live-api-reuse') === 'true' }),
+        body: JSON.stringify({ connectionId, sql: querySql, database, executionId, liveParameters: activeTab?.liveParameters, liveReuse: options?.liveReuse ?? (sessionStorage.getItem('live-api-reuse') !== 'false') }),
       });
 
       data = await res.json();
@@ -367,21 +367,22 @@ export function SqlWorkbenchProvider({ children }: { children: React.ReactNode }
         const liveExecutionId = data.executionId as string;
         dispatch({ type: 'SET_EXECUTING', payload: { isExecuting: true, activeExecutionId: liveExecutionId } });
         let lastProgress = '';
-        for (let attempt = 0; attempt < 240; attempt++) {
-          await new Promise((resolve) => setTimeout(resolve, 500));
+        for (let attempt = 0; attempt < 3660; attempt++) {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
           const statusRes = await fetch(`/api/sql/live/executions/${liveExecutionId}`);
           const statusData = await statusRes.json();
           if (!statusRes.ok) throw new Error(statusData.error || 'Falha ao acompanhar execução');
           if (statusData.progress) {
-            const progress = `${statusData.progress.dataset}: ${statusData.progress.pages} página(s), ${statusData.progress.records} registro(s)`;
+            const phase = statusData.progress.phase === 'preparing_sql' ? 'Preparando tabela SQL' : statusData.progress.resumed ? 'Retomando coleta' : 'Coletando';
+            const progress = `${phase} ${statusData.progress.dataset}: ${statusData.progress.pages} página(s), ${statusData.progress.records} registro(s)`;
             if (progress !== lastProgress) {
               lastProgress = progress;
-              dispatch({ type: 'UPDATE_TAB', payload: { id: s.activeTabId!, updates: { messages: [{ type: 'info', text: `Coletando ${progress}` }] } } });
+              dispatch({ type: 'UPDATE_TAB', payload: { id: s.activeTabId!, updates: { messages: [{ type: 'info', text: progress }] } } });
             }
           }
           if (statusData.status === 'completed') {
             const liveResult = statusData.result;
-            data = { success: true, ...liveResult, message: `${liveResult.row_count} linhas · API ${liveResult.api_ms} ms · DuckDB ${liveResult.sql_ms} ms · ${liveResult.collection.map((c: { dataset: string; pages: number; records: number }) => `${c.dataset}: ${c.records} registros/${c.pages} páginas`).join(', ')}` };
+            data = { success: true, ...liveResult, message: `${liveResult.row_count} linhas · API ${liveResult.api_ms} ms · DuckDB ${liveResult.sql_ms} ms · ${liveResult.collection.map((c: { dataset: string; pages: number; records: number; reused?: boolean; resumed?: boolean }) => c.reused ? `${c.dataset}: ${c.records} registros salvos` : `${c.dataset}: ${c.records} registros/${c.pages} páginas${c.resumed ? ' (retomada)' : ''}`).join(', ')}` };
             break;
           }
           if (statusData.status === 'failed' || statusData.status === 'cancelled') throw new Error(statusData.error || 'Execução interrompida');

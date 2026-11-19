@@ -36,7 +36,7 @@ import {
 } from 'lucide-react';
 
 type LivePreview = {
-  endpoints: { dataset: string; path: string; pagination: string; max_pages: number; http_parameters: string[]; missing_required: string[] }[];
+  endpoints: { dataset: string; path: string; pagination: string; max_pages: number; cached: boolean; saved_pages: number; http_parameters: string[]; missing_required: string[] }[];
   child_tables: string[];
   max_pages: number;
   max_http_attempts: number;
@@ -63,6 +63,7 @@ export function SqlWorkbench() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showReuseInfo, setShowReuseInfo] = useState(false);
+  const [reuseLiveData, setReuseLiveData] = useState(true);
   const [showLivePreview, setShowLivePreview] = useState(false);
   const [livePreview, setLivePreview] = useState<LivePreview | null>(null);
   const [livePreviewError, setLivePreviewError] = useState('');
@@ -79,6 +80,10 @@ export function SqlWorkbench() {
       const parsed = parseInt(saved, 10);
       if (!isNaN(parsed)) setFontSize(parsed);
     }
+  }, []);
+
+  useEffect(() => {
+    setReuseLiveData(sessionStorage.getItem('live-api-reuse') !== 'false');
   }, []);
 
   const adjustFontSize = (delta: number) => {
@@ -136,7 +141,7 @@ export function SqlWorkbench() {
     try {
       const response = await fetch(`/api/sql/live/sources/${connectionId.slice(4)}/preview`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sql, parameters: activeTab?.liveParameters || {}, reuse: sessionStorage.getItem('live-api-reuse') === 'true' }),
+        body: JSON.stringify({ sql, parameters: activeTab?.liveParameters || {}, reuse: sessionStorage.getItem('live-api-reuse') !== 'false' }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || data.error || 'Não foi possível calcular a prévia');
@@ -152,7 +157,7 @@ export function SqlWorkbench() {
   // executar). Os últimos valores digitados ficam salvos no localStorage
   // pra não precisar redigitar a mesma data/id toda vez que roda de novo.
   const VARIABLES_STORAGE_KEY = 'sql_workbench_variable_defaults';
-  const [pendingExecution, setPendingExecution] = useState<{ sql: string } | null>(null);
+  const [pendingExecution, setPendingExecution] = useState<{ sql: string; refresh: boolean } | null>(null);
   const [variableDefaults, setVariableDefaults] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -162,13 +167,21 @@ export function SqlWorkbench() {
     } catch { /* ignore */ }
   }, []);
 
-  const runWithVariables = (sql: string) => {
+  const runWithVariables = (sql: string, refresh = false) => {
     const vars = extractVariables(sql);
     if (vars.length === 0) {
-      executeQuery(sql);
+      executeQuery(sql, refresh ? { liveReuse: false } : undefined);
       return;
     }
-    setPendingExecution({ sql });
+    setPendingExecution({ sql, refresh });
+  };
+
+  const handleRefreshLiveData = () => {
+    if (!activeTab?.connectionId.startsWith('api:') || !activeTab.sql.trim()) {
+      toast.error('Abra uma consulta de API para atualizar os dados');
+      return;
+    }
+    runWithVariables(getSelectedSql(activeTab.id) || activeTab.sql, true);
   };
 
   const handleVariablesSubmit = (values: Record<string, string>) => {
@@ -180,7 +193,7 @@ export function SqlWorkbench() {
     } catch { /* ignore */ }
     const finalSql = substituteVariables(pendingExecution.sql, values);
     setPendingExecution(null);
-    executeQuery(finalSql);
+    executeQuery(finalSql, pendingExecution.refresh ? { liveReuse: false } : undefined);
   };
 
   const executeTransaction = (command: 'BEGIN' | 'COMMIT' | 'ROLLBACK') => {
@@ -451,7 +464,7 @@ export function SqlWorkbench() {
             </div>
             <div className="flex items-center gap-1 px-2 py-1 border-t border-border flex-wrap">
               <span className="text-xs text-muted-foreground px-1">{activeTab?.connectionId.startsWith('api:') ? 'DuckDB · API REST' : 'MySQL'}</span>
-              {activeTab?.connectionId.startsWith('api:') && <div className="flex items-center gap-1 px-1 text-xs text-muted-foreground"><label className="flex items-center gap-1"><input type="checkbox" defaultChecked={typeof window !== 'undefined' && sessionStorage.getItem('live-api-reuse') === 'true'} onChange={(e) => sessionStorage.setItem('live-api-reuse', String(e.target.checked))} />Reutilizar dados da sessão</label><button type="button" onClick={() => setShowReuseInfo(true)} aria-label="O que significa reutilizar dados da sessão?" className="rounded p-0.5 hover:bg-accent"><HelpCircle className="h-3.5 w-3.5" /></button></div>}
+              {activeTab?.connectionId.startsWith('api:') && <div className="flex items-center gap-1 px-1 text-xs text-muted-foreground"><label className="flex items-center gap-1"><input type="checkbox" checked={reuseLiveData} onChange={(e) => { setReuseLiveData(e.target.checked); sessionStorage.setItem('live-api-reuse', String(e.target.checked)); }} />Reutilizar dados salvos</label><button type="button" onClick={() => setShowReuseInfo(true)} aria-label="O que significa reutilizar dados salvos?" className="rounded p-0.5 hover:bg-accent"><HelpCircle className="h-3.5 w-3.5" /></button></div>}
               {state.isExecuting ? (
                 <button
                   onClick={cancelQuery}
@@ -472,6 +485,12 @@ export function SqlWorkbench() {
                   Executar
                 </button>
               )}
+
+              {activeTab?.connectionId.startsWith('api:') && !state.isExecuting && <button
+                type="button" onClick={handleRefreshLiveData}
+                className="flex items-center gap-1.5 rounded px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+                title="Buscar novamente todas as páginas usadas por esta consulta"
+              ><RotateCcw className="h-3.5 w-3.5" />Atualizar dados</button>}
 
               {activeTab?.connectionId.startsWith('api:') && <button
                 type="button" onClick={handleLivePreview} disabled={state.isExecuting}
@@ -603,8 +622,8 @@ export function SqlWorkbench() {
       />
       <Dialog open={showReuseInfo} onOpenChange={setShowReuseInfo}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Reutilizar dados da sessão</DialogTitle><DialogDescription>Quando ativado, uma nova consulta pode usar os dados que a mesma fonte de API já coletou, sem chamar novamente os GETs cujos parâmetros não mudaram.</DialogDescription></DialogHeader>
-          <p className="text-sm text-muted-foreground">Use para explorar várias consultas com mais rapidez. Desative para buscar dados atualizados. Os dados ficam apenas na memória do serviço, expiram após 30 minutos de inatividade e podem ser removidos em “Encerrar sessão”.</p>
+          <DialogHeader><DialogTitle>Reutilizar dados salvos</DialogTitle><DialogDescription>Quando ativado, consultas sobre a mesma fonte e os mesmos parâmetros usam a coleta completa já salva, sem repetir os GETs.</DialogDescription></DialogHeader>
+          <p className="text-sm text-muted-foreground">Fica ativado por padrão. Clique em “Atualizar dados” para fazer uma nova coleta uma vez, ou desative esta opção para atualizar em cada execução. As páginas são salvas no servidor e uma coleta interrompida pode continuar de onde parou. “Encerrar sessão” descarta os dados salvos dessa conexão.</p>
         </DialogContent>
       </Dialog>
       <Dialog open={showLivePreview} onOpenChange={setShowLivePreview}>
@@ -613,10 +632,14 @@ export function SqlWorkbench() {
           {livePreviewBusy && <p className="flex items-center gap-2 text-sm"><Loader2 className="h-4 w-4 animate-spin" />Calculando...</p>}
           {livePreviewError && <p role="alert" className="text-sm text-destructive">{livePreviewError}</p>}
           {livePreview && <div className="space-y-3 text-sm">
-            <p>Até {livePreview.max_pages} página(s) HTTP; até {livePreview.max_http_attempts} tentativa(s) incluindo novas tentativas por falha.</p>
+            {livePreview.max_pages === 0
+              ? <p>A consulta usará os dados salvos, sem novos GETs.</p>
+              : <p>Teto de segurança: {livePreview.max_pages} página(s) HTTP e {livePreview.max_http_attempts} tentativa(s), incluindo novas tentativas por falha. A coleta para quando a API indicar o fim.</p>}
             {livePreview.endpoints.map((endpoint) => <div key={endpoint.dataset} className="rounded border border-border p-2">
               <div className="font-medium">GET {endpoint.path} → {endpoint.dataset}</div>
-              <div className="text-muted-foreground">Paginação: {endpoint.pagination} · até {endpoint.max_pages} página(s)</div>
+              <div className="text-muted-foreground">Paginação: {endpoint.pagination}{endpoint.cached ? '' : ` · teto de ${endpoint.max_pages} página(s)`}</div>
+              {endpoint.cached && <div className="text-primary">Coleta completa salva: sem novos GETs.</div>}
+              {!endpoint.cached && endpoint.saved_pages > 0 && <div className="text-primary">Coleta interrompida: {endpoint.saved_pages} página(s) já salva(s) para retomada.</div>}
               <div className="text-muted-foreground">Parâmetros enviados: {endpoint.http_parameters.join(', ') || 'nenhum'}</div>
               {endpoint.missing_required.length > 0 && <div className="text-amber-500">Preencher no WHERE: {endpoint.missing_required.join(', ')}</div>}
             </div>)}

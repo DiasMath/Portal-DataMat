@@ -5,7 +5,7 @@ let verifiedAt = 0;
 async function verifyLiveApiVersion() {
   if (Date.now() - verifiedAt < 5_000) return;
   const response = await fetch(`${LIVE_API_URL}/health`, { cache: 'no-store', signal: AbortSignal.timeout(3_000) });
-  if (!response.ok || (await response.json()).live_sql_version !== 2) {
+  if (!response.ok || (await response.json()).live_sql_version !== 3) {
     throw new Error('LIVE_API_BACKEND_OUTDATED');
   }
   verifiedAt = Date.now();
