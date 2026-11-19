@@ -39,7 +39,7 @@ export interface ApiSource {
   operations: ApiOperation[];
   datasets: ApiDataset[];
   child_tables?: ApiChildTable[];
-  auth?: { kind: string; key_env?: string; header_name?: string; key_prefix?: string; username_env?: string; password_env?: string; has_key?: boolean };
+  auth?: { kind: string; key_env?: string; header_name?: string; key_prefix?: string; username_env?: string; password_env?: string; client_id_env?: string; client_secret_env?: string; token_url_env?: string; scope_env?: string; has_key?: boolean };
 }
 
 export function suggestDatasetName(op: ApiOperation): string {
@@ -61,13 +61,17 @@ export function ImportApiForm({ onSaved }: { onSaved: (source: ApiSource) => voi
   const [datasets, setDatasets] = useState<Record<string, ApiDataset>>({});
   const [skipped, setSkipped] = useState<Record<string, string>>({});
   const [expandedOperationId, setExpandedOperationId] = useState<string | null>(null);
-  const [authKind, setAuthKind] = useState<'none' | 'api_key' | 'basic_auth'>('none');
+  const [authKind, setAuthKind] = useState<'none' | 'api_key' | 'basic_auth' | 'oauth2_client_credentials'>('none');
   const [keyEnv, setKeyEnv] = useState('');
   const [keyValue, setKeyValue] = useState('');
   const [headerName, setHeaderName] = useState('X-API-Key');
   const [keyPrefix, setKeyPrefix] = useState('');
   const [userEnv, setUserEnv] = useState('');
   const [passwordEnv, setPasswordEnv] = useState('');
+  const [clientIdEnv, setClientIdEnv] = useState('');
+  const [clientSecretEnv, setClientSecretEnv] = useState('');
+  const [tokenUrlEnv, setTokenUrlEnv] = useState('');
+  const [scopeEnv, setScopeEnv] = useState('');
   const [busy, setBusy] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const [error, setError] = useState('');
@@ -102,7 +106,7 @@ export function ImportApiForm({ onSaved }: { onSaved: (source: ApiSource) => voi
     if (!spec) return;
     setBusy(true); setError('');
     try {
-      const auth = authKind === 'api_key' ? { kind: 'api_key', ...(keyValue ? { key_value: keyValue } : { key_env: keyEnv }), header_name: headerName, key_prefix: keyPrefix, send_as: 'header' } : authKind === 'basic_auth' ? { kind: 'basic_auth', username_env: userEnv, password_env: passwordEnv } : { kind: 'none' };
+      const auth = authKind === 'api_key' ? { kind: 'api_key', ...(keyValue ? { key_value: keyValue } : { key_env: keyEnv }), header_name: headerName, key_prefix: keyPrefix, send_as: 'header' } : authKind === 'basic_auth' ? { kind: 'basic_auth', username_env: userEnv, password_env: passwordEnv } : authKind === 'oauth2_client_credentials' ? { kind: authKind, client_id_env: clientIdEnv, client_secret_env: clientSecretEnv, token_url_env: tokenUrlEnv, ...(scopeEnv ? { scope_env: scopeEnv } : {}) } : { kind: 'none' };
       const res = await fetch('/api/sql/live/sources', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, tenant_id: tenantId, base_url: baseUrl, spec, spec_url: specText ? null : specUrl, auth, datasets: Object.values(datasets) }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || data.error || 'Falha ao cadastrar fonte');
@@ -116,9 +120,11 @@ export function ImportApiForm({ onSaved }: { onSaved: (source: ApiSource) => voi
       <label>Nome<Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Minha API" /></label>
       <label>Tenant ID<Input value={tenantId} onChange={(e) => setTenantId(e.target.value)} /></label>
       <label>URL base HTTPS<Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://api.exemplo.com" /></label>
-      <label className="col-span-2">Autenticação<select className="block w-full bg-background border rounded p-2" value={authKind} onChange={(e) => setAuthKind(e.target.value as typeof authKind)}><option value="none">Nenhuma</option><option value="api_key">API Key em header</option><option value="basic_auth">Basic Auth</option></select></label>
+      <label className="col-span-2">Autenticação<select className="block w-full bg-background border rounded p-2" value={authKind} onChange={(e) => setAuthKind(e.target.value as typeof authKind)}><option value="none">Nenhuma</option><option value="api_key">API Key em header</option><option value="basic_auth">Basic Auth</option><option value="oauth2_client_credentials">OAuth2 · Client Credentials</option></select></label>
       {authKind === 'api_key' && <><label>API Key<Input type="password" autoComplete="off" value={keyValue} onChange={(e) => setKeyValue(e.target.value)} placeholder="Chave da API" /></label><label>Ou nome da variável de ambiente<Input value={keyEnv} onChange={(e) => setKeyEnv(e.target.value)} disabled={!!keyValue} /></label><label>Nome do header<Input value={headerName} onChange={(e) => setHeaderName(e.target.value)} /></label><label>Prefixo (opcional)<Input value={keyPrefix} onChange={(e) => setKeyPrefix(e.target.value)} placeholder="Bearer " /></label></>}
       {authKind === 'basic_auth' && <><label>Variável de usuário<Input value={userEnv} onChange={(e) => setUserEnv(e.target.value)} /></label><label>Variável de senha<Input value={passwordEnv} onChange={(e) => setPasswordEnv(e.target.value)} /></label></>}
+      {authKind === 'oauth2_client_credentials' && <><label>Variável Client ID<Input value={clientIdEnv} onChange={(e) => setClientIdEnv(e.target.value)} /></label><label>Variável Client Secret<Input value={clientSecretEnv} onChange={(e) => setClientSecretEnv(e.target.value)} /></label><label>Variável Token URL<Input value={tokenUrlEnv} onChange={(e) => setTokenUrlEnv(e.target.value)} /></label><label>Variável Scope (opcional)<Input value={scopeEnv} onChange={(e) => setScopeEnv(e.target.value)} /></label></>}
+      {authKind !== 'none' && <p className="col-span-2 text-xs text-muted-foreground">Variáveis de ambiente devem estar autorizadas em LIVE_API_ALLOWED_SECRET_ENVS no serviço FastAPI.</p>}
       <label className="col-span-2">OpenAPI por URL<Input value={specUrl} onChange={(e) => setSpecUrl(e.target.value)} placeholder="https://api.exemplo.com/openapi.json" /></label>
       <label className="col-span-2">Ou arquivo JSON/YAML<Input type="file" accept=".json,.yaml,.yml" onChange={async (e) => { const file = e.target.files?.[0]; if (file) { setSpecText(await file.text()); setSpecUrl(''); } }} /></label>
     </div>

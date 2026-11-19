@@ -27,10 +27,6 @@ export function ShortcutSettings({ open, onOpenChange }: ShortcutSettingsProps) 
   const [shortcuts, setShortcuts] = useState<Record<ShortcutAction, string>>(DEFAULT_SHORTCUTS);
   const [editingKey, setEditingKey] = useState<ShortcutAction | null>(null);
 
-  useEffect(() => {
-    if (open) setShortcuts(loadShortcuts());
-  }, [open]);
-
   // Escuta o teclado no window (não num elemento específico) enquanto
   // `editingKey` estiver setado. A versão anterior colocava o `onKeyDown`
   // no botão que só existe quando NÃO se está editando — ou seja, nunca
@@ -76,7 +72,7 @@ export function ShortcutSettings({ open, onOpenChange }: ShortcutSettingsProps) 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-card border-border max-w-md">
+      <DialogContent className="bg-card border-border max-w-md" onOpenAutoFocus={() => setShortcuts(loadShortcuts())}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Keyboard className="h-5 w-5" />

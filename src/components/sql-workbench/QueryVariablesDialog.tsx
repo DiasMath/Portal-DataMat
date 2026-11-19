@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -29,21 +29,17 @@ interface QueryVariablesDialogProps {
 export function QueryVariablesDialog({ open, variables, defaults, onCancel, onSubmit }: QueryVariablesDialogProps) {
   const [values, setValues] = useState<Record<string, string>>({});
 
-  useEffect(() => {
-    if (open) {
-      const initial: Record<string, string> = {};
-      variables.forEach((v) => { initial[v] = defaults[v] || ''; });
-      setValues(initial);
-    }
-  }, [open, variables, defaults]);
-
   const handleSubmit = () => {
     onSubmit(values);
   };
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onCancel()}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md" onOpenAutoFocus={() => {
+        const initial: Record<string, string> = {};
+        variables.forEach((v) => { initial[v] = defaults[v] || ''; });
+        setValues(initial);
+      }}>
         <DialogHeader>
           <DialogTitle>Preencher variáveis</DialogTitle>
         </DialogHeader>

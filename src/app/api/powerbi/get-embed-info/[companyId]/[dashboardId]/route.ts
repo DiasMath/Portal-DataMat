@@ -6,31 +6,21 @@ import { validateAuthorized } from "@/lib/auth-helpers";
 const isDev = process.env.NODE_ENV !== "production";
 
 // Configuração MSAL / Power BI (mesma base da rota padrão)
-const TENANT_ID = process.env.PBI_TENANT_ID;
-const CLIENT_ID = process.env.PBI_CLIENT_ID;
-const CLIENT_SECRET = process.env.PBI_CLIENT_SECRET;
-
-const AUTHORITY_URL = `${process.env.PBI_AUTHORITY_URL}${TENANT_ID}`;
-const SCOPE = [process.env.PBI_SCOPE || ""];
 const API_BASE_URL = process.env.PBI_API_BASE_URL;
 
-const msalConfig = {
-  auth: {
-    clientId: CLIENT_ID || "",
-    authority: AUTHORITY_URL,
-    clientSecret: CLIENT_SECRET,
-  },
-};
-const cca = new msal.ConfidentialClientApplication(msalConfig);
-
 async function getAccessToken() {
-  const clientCredentialRequest = {
-    scopes: SCOPE,
-  };
-
   try {
+    const tenantId = process.env.PBI_TENANT_ID;
+    const clientId = process.env.PBI_CLIENT_ID;
+    const clientSecret = process.env.PBI_CLIENT_SECRET;
+    if (!tenantId || !clientId || !clientSecret) {
+      throw new Error("Credenciais Power BI não configuradas.");
+    }
+    const cca = new msal.ConfidentialClientApplication({
+      auth: { clientId, clientSecret, authority: `${process.env.PBI_AUTHORITY_URL}${tenantId}` },
+    });
     const response = await cca.acquireTokenByClientCredential(
-      clientCredentialRequest
+      { scopes: [process.env.PBI_SCOPE || ""] }
     );
     if (!response || !response.accessToken) {
       throw new Error("Falha ao adquirir token do Azure AD.");

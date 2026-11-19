@@ -29,7 +29,7 @@ const HIGHLIGHT_COLORS = [
 
 export function ResultsPanel() {
   const { state, activeTab, runFromHistory, clearHistory, executeQuery, dispatch, newTab } = useSqlWorkbench();
-  const [activeResultsTab, setActiveResultsTab] = useState<TabType>('grid');
+  const [selectedResultsTab, setSelectedResultsTab] = useState<{ tab: TabType; source: unknown }>({ tab: 'grid', source: undefined });
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const highlightEnabled = state.highlightEnabled;
@@ -41,14 +41,11 @@ export function ResultsPanel() {
   // tivesse ficado olhando Histórico/Snippets/Mensagens antes, o
   // resultado novo chegava escondido numa aba que não estava sendo
   // exibida.
-  useEffect(() => {
-    const msgs = activeTab?.messages;
-    if (msgs && msgs.length > 0 && msgs[msgs.length - 1].type === 'error') {
-      setActiveResultsTab('messages');
-    } else if (activeTab?.results) {
-      setActiveResultsTab('grid');
-    }
-  }, [activeTab?.messages, activeTab?.results]);
+  const lastMessage = activeTab?.messages?.at(-1);
+  const outcomeSource = lastMessage?.type === 'error' ? lastMessage : activeTab?.results;
+  const activeResultsTab = selectedResultsTab.source === outcomeSource
+    ? selectedResultsTab.tab : lastMessage?.type === 'error' ? 'messages' : 'grid';
+  const setActiveResultsTab = (tab: TabType) => setSelectedResultsTab({ tab, source: outcomeSource });
   const [colWidths, setColWidths] = useState<Record<string, number>>({});
   const resizingRef = useRef<{ col: string; startX: number; startW: number } | null>(null);
 
@@ -103,7 +100,7 @@ export function ResultsPanel() {
       const bStr = String(bVal);
       return sortDirection === 'asc' ? aStr.localeCompare(bStr) : bStr.localeCompare(aStr);
     });
-  }, [results?.rows, sortColumn, sortDirection]);
+  }, [results, sortColumn, sortDirection]);
 
   // Busca rápida na grade: filtra por texto em qualquer coluna, sem
   // precisar escrever WHERE e reexecutar. Aplicada depois da ordenação.
@@ -129,7 +126,7 @@ export function ResultsPanel() {
       map[col] = counts;
     }
     return map;
-  }, [highlightEnabled, results?.rows, results?.columns]);
+  }, [highlightEnabled, results]);
 
   const getHighlightColor = (col: string, value: unknown): string | undefined => {
     if (!duplicateMap || !highlightEnabled) return undefined;
@@ -190,10 +187,6 @@ export function ResultsPanel() {
   // Limpa a seleção quando a busca muda — os índices selecionados se
   // referem à posição na lista filtrada; manter a seleção antiga com uma
   // lista filtrada diferente selecionaria linhas erradas.
-  useEffect(() => {
-    setSelectedRows(new Set());
-  }, [gridSearch]);
-
   const startResize = useCallback((e: React.MouseEvent, col: string) => {
     e.preventDefault();
     e.stopPropagation();
@@ -269,7 +262,7 @@ export function ResultsPanel() {
   const gridTotalWidth = useMemo(() => {
     if (!results?.columns) return undefined;
     return results.columns.reduce((sum, col) => sum + (colWidths[col] || DEFAULT_GRID_COL_WIDTH), SELECTION_COL_WIDTH);
-  }, [results?.columns, colWidths]);
+  }, [results, colWidths]);
 
   const virtuosoComponents: TableComponents<Record<string, unknown>> = useMemo(() => ({
     Table: (props) => (
@@ -281,8 +274,8 @@ export function ResultsPanel() {
         {props.children}
       </table>
     ),
-    TableHead: React.forwardRef((props, ref) => <thead {...props} ref={ref} className="sticky top-0 z-10" />),
-    TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref} />),
+    TableHead: React.forwardRef(function TableHead(props, ref) { return <thead {...props} ref={ref} className="sticky top-0 z-10" />; }),
+    TableBody: React.forwardRef(function TableBody(props, ref) { return <tbody {...props} ref={ref} />; }),
     TableRow: (props) => {
       const rowIndex = (props as unknown as { 'data-index'?: number })['data-index'];
       const isSelected = rowIndex !== undefined && selectedRows.has(rowIndex);
@@ -570,13 +563,13 @@ export function ResultsPanel() {
               <Search className="h-3 w-3 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <input
                 value={gridSearch}
-                onChange={(e) => setGridSearch(e.target.value)}
+                onChange={(e) => { setGridSearch(e.target.value); setSelectedRows(new Set()); }}
                 placeholder="Buscar na grade..."
                 className="h-6 w-36 pl-6 pr-5 text-xs bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-ring"
               />
               {gridSearch && (
                 <button
-                  onClick={() => setGridSearch('')}
+                  onClick={() => { setGridSearch(''); setSelectedRows(new Set()); }}
                   className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
                   <X className="h-3 w-3" />

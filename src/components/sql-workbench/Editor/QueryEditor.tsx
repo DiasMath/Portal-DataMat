@@ -83,11 +83,8 @@ function parseReferencedTables(sql: string): { table: string; alias?: string }[]
 
 export function QueryEditor({ tabId, sql, connectionId, fontSize = 14 }: QueryEditorProps) {
   const { state, dispatch, registerEditor, unregisterEditor } = useSqlWorkbench();
-  const editorRef = useRef<any>(null);
-  const sqlRef = useRef(sql);
-  sqlRef.current = sql;
   const schemasRef = useRef(state.schemas);
-  schemasRef.current = state.schemas;
+  useEffect(() => { schemasRef.current = state.schemas; }, [state.schemas]);
   const completionDisposableRef = useRef<{ dispose: () => void } | null>(null);
 
   // Cada instância do QueryEditor é remontada quando você troca de aba
@@ -106,7 +103,6 @@ export function QueryEditor({ tabId, sql, connectionId, fontSize = 14 }: QueryEd
   const handleEditorMount: OnMount = (editor, monaco) => {
     const isLive = connectionId?.startsWith('api:') === true;
     const quote = (name: string) => /^[A-Za-z_][A-Za-z_0-9]*$/.test(name) ? name : isLive ? `"${name.replaceAll('"', '""')}"` : `\`${name.replaceAll('`', '``')}\``;
-    editorRef.current = editor;
     registerEditor(tabId, editor);
 
     monaco.editor.defineTheme('datamat-sql', {
@@ -149,7 +145,7 @@ export function QueryEditor({ tabId, sql, connectionId, fontSize = 14 }: QueryEd
           endColumn: word.endColumn,
         };
 
-        const suggestions: any[] = [];
+        const suggestions: Monaco.languages.CompletionItem[] = [];
         const fullSql = model.getValue();
         const currentSchema = connectionId ? schemasRef.current[connectionId] : undefined;
         const referencedTables = currentSchema ? parseReferencedTables(fullSql) : [];

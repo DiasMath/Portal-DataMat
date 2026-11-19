@@ -77,7 +77,7 @@ export function SnippetsToolbar() {
   const [newTitle, setNewTitle] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [snippetSql, setSnippetSql] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
 
   const openAddDialog = () => {
@@ -88,7 +88,6 @@ export function SnippetsToolbar() {
   };
 
   const fetchSnippets = async () => {
-    setLoading(true);
     try {
       const res = await fetch('/api/sql/snippets?type=snippets');
       const data = await res.json();
@@ -100,7 +99,13 @@ export function SnippetsToolbar() {
   };
 
   useEffect(() => {
-    fetchSnippets();
+    const controller = new AbortController();
+    fetch('/api/sql/snippets?type=snippets', { signal: controller.signal })
+      .then((res) => res.json())
+      .then((data) => { if (data.snippets) setSnippets(data.snippets); })
+      .catch((err) => { if (!controller.signal.aborted) console.error('Failed to fetch snippets:', err); })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
   }, []);
 
   const grouped = useMemo(() => groupByCategory(snippets), [snippets]);

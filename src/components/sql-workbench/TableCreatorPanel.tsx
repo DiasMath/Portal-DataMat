@@ -180,7 +180,7 @@ export function TableCreatorPanel({ tabId }: { tabId: string }) {
     setColumns(columns.filter(c => c.id !== id));
   };
 
-  const updateColumn = (id: string, field: keyof Column, value: any) => {
+  const updateColumn = <K extends keyof Column>(id: string, field: K, value: Column[K]) => {
     setColumns(columns.map(c => c.id === id ? { ...c, [field]: value } : c));
   };
 
@@ -193,7 +193,7 @@ export function TableCreatorPanel({ tabId }: { tabId: string }) {
     setIndexes(indexes.filter(i => i.id !== id));
   };
 
-  const updateIndex = (id: string, field: keyof Index, value: any) => {
+  const updateIndex = <K extends keyof Index>(id: string, field: K, value: Index[K]) => {
     setIndexes(indexes.map(i => i.id === id ? { ...i, [field]: value } : i));
   };
 
@@ -206,12 +206,12 @@ export function TableCreatorPanel({ tabId }: { tabId: string }) {
     setForeignKeys(foreignKeys.filter(fk => fk.id !== id));
   };
 
-  const updateForeignKey = (id: string, field: keyof ForeignKey, value: any) => {
+  const updateForeignKey = <K extends keyof ForeignKey>(id: string, field: K, value: ForeignKey[K]) => {
     setForeignKeys(foreignKeys.map(fk => {
       if (fk.id !== id) return fk;
       // Trocar a tabela referenciada invalida as colunas já escolhidas
       // (eram colunas da tabela antiga).
-      if (field === 'refTable') return { ...fk, refTable: value, refColumns: [] };
+      if (field === 'refTable') return { ...fk, refTable: String(value), refColumns: [] };
       return { ...fk, [field]: value };
     }));
   };
@@ -329,21 +329,21 @@ export function TableCreatorPanel({ tabId }: { tabId: string }) {
                         <TableCell>
                           <Checkbox
                             checked={col.primaryKey}
-                            onCheckedChange={(c) => updateColumn(col.id, 'primaryKey', c)}
+                            onCheckedChange={(c) => updateColumn(col.id, 'primaryKey', c === true)}
                             className="mx-auto"
                           />
                         </TableCell>
                         <TableCell>
                           <Checkbox
                             checked={col.notNull}
-                            onCheckedChange={(c) => updateColumn(col.id, 'notNull', c)}
+                            onCheckedChange={(c) => updateColumn(col.id, 'notNull', c === true)}
                             className="mx-auto"
                           />
                         </TableCell>
                         <TableCell>
                           <Checkbox
                             checked={col.unique}
-                            onCheckedChange={(c) => updateColumn(col.id, 'unique', c)}
+                            onCheckedChange={(c) => updateColumn(col.id, 'unique', c === true)}
                             className="mx-auto"
                           />
                         </TableCell>
@@ -351,7 +351,7 @@ export function TableCreatorPanel({ tabId }: { tabId: string }) {
                           <Checkbox
                             checked={col.autoIncrement}
                             onCheckedChange={(c) => {
-                              if (c) {
+                              if (c === true) {
                                 setColumns(columns.map(cc => cc.id === col.id ? { ...cc, autoIncrement: true, type: 'INT', primaryKey: true, notNull: true } : { ...cc, autoIncrement: false }));
                               } else {
                                 updateColumn(col.id, 'autoIncrement', false);
@@ -406,7 +406,7 @@ export function TableCreatorPanel({ tabId }: { tabId: string }) {
                         placeholder="Nome do índice"
                         className="w-48"
                       />
-                      <Select value={idx.type} onValueChange={(v) => updateIndex(idx.id, 'type', v as any)}>
+                      <Select value={idx.type} onValueChange={(v) => updateIndex(idx.id, 'type', v as Index['type'])}>
                         <SelectTrigger className="w-36">
                           <SelectValue />
                         </SelectTrigger>
@@ -417,7 +417,7 @@ export function TableCreatorPanel({ tabId }: { tabId: string }) {
                       <Label className="flex items-center gap-2">
                         <Checkbox
                           checked={idx.unique}
-                          onCheckedChange={(c) => updateIndex(idx.id, 'unique', c)}
+                          onCheckedChange={(c) => updateIndex(idx.id, 'unique', c === true)}
                         />
                         Único
                       </Label>
@@ -567,7 +567,7 @@ export function TableCreatorPanel({ tabId }: { tabId: string }) {
 
                       <div className="flex flex-col gap-2">
                         <Label>ON DELETE</Label>
-                        <Select value={fk.onDelete} onValueChange={(v) => updateForeignKey(fk.id, 'onDelete', v as any)}>
+                        <Select value={fk.onDelete} onValueChange={(v) => updateForeignKey(fk.id, 'onDelete', v as ForeignKey['onDelete'])}>
                           <SelectTrigger className="w-full">
                             <SelectValue />
                           </SelectTrigger>
@@ -579,7 +579,7 @@ export function TableCreatorPanel({ tabId }: { tabId: string }) {
 
                       <div className="flex flex-col gap-2">
                         <Label>ON UPDATE</Label>
-                        <Select value={fk.onUpdate} onValueChange={(v) => updateForeignKey(fk.id, 'onUpdate', v as any)}>
+                        <Select value={fk.onUpdate} onValueChange={(v) => updateForeignKey(fk.id, 'onUpdate', v as ForeignKey['onUpdate'])}>
                           <SelectTrigger className="w-full">
                             <SelectValue />
                           </SelectTrigger>
