@@ -68,7 +68,8 @@ export function EditApiSourceDialog({ source, onOpenChange, onSaved }: {
       const auth = authKind === 'api_key'
         ? { kind: 'api_key', ...(keyValue ? { key_value: keyValue } : keyEnv ? { key_env: keyEnv } : {}), header_name: headerName, key_prefix: keyPrefix, send_as: 'header' }
         : authKind === 'basic_auth' ? { kind: 'basic_auth', username_env: usernameEnv, password_env: passwordEnv }
-        : authKind === 'oauth2_client_credentials' ? { kind: authKind, client_id_env: clientIdEnv, client_secret_env: clientSecretEnv, token_url_env: tokenUrlEnv, ...(scopeEnv ? { scope_env: scopeEnv } : {}) } : { kind: 'none' };
+        : authKind === 'oauth2_client_credentials' ? { kind: authKind, client_id_env: clientIdEnv, client_secret_env: clientSecretEnv, token_url_env: tokenUrlEnv, ...(scopeEnv ? { scope_env: scopeEnv } : {}) }
+        : authKind === 'oauth2_generic' ? { kind: authKind } : { kind: 'none' };
       const response = await fetch(`/api/sql/live/sources/${source.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name.trim(), tenant_id: tenantId.trim(), base_url: baseUrl.trim(), auth, datasets }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || data.error || 'Não foi possível salvar a conexão');
@@ -84,7 +85,7 @@ export function EditApiSourceDialog({ source, onOpenChange, onSaved }: {
         <label>Nome<Input value={name} onChange={(e) => setName(e.target.value)} /></label>
         <label>Tenant ID<Input value={tenantId} onChange={(e) => setTenantId(e.target.value)} /></label>
         <label className="col-span-2">URL base HTTPS<Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} /></label>
-        <label className="col-span-2">Autenticação<select className="block w-full rounded border bg-background p-2" value={authKind} onChange={(e) => setAuthKind(e.target.value)}><option value="none">Nenhuma</option><option value="api_key">API Key em header</option><option value="basic_auth">Basic Auth</option><option value="oauth2_client_credentials">OAuth2 · Client Credentials</option></select></label>
+        <label className="col-span-2">Autenticação<select className="block w-full rounded border bg-background p-2" value={authKind} onChange={(e) => setAuthKind(e.target.value)}><option value="none">Nenhuma</option><option value="api_key">API Key em header</option><option value="basic_auth">Basic Auth</option><option value="oauth2_client_credentials">OAuth2 · Client Credentials</option><option value="oauth2_generic">OAuth2 · Authorization Code do tenant</option></select></label>
         {authKind === 'api_key' && <>
           <label>API Key<Input type="password" autoComplete="off" value={keyValue} onChange={(e) => setKeyValue(e.target.value)} placeholder={source?.auth?.has_key ? 'Chave salva; deixe vazio para manter' : 'Cole a chave aqui'} /></label>
           <label>Ou variável de ambiente<Input value={keyEnv} onChange={(e) => setKeyEnv(e.target.value)} disabled={!!keyValue} /></label>
@@ -93,7 +94,8 @@ export function EditApiSourceDialog({ source, onOpenChange, onSaved }: {
         </>}
         {authKind === 'basic_auth' && <><label>Variável de usuário<Input value={usernameEnv} onChange={(e) => setUsernameEnv(e.target.value)} /></label><label>Variável de senha<Input value={passwordEnv} onChange={(e) => setPasswordEnv(e.target.value)} /></label></>}
         {authKind === 'oauth2_client_credentials' && <><label>Variável Client ID<Input value={clientIdEnv} onChange={(e) => setClientIdEnv(e.target.value)} /></label><label>Variável Client Secret<Input value={clientSecretEnv} onChange={(e) => setClientSecretEnv(e.target.value)} /></label><label>Variável Token URL<Input value={tokenUrlEnv} onChange={(e) => setTokenUrlEnv(e.target.value)} /></label><label>Variável Scope (opcional)<Input value={scopeEnv} onChange={(e) => setScopeEnv(e.target.value)} /></label></>}
-        {authKind !== 'none' && <p className="col-span-2 text-xs text-muted-foreground">Variáveis de ambiente devem estar autorizadas em LIVE_API_ALLOWED_SECRET_ENVS no serviço FastAPI.</p>}
+        {authKind === 'oauth2_generic' && <p className="col-span-2 text-xs text-muted-foreground">Use um tenant já autorizado no backend. A URL base deve ser igual à API_BASE_URL desse tenant; os tokens são renovados automaticamente.</p>}
+        {authKind !== 'none' && authKind !== 'oauth2_generic' && <p className="col-span-2 text-xs text-muted-foreground">Variáveis de ambiente devem estar autorizadas em LIVE_API_ALLOWED_SECRET_ENVS no serviço FastAPI.</p>}
       </div>
       <div className="min-h-0 min-w-0 space-y-2"><h3 className="text-sm font-medium">Endpoints GET ({source?.operations.filter((item) => item.method === 'GET').length || 0}) · tabelas SQL ({datasets.length})</h3>
         <div className={`${scrollbarStyles.scrollArea} max-h-64 min-w-0 space-y-2 overflow-x-hidden overflow-y-auto pr-2`} role="region" aria-label="Lista de endpoints GET">
