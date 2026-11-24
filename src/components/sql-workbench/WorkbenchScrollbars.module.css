@@ -43,3 +43,18 @@
   background: color-mix(in oklab, var(--muted-foreground) 75%, transparent);
   background-clip: padding-box;
 }
+
+.executeSpinner {
+  width: 16px;
+  height: 16px;
+  margin-left: 2px;
+  flex: none;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: workbenchLoadingSpin 0.75s linear infinite;
+}
+
+@keyframes workbenchLoadingSpin {
+  to { transform: rotate(360deg); }
+}

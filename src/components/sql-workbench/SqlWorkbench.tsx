@@ -473,7 +473,7 @@ export function SqlWorkbench() {
                 >
                   <Square className="h-3.5 w-3.5 fill-current" />
                   Cancelar
-                  <Loader2 className="h-3.5 w-3.5 animate-spin ml-0.5" />
+                  <span className={styles.executeSpinner} aria-hidden="true" />
                 </button>
               ) : (
                 <button

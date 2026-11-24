@@ -107,7 +107,7 @@ export function EditApiSourceDialog({ source, onOpenChange, onSaved }: {
             </div>
             {dataset && expanded === operation.operation_id && <div className="mt-2 grid min-w-0 grid-cols-2 gap-2 [&_label]:min-w-0">
               <label>Nome SQL<Input value={dataset.name} onChange={(e) => change(dataset.operation_id, { name: e.target.value })} /></label>
-              <label>Caminho dos registros<Input value={dataset.data_path || ''} onChange={(e) => change(dataset.operation_id, { data_path: e.target.value || null })} placeholder="data.items" /></label>
+              <label>Caminho dos registros<Input value={dataset.data_path || ''} onChange={(e) => change(dataset.operation_id, { data_path: e.target.value || null })} placeholder="vazio = automático; . = raiz" /></label>
               <label>Paginação<select className="block w-full rounded border bg-background p-2" value={dataset.pagination.mode} onChange={(e) => change(dataset.operation_id, { pagination: { ...dataset.pagination, mode: e.target.value as 'none' | 'page' | 'cursor' } })}><option value="none">Sem paginação</option><option value="page">Por página</option><option value="cursor">Por cursor</option></select></label>
               {dataset.pagination.mode === 'page' && <>
                 <label>Parâmetro da página<Input value={dataset.pagination.page_param} onChange={(e) => change(dataset.operation_id, { pagination: { ...dataset.pagination, page_param: e.target.value } })} /></label>
