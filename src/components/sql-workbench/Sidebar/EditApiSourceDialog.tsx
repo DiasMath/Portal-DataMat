@@ -78,9 +78,9 @@ export function EditApiSourceDialog({ source, onOpenChange, onSaved }: {
   };
 
   return <Dialog open={!!source} onOpenChange={(open) => { if (!busy) onOpenChange(open); }}>
-    <DialogContent className={`${scrollbarStyles.scrollArea} sm:max-w-2xl max-h-[85vh] overflow-y-auto`}>
-      <DialogHeader><DialogTitle>Editar conexão de API</DialogTitle><DialogDescription>Altere a conexão e os nomes das tabelas SQL. As alterações ficam salvas para as próximas sessões.</DialogDescription></DialogHeader>
-      <div className="grid grid-cols-2 gap-3 text-sm">
+    <DialogContent className={`${scrollbarStyles.scrollArea} w-[calc(100vw-2rem)] min-w-0 max-h-[85vh] overflow-x-hidden overflow-y-auto sm:max-w-2xl`}>
+      <DialogHeader className="min-w-0"><DialogTitle>Editar conexão de API</DialogTitle><DialogDescription>Altere a conexão e os nomes das tabelas SQL. As alterações ficam salvas para as próximas sessões.</DialogDescription></DialogHeader>
+      <div className="grid min-w-0 grid-cols-2 gap-3 text-sm [&_label]:min-w-0">
         <label>Nome<Input value={name} onChange={(e) => setName(e.target.value)} /></label>
         <label>Tenant ID<Input value={tenantId} onChange={(e) => setTenantId(e.target.value)} /></label>
         <label className="col-span-2">URL base HTTPS<Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} /></label>
@@ -95,8 +95,8 @@ export function EditApiSourceDialog({ source, onOpenChange, onSaved }: {
         {authKind === 'oauth2_client_credentials' && <><label>Variável Client ID<Input value={clientIdEnv} onChange={(e) => setClientIdEnv(e.target.value)} /></label><label>Variável Client Secret<Input value={clientSecretEnv} onChange={(e) => setClientSecretEnv(e.target.value)} /></label><label>Variável Token URL<Input value={tokenUrlEnv} onChange={(e) => setTokenUrlEnv(e.target.value)} /></label><label>Variável Scope (opcional)<Input value={scopeEnv} onChange={(e) => setScopeEnv(e.target.value)} /></label></>}
         {authKind !== 'none' && <p className="col-span-2 text-xs text-muted-foreground">Variáveis de ambiente devem estar autorizadas em LIVE_API_ALLOWED_SECRET_ENVS no serviço FastAPI.</p>}
       </div>
-      <div className="min-h-0 space-y-2"><h3 className="text-sm font-medium">Endpoints GET ({source?.operations.filter((item) => item.method === 'GET').length || 0}) · tabelas SQL ({datasets.length})</h3>
-        <div className="max-h-64 space-y-2 overflow-y-auto pr-2" role="region" aria-label="Lista de endpoints GET">
+      <div className="min-h-0 min-w-0 space-y-2"><h3 className="text-sm font-medium">Endpoints GET ({source?.operations.filter((item) => item.method === 'GET').length || 0}) · tabelas SQL ({datasets.length})</h3>
+        <div className={`${scrollbarStyles.scrollArea} max-h-64 min-w-0 space-y-2 overflow-x-hidden overflow-y-auto pr-2`} role="region" aria-label="Lista de endpoints GET">
         {source?.operations.filter((item) => item.method === 'GET').map((operation) => {
           const dataset = datasets.find((item) => item.operation_id === operation.operation_id);
           return <div key={operation.operation_id} className="rounded border p-2 text-sm">
@@ -105,7 +105,7 @@ export function EditApiSourceDialog({ source, onOpenChange, onSaved }: {
               {dataset ? <button type="button" className="shrink-0 text-primary hover:underline" aria-expanded={expanded === operation.operation_id} onClick={() => setExpanded(expanded === operation.operation_id ? null : operation.operation_id)}>{expanded === operation.operation_id ? 'Recolher' : 'Editar'}</button>
                 : <button type="button" className="shrink-0 text-primary hover:underline" onClick={() => configure(operation)}>Configurar</button>}
             </div>
-            {dataset && expanded === operation.operation_id && <div className="mt-2 grid grid-cols-2 gap-2">
+            {dataset && expanded === operation.operation_id && <div className="mt-2 grid min-w-0 grid-cols-2 gap-2 [&_label]:min-w-0">
               <label>Nome SQL<Input value={dataset.name} onChange={(e) => change(dataset.operation_id, { name: e.target.value })} /></label>
               <label>Caminho dos registros<Input value={dataset.data_path || ''} onChange={(e) => change(dataset.operation_id, { data_path: e.target.value || null })} placeholder="data.items" /></label>
               <label>Paginação<select className="block w-full rounded border bg-background p-2" value={dataset.pagination.mode} onChange={(e) => change(dataset.operation_id, { pagination: { ...dataset.pagination, mode: e.target.value as 'none' | 'page' | 'cursor' } })}><option value="none">Sem paginação</option><option value="page">Por página</option><option value="cursor">Por cursor</option></select></label>
