@@ -133,6 +133,8 @@ jobs:
             PBI_AUTHORITY_URL=${{ secrets.PBI_AUTHORITY_URL }}
             PBI_SCOPE=${{ secrets.PBI_SCOPE }}
             PBI_API_BASE_URL=${{ secrets.PBI_API_BASE_URL }}
+            LIVE_API_URL=${{ secrets.LIVE_API_URL }}
+            LIVE_API_INTERNAL_KEY=${{ secrets.LIVE_API_INTERNAL_KEY }}
             NEXT_PUBLIC_APP_URL=http://191.252.60.127
             ENVEOF
 

@@ -17,3 +17,12 @@ não rode `npm ci` antes de revisar essas alterações.
 As instruções completas de importação, orçamento, sintaxe SQL, credenciais,
 testes e encerramento estão em `../_PY/docs/live-api-sql.md` nos checkouts
 irmãos usados nesta implementação.
+
+## Produção
+
+O deploy da branch `prod` lê os secrets `LIVE_API_URL` e
+`LIVE_API_INTERNAL_KEY` do GitHub Actions. Configure a mesma chave interna no
+FastAPI de produção e use uma URL que o servidor do Portal consiga alcançar.
+O FastAPI deve estar ativo antes de usar as fontes REST no Workbench. O
+catálogo `.live_api` e os tokens OAuth do tenant são locais e não acompanham o
+Git; configure o tenant e importe a conexão novamente no ambiente de produção.
