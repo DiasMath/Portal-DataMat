@@ -53,6 +53,8 @@
   border-right-color: transparent;
   border-radius: 50%;
   animation: workbenchLoadingSpin 0.75s linear infinite;
+  animation-duration: 0.75s !important;
+  animation-iteration-count: infinite !important;
 }
 
 @keyframes workbenchLoadingSpin {
