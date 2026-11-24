@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useReducer, useCallback, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
+import type { editor as MonacoEditor } from 'monaco-editor';
 import type {
   SqlWorkbenchState,
   Connection,
@@ -9,7 +10,6 @@ import type {
   QueryResult,
   QueryMessage,
   DatabaseSchema,
-  SavedQuery,
   QueryHistoryEntry,
 } from '@/types/sql-workbench';
 
@@ -207,7 +207,7 @@ interface SqlWorkbenchContextType {
   clearHistory: () => void;
   runFromHistory: (historyEntry: QueryHistoryEntry) => void;
   saveQuery: (name?: string) => Promise<string | null>;
-  registerEditor: (tabId: string, editor: unknown) => void;
+  registerEditor: (tabId: string, editor: MonacoEditor.IStandaloneCodeEditor) => void;
   unregisterEditor: (tabId: string) => void;
   /** Texto selecionado no editor da aba, ou null se não houver seleção (ou aba não registrada). */
   getSelectedSql: (tabId: string) => string | null;
@@ -223,9 +223,9 @@ export function SqlWorkbenchProvider({ children }: { children: React.ReactNode }
   // mount. Usado só pra ler a seleção atual (ex: "Executar" no toolbar
   // rodando só o trecho selecionado); nunca guardamos isso no state React
   // porque não precisa (nem deveria) causar re-render.
-  const editorInstancesRef = useRef<Map<string, any>>(new Map());
+  const editorInstancesRef = useRef<Map<string, MonacoEditor.IStandaloneCodeEditor>>(new Map());
 
-  const registerEditor = useCallback((tabId: string, editor: unknown) => {
+  const registerEditor = useCallback((tabId: string, editor: MonacoEditor.IStandaloneCodeEditor) => {
     editorInstancesRef.current.set(tabId, editor);
   }, []);
 
