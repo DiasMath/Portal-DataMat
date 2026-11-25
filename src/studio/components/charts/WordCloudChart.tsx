@@ -31,7 +31,7 @@ export const WordCloudChart = React.memo(function WordCloudChart({ data, formatt
       series: [{
         type: 'scatter' as const,
         data: wordData.map((d, i) => ({
-          value: [Math.random() * 100, Math.random() * 100, d.value],
+          value: [((i * 73) % 97) + 1, ((i * 47) % 89) + 1, d.value],
           name: d.name,
           symbolSize: Math.max(
             formatting.wordCloudMinSize ?? formatting.wordCloudSizeRange?.[0] ?? 14,

@@ -155,7 +155,8 @@ function DashboardPage() {
       }
     }
 
-    setRedirecting(false);
+    const timer = window.setTimeout(() => setRedirecting(false), 0);
+    return () => window.clearTimeout(timer);
   }, [userData, companyId, authLoading]);
 
   // Se está a redirecionar ou a carregar, mostra spinner

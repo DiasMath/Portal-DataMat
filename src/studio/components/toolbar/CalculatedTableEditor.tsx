@@ -1,25 +1,25 @@
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Table } from 'lucide-react';
 import { useStudio } from '../../store/StudioContext';
 import { SqlEditorBase } from '../shared/SqlEditorBase';
 
 export function CalculatedTableEditor() {
+  const { state } = useStudio();
+  if (!state.calculatedTableEditorOpen) return null;
+  return <CalculatedTableEditorContent key={state.editingCalculatedTableId ?? 'new'} />;
+}
+
+function CalculatedTableEditorContent() {
   const { state, dispatch } = useStudio();
-  const [tableName, setTableName] = useState('');
-  const [expression, setExpression] = useState('');
 
   const editingTable = state.editingCalculatedTableId
     ? state.calculatedTables.find((t: { id: string }) => t.id === state.editingCalculatedTableId)
     : null;
 
-  useEffect(() => {
-    if (editingTable) {
-      setTableName(editingTable.name);
-      setExpression(editingTable.expression);
-    }
-  }, [editingTable]);
+  const [tableName, setTableName] = useState(editingTable?.name ?? '');
+  const [expression, setExpression] = useState(editingTable?.expression ?? '');
 
   const handleSave = useCallback(() => {
     if (!tableName.trim() || !expression.trim()) return;

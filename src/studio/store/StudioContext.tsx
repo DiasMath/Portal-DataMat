@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useReducer, useCallback, useRef, useEffect, useMemo, useSyncExternalStore } from 'react';
+import React, { createContext, useContext, useReducer, useCallback, useRef, useEffect, useMemo } from 'react';
 import type { StudioState, StudioAction } from '../types/state';
 import { studioReducer, getInitialState } from './reducer';
 import { getActivePage, getVisualFromPage } from './selectors';
@@ -28,8 +28,6 @@ export function StudioProvider({
   mode?: 'editor' | 'viewer';
 }) {
   const [state, dispatch] = useReducer(studioReducer, null, () => getInitialState(mode));
-  const stateRef = useRef(state);
-  stateRef.current = state;
 
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSaveRef = useRef<string>('');
@@ -74,13 +72,13 @@ export function StudioProvider({
   }, [state]);
 
   const getActivePageCb = useCallback(() => {
-    return getActivePage(stateRef.current);
-  }, []);
+    return getActivePage(state);
+  }, [state]);
 
   const getSelectedVisualCb = useCallback(() => {
-    if (!stateRef.current.selectedVisualId) return null;
-    return getVisualFromPage(stateRef.current, stateRef.current.selectedVisualId);
-  }, []);
+    if (!state.selectedVisualId) return null;
+    return getVisualFromPage(state, state.selectedVisualId);
+  }, [state]);
 
   const canUndo = state.undoStack.length > 0;
   const canRedo = state.redoStack.length > 0;
@@ -127,28 +125,8 @@ export function useStudioSelector<T>(selector: (state: StudioState) => T, isEqua
     throw new Error('useStudioSelector must be used within a StudioProvider');
   }
 
-  const selectorRef = useRef(selector);
-  selectorRef.current = selector;
-
-  const isEqualRef = useRef(isEqual);
-  isEqualRef.current = isEqual;
-
-  const subscribe = useCallback((onStoreChange: () => void) => {
-    // Subscribe to the state context by re-rendering on any state change
-    // The equality check in useSyncExternalStore will prevent unnecessary re-renders
-    const unsubscribe = () => {};
-    // We use the state object reference as the signal
-    // Components using selectors will only re-render when their selected value changes
-    return unsubscribe;
-  }, []);
-
-  // Use useSyncExternalStore with a snapshot that changes when selected value changes
-  const getSnapshot = useCallback(() => {
-    const selected = selectorRef.current(state);
-    return selected;
-  }, [state]);
-
-  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  void isEqual;
+  return selector(state);
 }
 
 /**

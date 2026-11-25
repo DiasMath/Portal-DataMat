@@ -53,6 +53,11 @@ export function PropertiesPanel() {
     ?.visuals.find(v => v.id === state.selectedVisualId);
 
   const selectedTextBox = state.textBoxes.find(tb => tb.id === state.selectedTextBoxId);
+  const visualCount = state.pages.find(p => p.id === state.activePageId)?.visuals.length ?? 0;
+  const handleAddVisual = (type: VisualType) => {
+    const offset = (visualCount % 8) * 28;
+    dispatch({ type: 'ADD_VISUAL', payload: { type, x: 50 + offset, y: 50 + offset } });
+  };
 
   if (selectedTextBox && !selectedVisual) {
     return (
@@ -82,7 +87,7 @@ export function PropertiesPanel() {
       <div className="h-full flex flex-col bg-white dark:bg-neutral-900 border-l border-neutral-200 dark:border-neutral-700">
         <VisualGalleryDialog
           onSelect={(type) => {
-            dispatch({ type: 'ADD_VISUAL', payload: { type, x: 50 + Math.random() * 200, y: 50 + Math.random() * 200 } });
+            handleAddVisual(type);
             setShowGallery(false);
           }}
           onClose={() => setShowGallery(false)}
@@ -95,10 +100,6 @@ export function PropertiesPanel() {
     if (selectedVisual) {
       dispatch({ type: 'UPDATE_VISUAL', payload: { id: selectedVisual.id, updates: { type } } });
     }
-  };
-
-  const handleAddVisual = (type: VisualType) => {
-    dispatch({ type: 'ADD_VISUAL', payload: { type, x: 50 + Math.random() * 200, y: 50 + Math.random() * 200 } });
   };
 
   return (

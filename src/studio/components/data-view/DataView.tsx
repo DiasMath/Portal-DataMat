@@ -698,11 +698,11 @@ export function DataView() {
                   )}
                   components={{
                     Table: (props) => <table {...props} className="text-sm" style={{ borderCollapse: 'collapse' }} />,
-                    TableHead: React.forwardRef((props, ref) => <thead {...props} ref={ref} className="sticky top-0 bg-neutral-800 border-b border-neutral-700 z-10" />),
-                    TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref} />),
+                    TableHead: React.forwardRef(function DataViewTableHead(props, ref) { return <thead {...props} ref={ref} className="sticky top-0 bg-neutral-800 border-b border-neutral-700 z-10" />; }),
+                    TableBody: React.forwardRef(function DataViewTableBody(props, ref) { return <tbody {...props} ref={ref} />; }),
                     TableRow: (props) => {
-                      const index = (props as any)['data-index'] as number | undefined;
-                      const isSelected = index !== undefined && selectedRowIndices.has(index);
+                      const index = Number(props['data-index']);
+                      const isSelected = Number.isInteger(index) && selectedRowIndices.has(index);
                       return <tr {...props} className={`border-b border-neutral-700 ${isSelected ? 'bg-amber-500/10' : 'hover:bg-neutral-800/50'}`} />;
                     },
                   }}

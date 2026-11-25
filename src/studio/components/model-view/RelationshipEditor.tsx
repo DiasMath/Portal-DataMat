@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useStudio } from '../../store/StudioContext';
 import type { Relationship } from '../../types/dashboard';
 import { X, Check, AlertCircle, AlertTriangle, Table } from 'lucide-react';
@@ -20,27 +20,21 @@ const TYPE_ICONS: Record<string, string> = {
 };
 
 export function RelationshipEditor({ open, onOpenChange, relationship }: RelationshipEditorProps) {
+  if (!open || !relationship) return null;
+  return <RelationshipEditorContent key={relationship.id} onOpenChange={onOpenChange} relationship={relationship} />;
+}
+
+function RelationshipEditorContent({ onOpenChange, relationship }: Omit<RelationshipEditorProps, 'open'> & { relationship: Relationship }) {
   const { state, dispatch } = useStudio();
   const dataModel = state.dataModel;
 
-  const [fromTable, setFromTable] = useState('');
-  const [fromField, setFromField] = useState('');
-  const [toTable, setToTable] = useState('');
-  const [toField, setToField] = useState('');
-  const [cardinality, setCardinality] = useState<'1:1' | '1:N' | 'N:1'>('N:1');
-  const [crossFilterDirection, setCrossFilterDirection] = useState<'single' | 'both'>('single');
-  const [isActive, setIsActive] = useState(true);
-
-  useEffect(() => {
-    if (relationship && dataModel) {
-      setFromTable(relationship.fromTable);
-      setFromField(relationship.fromField);
-      setToTable(relationship.toTable);
-      setToField(relationship.toField);
-      setCardinality(relationship.cardinality);
-      setIsActive(relationship.active !== false);
-    }
-  }, [relationship, dataModel]);
+  const [fromTable, setFromTable] = useState(relationship.fromTable);
+  const [fromField, setFromField] = useState(relationship.fromField);
+  const [toTable, setToTable] = useState(relationship.toTable);
+  const [toField, setToField] = useState(relationship.toField);
+  const [cardinality, setCardinality] = useState<'1:1' | '1:N' | 'N:1'>(relationship.cardinality);
+  const [crossFilterDirection, setCrossFilterDirection] = useState<'single' | 'both'>(relationship.crossFilterDirection ?? 'single');
+  const [isActive, setIsActive] = useState(relationship.active !== false);
 
   const fromTableObj = dataModel?.tables.find(t => t.name === fromTable);
   const toTableObj = dataModel?.tables.find(t => t.name === toTable);
@@ -80,8 +74,6 @@ export function RelationshipEditor({ open, onOpenChange, relationship }: Relatio
     });
     onOpenChange(false);
   };
-
-  if (!open || !relationship) return null;
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">

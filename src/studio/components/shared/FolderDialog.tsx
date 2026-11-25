@@ -69,6 +69,11 @@ function FolderTreeItem({
 }
 
 export function FolderDialog({ open, onClose, onCreate, folders, title = 'Nova Pasta', initialParentId }: FolderDialogProps) {
+  if (!open) return null;
+  return <FolderDialogContent key={initialParentId ?? 'root'} onClose={onClose} onCreate={onCreate} folders={folders} title={title} initialParentId={initialParentId} />;
+}
+
+function FolderDialogContent({ onClose, onCreate, folders, title = 'Nova Pasta', initialParentId }: Omit<FolderDialogProps, 'open'>) {
   const [name, setName] = useState('');
   const [useParent, setUseParent] = useState(!!initialParentId);
   const [selectedParentId, setSelectedParentId] = useState<string | null>(initialParentId || null);
@@ -76,13 +81,9 @@ export function FolderDialog({ open, onClose, onCreate, folders, title = 'Nova P
   const nameInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (open) {
-      setName('');
-      setUseParent(!!initialParentId);
-      setSelectedParentId(initialParentId || null);
-      setTimeout(() => nameInputRef.current?.focus(), 50);
-    }
-  }, [open, initialParentId]);
+    const timer = window.setTimeout(() => nameInputRef.current?.focus(), 50);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const rootFolders = folders.filter(f => !f.parentId);
 
@@ -97,8 +98,6 @@ export function FolderDialog({ open, onClose, onCreate, folders, title = 'Nova P
     if (e.key === 'Enter') handleCreate();
     if (e.key === 'Escape') onClose();
   }, [handleCreate, onClose]);
-
-  if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center">

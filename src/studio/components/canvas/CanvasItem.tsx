@@ -115,7 +115,7 @@ export function CanvasItem({
 
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-  }, [mode, visual.locked, isSelected, isMultiSelected, onSelect, onMove, visual.x, visual.y, zoom, visual.width, visual.height, pageWidth, pageHeight, showGrid]);
+  }, [mode, visual.locked, isSelected, isMultiSelected, onSelect, onMove, onDragStart, onDragEnd, visual.x, visual.y, zoom, visual.width, visual.height, pageWidth, pageHeight, showGrid]);
 
   const handleResizeStart = useCallback((e: React.MouseEvent, direction: ResizeDirection) => {
     if (mode === 'viewer' || visual.locked) return;

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useCallback } from 'react';
+import React, { useRef } from 'react';
 import { useStudio } from '../../store/StudioContext';
 import { PAGE_PRESETS } from '../../types/canvas';
 import { Image, X } from 'lucide-react';
@@ -11,14 +11,12 @@ export function PageSettings() {
   const activePage = state.pages.find(p => p.id === state.activePageId);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  if (!activePage) return null;
-
-  const pageWidth = activePage.pageWidth || 1920;
-  const pageHeight = activePage.pageHeight || 1080;
+  const pageWidth = activePage?.pageWidth || 1920;
+  const pageHeight = activePage?.pageHeight || 1080;
 
   const handlePresetChange = (presetName: string) => {
     const preset = PAGE_PRESETS.find(p => p.name === presetName);
-    if (preset) {
+    if (preset && activePage) {
       dispatch({
         type: 'SET_PAGE_SIZE',
         payload: {
@@ -33,7 +31,7 @@ export function PageSettings() {
 
   const handleSizeChange = (field: 'width' | 'height', value: string) => {
     const num = parseInt(value, 10);
-    if (isNaN(num) || num < 100 || num > 5000) return;
+    if (!activePage || isNaN(num) || num < 100 || num > 5000) return;
     dispatch({
       type: 'SET_PAGE_SIZE',
       payload: {
@@ -45,9 +43,10 @@ export function PageSettings() {
     });
   };
 
-  const handleImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!activePage) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
       const dataUrl = ev.target?.result as string;
@@ -58,14 +57,17 @@ export function PageSettings() {
     };
     reader.readAsDataURL(file);
     e.target.value = '';
-  }, [activePage.id, dispatch]);
+  };
 
-  const handleRemoveImage = useCallback(() => {
+  const handleRemoveImage = () => {
+    if (!activePage) return;
     dispatch({
       type: 'SET_PAGE_BACKGROUND_IMAGE',
       payload: { pageId: activePage.id, backgroundImage: undefined },
     });
-  }, [activePage.id, dispatch]);
+  };
+
+  if (!activePage) return null;
 
   return (
     <div className="space-y-0">

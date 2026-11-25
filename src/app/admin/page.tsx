@@ -34,7 +34,7 @@ interface AuditLog {
   targetId?: string;
   targetName?: string;
   details?: Record<string, unknown>;
-  createdAt: { seconds: number } | { _seconds: number } | any;
+  createdAt: unknown;
 }
 
 const actionLabels: Record<string, string> = {
@@ -50,22 +50,13 @@ const actionLabels: Record<string, string> = {
   DASHBOARD_DELETE: "excluiu dashboard",
 };
 
-function formatRelativeTime(timestamp: { seconds: number } | { _seconds: number } | any): string {
-  let seconds: number;
+function formatRelativeTime(timestamp: unknown): string {
+  if (!timestamp || typeof timestamp !== 'object') return "data不明";
+  const value = 'seconds' in timestamp ? timestamp.seconds
+    : '_seconds' in timestamp ? timestamp._seconds : null;
+  if (typeof value !== 'number') return "data不明";
   
-  if (timestamp && typeof timestamp === 'object') {
-    if ('seconds' in timestamp) {
-      seconds = timestamp.seconds;
-    } else if ('_seconds' in timestamp) {
-      seconds = timestamp._seconds;
-    } else {
-      return "data不明";
-    }
-  } else {
-    return "data不明";
-  }
-  
-  const date = new Date(seconds * 1000);
+  const date = new Date(value * 1000);
   return date.toLocaleString('pt-BR', {
     day: '2-digit',
     month: '2-digit',

@@ -57,9 +57,9 @@ export function StudioEditor({ dashboardId }: StudioEditorProps) {
 
   // Refs for stable keyboard handler
   const stateRef = useRef(state);
-  stateRef.current = state;
+  useEffect(() => { stateRef.current = state; }, [state]);
   const dispatchRef = useRef(dispatch);
-  dispatchRef.current = dispatch;
+  useEffect(() => { dispatchRef.current = dispatch; }, [dispatch]);
 
   useStudioKeyboard(stateRef, dispatchRef);
   const { handleDragStart, handleDragEnd } = useStudioDnd({ state, dispatch, setActiveDragData });

@@ -85,17 +85,17 @@ export function TableEntity({
     setContextMenu({ visible: true, x: menuX, y: menuY, type, fieldName });
   }, [x, y]);
 
-  const handleDeleteTable = useCallback(() => {
+  const handleDeleteTable = () => {
     setContextMenu(prev => ({ ...prev, visible: false }));
     setDeleteConfirm({ type: 'model' });
-  }, []);
+  };
 
-  const handleRemoveFromView = useCallback(() => {
+  const handleRemoveFromView = () => {
     setContextMenu(prev => ({ ...prev, visible: false }));
     setDeleteConfirm({ type: 'view' });
-  }, []);
+  };
 
-  const confirmDelete = useCallback(() => {
+  const confirmDelete = () => {
     if (!deleteConfirm) return;
     const activeTab = state.modelViewTabs.find(t => t.id === state.activeModelViewTab);
     if (!activeTab) return;
@@ -120,7 +120,7 @@ export function TableEntity({
       });
     }
     setDeleteConfirm(null);
-  }, [deleteConfirm, state, dispatch, table.name]);
+  };
 
   const handleHideField = useCallback((fieldName: string) => {
     dispatch({ type: 'HIDE_FIELD', payload: { tableName: table.name, fieldName } });
@@ -188,7 +188,6 @@ export function TableEntity({
 
   // Resize handler
   const tableHeightRef = useRef(tableHeight);
-  tableHeightRef.current = tableHeight;
 
   const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -198,6 +197,7 @@ export function TableEntity({
     const handleMouseMove = (moveEvent: MouseEvent) => {
       const dy = (moveEvent.clientY - resizeStart.current.y) / zoom;
       const newHeight = Math.max(60, Math.min(400, resizeStart.current.height + dy));
+      tableHeightRef.current = newHeight;
       setTableHeight(newHeight);
     };
 

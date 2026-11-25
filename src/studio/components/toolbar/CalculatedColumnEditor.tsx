@@ -1,30 +1,27 @@
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Database } from 'lucide-react';
 import { useStudio } from '../../store/StudioContext';
 import { SqlEditorBase } from '../shared/SqlEditorBase';
 
 export function CalculatedColumnEditor() {
-  const { state, dispatch } = useStudio();
-  const [columnName, setColumnName] = useState('');
-  const [tableName, setTableName] = useState('');
-  const [expression, setExpression] = useState('');
-  const [dataType, setDataType] = useState<'string' | 'number' | 'date' | 'boolean'>('number');
+  const { state } = useStudio();
+  if (!state.calculatedColumnEditorOpen) return null;
+  return <CalculatedColumnEditorContent key={state.editingCalculatedColumnId ?? 'new'} />;
+}
 
+function CalculatedColumnEditorContent() {
+  const { state, dispatch } = useStudio();
   const existingTables = state.dataModel?.tables || [];
   const editingColumn = state.editingCalculatedColumnId
     ? state.calculatedColumns.find((c: { id: string }) => c.id === state.editingCalculatedColumnId)
     : null;
 
-  useEffect(() => {
-    if (editingColumn) {
-      setColumnName(editingColumn.name);
-      setTableName(editingColumn.tableName);
-      setExpression(editingColumn.expression);
-      setDataType(editingColumn.dataType);
-    }
-  }, [editingColumn]);
+  const [columnName, setColumnName] = useState(editingColumn?.name ?? '');
+  const [tableName, setTableName] = useState(editingColumn?.tableName ?? '');
+  const [expression, setExpression] = useState(editingColumn?.expression ?? '');
+  const [dataType, setDataType] = useState<'string' | 'number' | 'date' | 'boolean'>(editingColumn?.dataType ?? 'number');
 
   const handleSave = useCallback(() => {
     if (!columnName.trim() || !expression.trim() || !tableName.trim()) return;

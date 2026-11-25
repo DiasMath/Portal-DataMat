@@ -2,11 +2,12 @@
 
 import React, { useCallback } from 'react';
 import type { CanvasTextBox } from '../../types/dashboard';
+import type { StudioAction } from '../../types/state';
 
 interface TextBoxResizeHandlesProps {
   textBox: CanvasTextBox;
   canvasZoom: number;
-  dispatch: React.Dispatch<any>;
+  dispatch: React.Dispatch<StudioAction>;
 }
 
 interface ResizeConfig {

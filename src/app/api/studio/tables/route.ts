@@ -2,6 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { validateMasterAdmin } from '@/lib/auth-helpers';
 import { getConnection } from '@/lib/connections/repository';
 import { getPool } from '@/lib/sql/mysql-pool';
+import type { RowDataPacket } from 'mysql2/promise';
+
+interface TableRow extends RowDataPacket {
+  TABLE_NAME: string;
+}
+
+interface ColumnRow extends RowDataPacket {
+  COLUMN_NAME: string;
+  DATA_TYPE: string;
+  IS_NULLABLE: string;
+  COLUMN_KEY: string;
+}
 
 export async function POST(request: NextRequest) {
   const currentUser = await validateMasterAdmin(request);
@@ -25,7 +37,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Falha ao conectar' }, { status: 500 });
     }
 
-    const [tableRows] = await pool.query(
+    const [tableRows] = await pool.query<TableRow[]>(
       `SELECT TABLE_NAME, TABLE_COMMENT
        FROM information_schema.TABLES
        WHERE TABLE_SCHEMA = ? AND TABLE_TYPE = 'BASE TABLE'
@@ -35,8 +47,8 @@ export async function POST(request: NextRequest) {
 
     const tables: { name: string; columns: { name: string; type: string; key: string; nullable: boolean }[] }[] = [];
 
-    for (const row of tableRows as any[]) {
-      const [columns] = await pool.query(
+    for (const row of tableRows) {
+      const [columns] = await pool.query<ColumnRow[]>(
         `SELECT COLUMN_NAME, DATA_TYPE, COLUMN_TYPE, IS_NULLABLE, COLUMN_KEY
          FROM information_schema.COLUMNS
          WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
@@ -45,7 +57,7 @@ export async function POST(request: NextRequest) {
       );
       tables.push({
         name: row.TABLE_NAME,
-        columns: (columns as any[]).map(c => ({
+        columns: columns.map(c => ({
           name: c.COLUMN_NAME,
           type: c.DATA_TYPE,
           key: c.COLUMN_KEY,

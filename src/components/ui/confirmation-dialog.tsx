@@ -68,7 +68,7 @@ export function ConfirmationDialog({
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="confirm-name" className="text-sm text-gray-300">
-                Para confirmar, digite: <strong className="text-white">"{itemName}"</strong>
+                Para confirmar, digite: <strong className="text-white">&quot;{itemName}&quot;</strong>
               </Label>
               <Input
                 id="confirm-name"

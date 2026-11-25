@@ -1,5 +1,5 @@
 import { getPool } from './mysql-pool';
-import type { DatabaseSchema, TableInfo, ViewInfo, RoutineInfo, ForeignKeyInfo } from '@/types/sql-workbench';
+import type { DatabaseSchema, TableInfo, ViewInfo, RoutineInfo, ForeignKeyInfo, ColumnInfo, IndexInfo } from '@/types/sql-workbench';
 import { RowDataPacket } from 'mysql2/promise';
 
 export async function readSchema(connectionId: string, database?: string): Promise<DatabaseSchema | null> {
@@ -74,7 +74,7 @@ export async function readSchema(connectionId: string, database?: string): Promi
       constraintName: row.CONSTRAINT_NAME,
     }));
 
-    const columnMap = new Map<string, any[]>();
+    const columnMap = new Map<string, ColumnInfo[]>();
     for (const row of columnRows) {
       if (!columnMap.has(row.TABLE_NAME)) columnMap.set(row.TABLE_NAME, []);
       columnMap.get(row.TABLE_NAME)!.push({
@@ -87,7 +87,7 @@ export async function readSchema(connectionId: string, database?: string): Promi
       });
     }
 
-    const indexMap = new Map<string, any[]>();
+    const indexMap = new Map<string, IndexInfo[]>();
     for (const row of indexRows) {
       if (!indexMap.has(row.TABLE_NAME)) indexMap.set(row.TABLE_NAME, []);
       const existing = indexMap.get(row.TABLE_NAME)!.find((i) => i.name === row.INDEX_NAME);

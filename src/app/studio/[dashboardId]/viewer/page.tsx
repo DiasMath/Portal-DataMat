@@ -18,7 +18,8 @@ function ViewerLoader({ dashboardId }: { dashboardId: string }) {
       } catch {}
       localStorage.removeItem('studio_viewer_state');
     }
-    setLoaded(true);
+    const timer = window.setTimeout(() => setLoaded(true), 0);
+    return () => window.clearTimeout(timer);
   }, [dispatch]);
 
   if (!loaded) {

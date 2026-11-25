@@ -9,13 +9,15 @@ import { CANVAS_DEFAULTS } from '../../types/canvas';
 import { useVisualQuery } from '../../hooks/useVisualQuery';
 import { TextBoxResizeHandles } from './TextBoxResizeHandles';
 import type { Visual, DataModel } from '../../types/dashboard';
+import type { StudioAction } from '../../types/state';
+import type { VisualType } from '../../types/visuals';
 
 interface SmartGuide {
   type: 'vertical' | 'horizontal';
   position: number;
 }
 
-function QuerySync({ visual, dataModel, dispatch }: { visual: Visual; dataModel: DataModel | null; dispatch: React.Dispatch<any> }) {
+function QuerySync({ visual, dataModel, dispatch }: { visual: Visual; dataModel: DataModel | null; dispatch: React.Dispatch<StudioAction> }) {
   const { result, loading, error } = useVisualQuery(visual, dataModel);
   useEffect(() => {
     dispatch({
@@ -36,7 +38,6 @@ export function Canvas() {
   const spaceHeld = useRef(false);
   const marqueeJustSelected = useRef(false);
   const [marquee, setMarquee] = useState<{ startX: number; startY: number; endX: number; endY: number } | null>(null);
-  const [smartGuides, setSmartGuides] = useState<SmartGuide[]>([]);
   const [draggingVisualId, setDraggingVisualId] = useState<string | null>(null);
 
   const activePage = state.pages.find(p => p.id === state.activePageId);
@@ -46,18 +47,18 @@ export function Canvas() {
 
   const dataModel = state.dataModel;
 
-  const [initialFitDone, setInitialFitDone] = useState(false);
+  const initialFitDone = useRef(false);
 
   useLayoutEffect(() => {
-    if (initialFitDone) return;
+    if (initialFitDone.current) return;
     const el = scrollRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
     const fitZoom = Math.min(rect.width / pageWidth, rect.height / pageHeight);
     dispatch({ type: 'SET_CANVAS_ZOOM', payload: fitZoom });
-    setInitialFitDone(true);
-  }, [dispatch, pageWidth, pageHeight, initialFitDone]);
+    initialFitDone.current = true;
+  }, [dispatch, pageWidth, pageHeight]);
 
   // Scroll to selected visual when selection changes
   useEffect(() => {
@@ -91,11 +92,12 @@ export function Canvas() {
 
   const SNAP_THRESHOLD = 5;
 
-  const computeSmartGuides = useCallback((draggedVisualId: string) => {
+  const smartGuides = useMemo((): SmartGuide[] => {
+    if (!draggingVisualId) return [];
     const page = state.pages.find(p => p.id === state.activePageId);
-    if (!page) return;
-    const dragged = page.visuals.find(v => v.id === draggedVisualId);
-    if (!dragged) return;
+    if (!page) return [];
+    const dragged = page.visuals.find(v => v.id === draggingVisualId);
+    if (!dragged) return [];
 
     const guides: SmartGuide[] = [];
     const draggedEdges = {
@@ -108,7 +110,7 @@ export function Canvas() {
     };
 
     for (const v of page.visuals) {
-      if (v.id === draggedVisualId) continue;
+      if (v.id === draggingVisualId) continue;
       const edges = {
         left: v.x,
         right: v.x + v.width,
@@ -131,14 +133,8 @@ export function Canvas() {
       if (Math.abs(draggedEdges.bottom - edges.top) < SNAP_THRESHOLD) guides.push({ type: 'horizontal', position: edges.top });
     }
 
-    setSmartGuides(guides);
-  }, [state.pages, state.activePageId]);
-
-  useEffect(() => {
-    if (draggingVisualId) {
-      computeSmartGuides(draggingVisualId);
-    }
-  }, [draggingVisualId, computeSmartGuides]);
+    return guides;
+  }, [draggingVisualId, state.pages, state.activePageId]);
 
   const handleCanvasClick = useCallback((e: React.MouseEvent) => {
     if (spaceHeld.current) return;
@@ -296,7 +292,7 @@ export function Canvas() {
     const x = (e.clientX - rect.left + el.scrollLeft) / zoom;
     const y = (e.clientY - rect.top + el.scrollTop) / zoom;
 
-    dispatch({ type: 'ADD_VISUAL', payload: { type: visualType as any, x, y } });
+    dispatch({ type: 'ADD_VISUAL', payload: { type: visualType as VisualType, x, y } });
   }, [state.canvasZoom, dispatch]);
 
   return (
@@ -316,7 +312,7 @@ export function Canvas() {
         ref={scrollRef}
         data-canvas-fit
         className="w-full h-full overflow-auto studio-scrollbar"
-        style={{ cursor: isPanning ? 'grabbing' : spaceHeld.current ? 'grab' : undefined }}
+        style={{ cursor: isPanning ? 'grabbing' : undefined }}
       >
             <div className="flex items-start justify-start" style={{ minHeight: '100%', minWidth: '100%' }}>
               <div
@@ -403,7 +399,7 @@ export function Canvas() {
                         setContextMenu({ visualId: visual.id, x: e.clientX, y: e.clientY });
                       }}
                       onDragStart={() => { setDraggingVisualId(visual.id); }}
-                      onDragEnd={() => { setDraggingVisualId(null); setSmartGuides([]); }}
+                      onDragEnd={() => { setDraggingVisualId(null); }}
                       crossFilterValue={crossFilterValue}
                       onCrossFilter={(fieldName, value) => {
                         if (state.crossFilter?.sourceVisualId === visual.id) {

@@ -179,12 +179,12 @@ export function QueryResultsGrid({ data, onRerun }: QueryResultsGridProps) {
             Table: (props) => (
               <table {...props} className="border-collapse" style={{ ...props.style, minWidth: totalWidth }} />
             ),
-            TableHead: React.forwardRef((props, ref) => (
+            TableHead: React.forwardRef(function QueryResultsTableHead(props, ref) { return (
               <thead {...props} ref={ref} className="sticky top-0 z-10" />
-            )),
-            TableBody: React.forwardRef((props, ref) => (
+            ); }),
+            TableBody: React.forwardRef(function QueryResultsTableBody(props, ref) { return (
               <tbody {...props} ref={ref} />
-            )),
+            ); }),
           }}
         />
       </div>

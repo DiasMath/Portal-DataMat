@@ -31,7 +31,7 @@ export const EChartWrapper = React.memo(function EChartWrapper({
   style,
 }: EChartWrapperProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [dimensions, setDimensions] = useState<{ width: number; height: number }>({
+  const [measuredDimensions, setDimensions] = useState<{ width: number; height: number }>({
     width: width || 300,
     height: height || 200,
   });
@@ -54,12 +54,7 @@ export const EChartWrapper = React.memo(function EChartWrapper({
     return () => observer.disconnect();
   }, [updateDimensions]);
 
-  // Force re-measure when width/height props change (fallback)
-  useEffect(() => {
-    if (width && height) {
-      setDimensions({ width, height });
-    }
-  }, [width, height]);
+  const dimensions = width && height ? { width, height } : measuredDimensions;
 
   const themeConfig = useMemo(() => getEChartsTheme(theme), [theme]);
 

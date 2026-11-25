@@ -36,13 +36,19 @@ const MONACO_OPTIONS: Monaco.editor.IStandaloneEditorConstructionOptions = {
 };
 
 export function MeasureEditor() {
+  const { state } = useStudio();
+  if (!state.measureEditorOpen) return null;
+  return <MeasureEditorContent key={state.editingMeasureId ?? 'new'} />;
+}
+
+function MeasureEditorContent() {
   const { state, dispatch } = useStudio();
   const editingMeasure = state.editingMeasureId
     ? (state.dataModel?.measures?.find(m => m.id === state.editingMeasureId) ?? null)
     : null;
 
-  const [measureName, setMeasureName] = useState('');
-  const [expression, setExpression] = useState('');
+  const [measureName, setMeasureName] = useState(editingMeasure?.name ?? '');
+  const [expression, setExpression] = useState(editingMeasure?.expression ?? '');
   const [format, setFormat] = useState(editingMeasure?.format ?? 'general');
   const [decimalPlaces, setDecimalPlaces] = useState(editingMeasure?.decimalPlaces ?? 2);
   const [editorHeight, setEditorHeight] = useState(220);
@@ -51,18 +57,7 @@ export function MeasureEditor() {
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
   const heightUpdateRaf = useRef<number>(0);
   const validationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const [debouncedExpression, setDebouncedExpression] = useState('');
-
-  useEffect(() => {
-    if (state.measureEditorOpen) {
-      setMeasureName(editingMeasure?.name ?? '');
-      setExpression(editingMeasure?.expression ?? '');
-      setDebouncedExpression(editingMeasure?.expression ?? '');
-      setFormat(editingMeasure?.format ?? 'general');
-      setDecimalPlaces(editingMeasure?.decimalPlaces ?? 2);
-      setEditorHeight(220);
-    }
-  }, [state.measureEditorOpen, editingMeasure]);
+  const [debouncedExpression, setDebouncedExpression] = useState(editingMeasure?.expression ?? '');
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -186,7 +181,7 @@ editor.addCommand(monaco.KeyCode.Escape, () => {
     });
 
     updateEditorHeight();
-  }, [handleSave, handleClose, updateEditorHeight]);
+  }, [handleSave, handleClose, updateEditorHeight, state.dataModel]);
 
   const handleEditorChange: OnChange = useCallback((value) => {
     setExpression(value || '');

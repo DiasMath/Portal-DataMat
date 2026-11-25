@@ -430,7 +430,7 @@ export default function UsersManagementPage() {
   };
 
   // --- INÍCIO: Funções Auxiliares para o Bloco de Permissões ---
-  const handlePermChange = (isEditing: boolean, field: keyof UserPermissions, value: any) => {
+  const handlePermChange = <K extends keyof UserPermissions>(isEditing: boolean, field: K, value: UserPermissions[K]) => {
     if (isEditing) {
       setEditFormData((prev) => ({ ...prev, permissions: { ...prev.permissions, [field]: value } }));
     } else {
@@ -439,7 +439,7 @@ export default function UsersManagementPage() {
   };
 
   const handleAllowedDashboardsType = (isEditing: boolean, companyId: string, type: "none" | "all" | "specific") => {
-    const updateLogic = (prev: any) => {
+    const updateLogic = <T extends { permissions: UserPermissions },>(prev: T): T => {
       const newAllowed = { ...(prev.permissions.allowedDashboards || {}) };
       if (type === "none") delete newAllowed[companyId];
       else if (type === "all") newAllowed[companyId] = "all";
@@ -452,7 +452,7 @@ export default function UsersManagementPage() {
   };
 
   const handleToggleSpecificDash = (isEditing: boolean, companyId: string, dashId: string) => {
-    const updateLogic = (prev: any) => {
+    const updateLogic = <T extends { permissions: UserPermissions },>(prev: T): T => {
       const newAllowed = { ...(prev.permissions.allowedDashboards || {}) };
       const current = newAllowed[companyId];
       if (Array.isArray(current)) {
@@ -466,7 +466,7 @@ export default function UsersManagementPage() {
   };
 
   const handleAllowedResourcesType = (isEditing: boolean, companyId: string, type: "none" | "all" | "specific") => {
-    const updateLogic = (prev: any) => {
+    const updateLogic = <T extends { permissions: UserPermissions },>(prev: T): T => {
       const newAllowed = { ...(prev.permissions.allowedResources || {}) };
       if (type === "none") delete newAllowed[companyId];
       else if (type === "all") newAllowed[companyId] = "all";
@@ -479,7 +479,7 @@ export default function UsersManagementPage() {
   };
 
   const handleToggleSpecificResource = (isEditing: boolean, companyId: string, resId: string) => {
-    const updateLogic = (prev: any) => {
+    const updateLogic = <T extends { permissions: UserPermissions },>(prev: T): T => {
       const newAllowed = { ...(prev.permissions.allowedResources || {}) };
       const current = newAllowed[companyId];
       if (Array.isArray(current)) {
@@ -517,7 +517,7 @@ const renderPermissionsBlock = (isEditing: boolean) => {
                 if (c) {
                   handlePermChange(isEditing, "canViewDashboardList", true);
                   // Limpa allowedDashboards para dar acesso total
-                  const updateLogic = (prev: any) => ({
+                  const updateLogic = <T extends { permissions: UserPermissions },>(prev: T): T => ({
                     ...prev,
                     permissions: { ...prev.permissions, allowedDashboards: {} }
                   });
@@ -560,7 +560,7 @@ const renderPermissionsBlock = (isEditing: boolean) => {
                       
                       {hasAccess && (
                         <div className="pl-6 space-y-3">
-                          <Select value={isAll ? "all" : "specific"} onValueChange={(v) => handleAllowedDashboardsType(isEditing, company.id, v as any)}>
+                          <Select value={isAll ? "all" : "specific"} onValueChange={(v) => handleAllowedDashboardsType(isEditing, company.id, v === "all" ? "all" : "specific")}>
                             <SelectTrigger className="h-8 text-xs w-[220px]"><SelectValue /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="all">Todos os Dashboards</SelectItem>
@@ -604,7 +604,7 @@ const renderPermissionsBlock = (isEditing: boolean) => {
               onCheckedChange={(c) => {
                 if (c) {
                   handlePermChange(isEditing, "canViewResourceList", true);
-                  const updateLogic = (prev: any) => ({
+                  const updateLogic = <T extends { permissions: UserPermissions },>(prev: T): T => ({
                     ...prev,
                     permissions: { ...prev.permissions, allowedResources: {} }
                   });
@@ -647,7 +647,7 @@ const renderPermissionsBlock = (isEditing: boolean) => {
                       
                       {hasAccess && (
                         <div className="pl-6 space-y-3">
-                          <Select value={isAll ? "all" : "specific"} onValueChange={(v) => handleAllowedResourcesType(isEditing, company.id, v as any)}>
+                          <Select value={isAll ? "all" : "specific"} onValueChange={(v) => handleAllowedResourcesType(isEditing, company.id, v === "all" ? "all" : "specific")}>
                             <SelectTrigger className="h-8 text-xs w-[220px]"><SelectValue /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="all">Todos os Recursos</SelectItem>

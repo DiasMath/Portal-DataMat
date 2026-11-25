@@ -97,11 +97,13 @@ export function ModelView() {
   }, [dataModel.tables, sidebarSearch]);
 
   useEffect(() => {
-    if (activeTab) {
+    if (!activeTab) return;
+    const timer = window.setTimeout(() => {
       setTablePositions(activeTab.tablePositions);
       setZoom(activeTab.zoom);
       setPan(activeTab.pan);
-    }
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [activeTab?.id]);
 
   const saveTabState = useCallback((updates: { tablePositions?: { id: string; x: number; y: number }[]; zoom?: number; pan?: { x: number; y: number } }) => {
@@ -113,7 +115,7 @@ export function ModelView() {
   }, [activeTab, dispatch]);
 
   const saveTabStateRef = useRef(saveTabState);
-  saveTabStateRef.current = saveTabState;
+  useEffect(() => { saveTabStateRef.current = saveTabState; }, [saveTabState]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -185,7 +187,7 @@ export function ModelView() {
   }, []);
 
   const tablePositionsRef = useRef(tablePositions);
-  tablePositionsRef.current = tablePositions;
+  useEffect(() => { tablePositionsRef.current = tablePositions; }, [tablePositions]);
 
   const handleTableMoveEnd = useCallback(() => {
     saveTabState({ tablePositions: tablePositionsRef.current });

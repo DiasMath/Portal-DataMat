@@ -32,13 +32,6 @@ export const CanvasTextBox = React.memo(function CanvasTextBox({ textBox, isSele
   const [text, setText] = useState(textBox.text);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Sync text from props when not editing
-  useEffect(() => {
-    if (!isEditing) {
-      setText(textBox.text);
-    }
-  }, [textBox.text, isEditing]);
-
   /** Handle click outside to finish editing */
   const handleBlur = useCallback(() => {
     setIsEditing(false);
@@ -108,6 +101,7 @@ export const CanvasTextBox = React.memo(function CanvasTextBox({ textBox, isSele
       }}
       onDoubleClick={(e) => {
         e.stopPropagation();
+        setText(textBox.text);
         setIsEditing(true);
       }}
     >
